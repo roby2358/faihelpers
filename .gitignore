@@ -72,3 +72,5 @@ env/
 # Logs
 *.log
 
+# pjpd
+pjpd/bak

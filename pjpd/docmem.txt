@@ -1,0 +1,44 @@
+Priority:   80
+Status: ToDo
+ID: chat-cvyr
+Build the chat interface tab, creating and managing docmem instances dynamically as conversations progress. Integrate docmem operations (append, summarize, expand) into the chat workflow so that conversation context is automatically captured and organized in the hierarchical structure.
+---
+Priority:   80
+Status: ToDo
+ID: llm-api-za72
+Integrate LLM API calls for generating summaries and processing content. Implement round-trip communication where the LLM can read from docmem (via serialization/expansion), generate responses or summaries, and write results back to docmem nodes. This enables the LLM to work with the hierarchical memory structure bidirectionally.
+---
+Priority:   70
+Status: ToDo
+ID: cmd-parse-ihmj
+Integrate command parsing functionality from the AI Parliament project. Adapt the command parsing system to work with docmem operations, allowing structured commands to trigger docmem actions like append, summarize, expand, and query. This will enable a command-driven interface for interacting with docmem instances.
+---
+Priority:   60
+Status: ToDo
+ID: chat-ui-q4w8
+Implement the chat interface UI components and interaction flow. Create the chat tab interface with message display, input handling, and user interaction patterns. Set up the basic structure for sending and receiving messages, formatting conversation history, and managing chat state within the application.
+---
+Priority:   50
+Status: ToDo
+ID: persist-bzb3
+Implement persistence for the SQLite database using IndexedDB so that docmem data survives page reloads and browser sessions. Serialize the database state to IndexedDB on save operations and restore it when loading a docmem instance.
+---
+Priority:   50
+Status: ToDo
+ID: gitignore-685m
+add pjpd/bak to .gitignore
+---
+Priority:   40
+Status: ToDo
+ID: doc-cmds-3s3a
+Enable document creation and editing through parsed command interface. Allow models to create new docmem documents and modify existing ones using structured commands. Implement command handlers that translate parsed commands into docmem operations like creating nodes, updating content, organizing structure, and managing document hierarchy.
+---
+Priority:   30
+Status: ToDo
+ID: download-3ck4
+Add a download button that exports a serialized docmem document. Implement functionality to serialize the current docmem tree structure into a downloadable format (JSON, text, or other format) so users can save and share docmem documents. The download should include the full hierarchical structure with all nodes, their content, context information, and relationships.
+---
+Priority:   30
+Status: ToDo
+ID: db-mgmt-fayc
+Implement database management functions for docmem instances. Add operations to clear/delete docmem documents, list all available docmem instances, view metadata about stored documents, and perform maintenance tasks. This will provide users with tools to manage their collection of docmem documents and clean up unused or outdated instances.
