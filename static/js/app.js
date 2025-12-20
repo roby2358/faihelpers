@@ -40,6 +40,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (messageClose) {
         messageClose.addEventListener('click', hideMessage);
     }
+    
+    // Initial render to show roots list
+    renderDocmem();
 });
 
 function initTabs() {
@@ -63,7 +66,7 @@ function initTabs() {
 
 function initDocmem() {
     const createBtn = document.getElementById('create-docmem-btn');
-    const loadBtn = document.getElementById('load-docmem-btn');
+    const refreshBtn = document.getElementById('refresh-roots-btn');
     const docmemIdInput = document.getElementById('docmem-id-input');
 
     createBtn.addEventListener('click', async () => {
@@ -71,13 +74,8 @@ function initDocmem() {
         await createDocmem(docmemId);
     });
 
-    loadBtn.addEventListener('click', async () => {
-        const docmemId = docmemIdInput.value.trim();
-        if (!docmemId) {
-            showMessage('Please enter a docmem ID', 'error');
-            return;
-        }
-        await loadDocmem(docmemId);
+    refreshBtn.addEventListener('click', () => {
+        renderDocmem();
     });
 }
 
@@ -98,7 +96,10 @@ async function loadDocmem(docmemId) {
         currentDocmem = new Docmem(docmemId);
         await currentDocmem.ready();
         renderDocmem();
-        showMessage(`Docmem loaded: ${docmemId}`, 'success');
+        const docmemIdInput = document.getElementById('docmem-id-input');
+        if (docmemIdInput) {
+            docmemIdInput.value = docmemId;
+        }
     } catch (error) {
         console.error('Error loading docmem:', error);
         showMessage('Error loading docmem: ' + error.message, 'error');
@@ -106,14 +107,29 @@ async function loadDocmem(docmemId) {
 }
 
 function renderDocmem() {
+    const container = document.getElementById('docmem-container');
+    
     if (!currentDocmem) {
+        // Show only roots list when no docmem is loaded
+        container.innerHTML = `
+            <div class="operation-controls">
+                <div class="operation-section">
+                    <h3>All Docmem Roots</h3>
+                    <div id="roots-list"></div>
+                </div>
+            </div>
+        `;
+        renderRootsList();
         return;
     }
 
-    const container = document.getElementById('docmem-container');
     const root = currentDocmem._getRoot();
     
     container.innerHTML = `
+        <div class="operation-section" style="margin-bottom: 2rem;">
+            <h3>All Docmem Roots</h3>
+            <div id="roots-list"></div>
+        </div>
         <div class="expand-controls">
             <label>Expand to token limit:</label>
             <input type="number" id="expand-token-limit" value="1000" min="1" />
@@ -156,14 +172,6 @@ function renderDocmem() {
                 <button id="update-btn">Update</button>
             </div>
             <div class="operation-section">
-                <h4>Find Node</h4>
-                <div class="input-row">
-                    <input type="text" id="find-node-id" placeholder="Node ID" />
-                    <button id="find-btn">Find</button>
-                </div>
-                <div id="find-result"></div>
-            </div>
-            <div class="operation-section">
                 <h4>Add Summary</h4>
                 <div class="input-row">
                     <input type="text" id="summary-node-ids" placeholder="Node IDs (space-separated)" />
@@ -182,6 +190,7 @@ function renderDocmem() {
     `;
 
     renderTree(root, document.getElementById('docmem-tree'));
+    renderRootsList();
 
     const expandBtn = document.getElementById('expand-btn');
     const serializeBtn = document.getElementById('serialize-btn');
@@ -258,41 +267,6 @@ function renderDocmem() {
             const node = currentDocmem.update_content(nodeId, content);
             showMessage(`Node updated: ${node.id}`, 'success');
             renderDocmem();
-        } catch (error) {
-            showMessage('Error: ' + error.message, 'error');
-        }
-    });
-
-    const findBtn = document.getElementById('find-btn');
-    findBtn.addEventListener('click', () => {
-        const nodeId = document.getElementById('find-node-id').value.trim();
-        if (!nodeId) {
-            showMessage('Node ID is required', 'error');
-            return;
-        }
-        
-        try {
-            const node = currentDocmem.find(nodeId);
-            const resultDiv = document.getElementById('find-result');
-            if (node) {
-                resultDiv.innerHTML = `
-                    <div class="found-node">
-                        <strong>Found Node:</strong><br/>
-                        ID: ${node.id}<br/>
-                        Content: ${escapeHtml(node.text)}<br/>
-                        Tokens: ${node.tokenCount}<br/>
-                        Order: ${node.order.toFixed(3)}<br/>
-                        Parent: ${node.parentId || 'None'}<br/>
-                        Context Type: ${escapeHtml(node.contextType)}<br/>
-                        Context Name: ${escapeHtml(node.contextName)}<br/>
-                        Context Value: ${escapeHtml(node.contextValue)}
-                    </div>
-                `;
-                showMessage(`Node found: ${node.id}`, 'success');
-            } else {
-                resultDiv.innerHTML = '<div>Node not found</div>';
-                showMessage('Node not found', 'error');
-            }
         } catch (error) {
             showMessage('Error: ' + error.message, 'error');
         }
@@ -455,4 +429,47 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function renderRootsList() {
+    const rootsListDiv = document.getElementById('roots-list');
+    if (!rootsListDiv) {
+        return;
+    }
+
+    try {
+        const roots = Docmem.getAllRoots();
+        
+        if (roots.length === 0) {
+            rootsListDiv.innerHTML = '<div>No root nodes found</div>';
+            return;
+        }
+
+        rootsListDiv.innerHTML = roots.map(root => `
+            <div class="found-node">
+                <strong>Root Node:</strong><br/>
+                ID: <span class="node-id-copy" data-node-id="${root.id}" style="color: #0066cc; cursor: pointer; text-decoration: underline;">${root.id}</span><br/>
+                Content: ${escapeHtml(root.text) || '(empty)'}<br/>
+                Tokens: ${root.tokenCount}<br/>
+                Order: ${root.order.toFixed(3)}<br/>
+                Created: ${root.createdAt}<br/>
+                Context Type: ${escapeHtml(root.contextType)}<br/>
+                Context Name: ${escapeHtml(root.contextName)}<br/>
+                Context Value: ${escapeHtml(root.contextValue)}
+            </div>
+        `).join('<hr style="margin: 0.5rem 0;"/>');
+
+        // Add click handlers to copy node IDs and load docmem
+        rootsListDiv.querySelectorAll('.node-id-copy').forEach(span => {
+            span.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const docmemId = span.getAttribute('data-node-id');
+                navigator.clipboard.writeText(docmemId);
+                await loadDocmem(docmemId);
+                showMessage(`Docmem loaded: ${docmemId}`, 'success');
+            });
+        });
+    } catch (error) {
+        rootsListDiv.innerHTML = `<div>Error loading roots: ${escapeHtml(error.message)}</div>`;
+    }
 }

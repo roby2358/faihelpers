@@ -18,15 +18,41 @@ class Node {
     _countTokens(text) {
         if (!text) return 0;
         try {
-            if (typeof gptTokenizer !== 'undefined' && gptTokenizer.encode) {
-                return gptTokenizer.encode(text).length;
-            } else if (typeof tiktoken !== 'undefined') {
+            // Try gpt-tokenizer from CDN - check various possible global names
+            if (typeof gptTokenizer !== 'undefined') {
+                if (typeof gptTokenizer.encode === 'function') {
+                    return gptTokenizer.encode(text).length;
+                } else if (typeof gptTokenizer === 'function') {
+                    // If it's a constructor, instantiate it
+                    const tokenizer = new gptTokenizer();
+                    if (tokenizer && typeof tokenizer.encode === 'function') {
+                        return tokenizer.encode(text).length;
+                    }
+                }
+            }
+            if (typeof GPTTokenizer !== 'undefined') {
+                if (typeof GPTTokenizer.encode === 'function') {
+                    return GPTTokenizer.encode(text).length;
+                } else if (typeof GPTTokenizer === 'function') {
+                    const tokenizer = new GPTTokenizer();
+                    if (tokenizer && typeof tokenizer.encode === 'function') {
+                        return tokenizer.encode(text).length;
+                    }
+                }
+            }
+            if (typeof window !== 'undefined') {
+                if (window.gptTokenizer && typeof window.gptTokenizer.encode === 'function') {
+                    return window.gptTokenizer.encode(text).length;
+                }
+            }
+            // Try tiktoken
+            if (typeof tiktoken !== 'undefined') {
                 const encoding = tiktoken.get_encoding('cl100k_base');
                 return encoding.encode(text).length;
-            } else {
-                console.warn('Tokenizer not available, using approximation');
-                return Math.ceil(text.length / 4);
             }
+            // Fallback to approximation
+            console.warn('Tokenizer not available, using approximation (characters / 4)');
+            return Math.ceil(text.length / 4);
         } catch (e) {
             console.warn('Tokenizer error, using approximation:', e);
             return Math.ceil(text.length / 4);
@@ -64,14 +90,20 @@ class Node {
     }
 }
 
-class Docmem {
-    constructor(docmemId) {
-        this.docmemId = docmemId;
-        this.db = null;
-        this._initPromise = this._init();
-    }
+// Shared database instance for all docmem instances
+let sharedDatabase = null;
+let databaseInitPromise = null;
 
-    async _init() {
+async function initSharedDatabase() {
+    if (sharedDatabase) {
+        return sharedDatabase;
+    }
+    
+    if (databaseInitPromise) {
+        return databaseInitPromise;
+    }
+    
+    databaseInitPromise = (async () => {
         // Wait for initSqlJs to be available (sql.js script should be loaded first)
         let attempts = 0;
         while (typeof initSqlJs === 'undefined' && attempts < 100) {
@@ -90,13 +122,52 @@ class Docmem {
                     return `https://cdn.jsdelivr.net/npm/sql.js@1.8.0/dist/${file}`;
                 }
             });
-            this.db = new SQL.Database();
-            this._initDb();
-            this._createRoot();
+            sharedDatabase = new SQL.Database();
+            
+            // Initialize database schema (CREATE TABLE IF NOT EXISTS)
+            sharedDatabase.run(`
+                CREATE TABLE IF NOT EXISTS nodes (
+                    id TEXT PRIMARY KEY,
+                    parent_id TEXT,
+                    text TEXT NOT NULL,
+                    order_value REAL NOT NULL,
+                    token_count INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    context_type TEXT NOT NULL,
+                    context_name TEXT NOT NULL,
+                    context_value TEXT NOT NULL,
+                    FOREIGN KEY (parent_id) REFERENCES nodes(id) ON DELETE CASCADE
+                )
+            `);
+            sharedDatabase.run('CREATE INDEX IF NOT EXISTS idx_parent_id ON nodes(parent_id)');
+            sharedDatabase.run('CREATE INDEX IF NOT EXISTS idx_order ON nodes(parent_id, order_value)');
+            
+            return sharedDatabase;
         } catch (error) {
             console.error('Error initializing SQL.js:', error);
             console.error('Error details:', error.stack);
+            databaseInitPromise = null;
             throw new Error('Failed to initialize SQL.js: ' + error.message);
+        }
+    })();
+    
+    return databaseInitPromise;
+}
+
+class Docmem {
+    constructor(docmemId) {
+        this.docmemId = docmemId;
+        this.db = null;
+        this._initPromise = this._init();
+    }
+
+    async _init() {
+        this.db = await initSharedDatabase();
+        // Check if root already exists, if not create it
+        const existingRoot = this._getRootById(this.docmemId);
+        if (!existingRoot) {
+            this._createRoot();
         }
     }
 
@@ -104,27 +175,21 @@ class Docmem {
         await this._initPromise;
     }
 
-    _initDb() {
-        this.db.run(`
-            CREATE TABLE nodes (
-                id TEXT PRIMARY KEY,
-                parent_id TEXT,
-                text TEXT NOT NULL,
-                order_value REAL NOT NULL,
-                token_count INTEGER NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                context_type TEXT NOT NULL,
-                context_name TEXT NOT NULL,
-                context_value TEXT NOT NULL,
-                FOREIGN KEY (parent_id) REFERENCES nodes(id) ON DELETE CASCADE
-            )
-        `);
-        this.db.run('CREATE INDEX idx_parent_id ON nodes(parent_id)');
-        this.db.run('CREATE INDEX idx_order ON nodes(parent_id, order_value)');
+    _getRootById(rootId) {
+        const stmt = this.db.prepare('SELECT * FROM nodes WHERE id = ? AND parent_id IS NULL');
+        stmt.bind([rootId]);
+        const result = stmt.step() ? this._rowToNode(stmt.getAsObject()) : null;
+        stmt.free();
+        return result;
     }
 
-    _createRoot() {
+    _createRoot(contextType = 'root', contextName = 'purpose', contextValue = 'document') {
+        // Check if root already exists
+        const existingRoot = this._getRootById(this.docmemId);
+        if (existingRoot) {
+            return existingRoot;
+        }
+        
         const root = new Node(
             this.docmemId,
             null,
@@ -133,11 +198,12 @@ class Docmem {
             null,
             null,
             null,
-            'root',
-            'purpose',
-            'document'
+            contextType,
+            contextName,
+            contextValue
         );
         this._insertNode(root);
+        return root;
     }
 
     _insertNode(node) {
@@ -216,13 +282,46 @@ class Docmem {
     }
 
     _getRoot() {
-        const stmt = this.db.prepare('SELECT * FROM nodes WHERE parent_id IS NULL');
-        const result = stmt.step() ? this._rowToNode(stmt.getAsObject()) : null;
-        stmt.free();
-        if (!result) {
-            throw new Error('Root node not found');
+        const root = this._getRootById(this.docmemId);
+        if (!root) {
+            throw new Error(`Root node not found for docmem: ${this.docmemId}`);
         }
-        return result;
+        return root;
+    }
+
+    _getAllRoots() {
+        const stmt = this.db.prepare('SELECT * FROM nodes WHERE parent_id IS NULL ORDER BY created_at');
+        const roots = [];
+        while (stmt.step()) {
+            roots.push(this._rowToNode(stmt.getAsObject()));
+        }
+        stmt.free();
+        return roots;
+    }
+
+    static getAllRoots() {
+        if (!sharedDatabase) {
+            return [];
+        }
+        const stmt = sharedDatabase.prepare('SELECT * FROM nodes WHERE parent_id IS NULL ORDER BY created_at');
+        const roots = [];
+        while (stmt.step()) {
+            const row = stmt.getAsObject();
+            roots.push({
+                id: row.id,
+                parentId: row.parent_id,
+                text: row.text,
+                order: row.order_value,
+                tokenCount: row.token_count,
+                createdAt: row.created_at,
+                updatedAt: row.updated_at,
+                contextType: row.context_type,
+                contextName: row.context_name,
+                contextValue: row.context_value
+            });
+        }
+        stmt.free();
+        return roots;
     }
 
     append_child(node_id, context_type, context_name, context_value, content) {

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FastAPI App</title>
+    <title>Fai Helpers</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
@@ -20,8 +20,20 @@
     
     <div id="app">
         <div id="chat-tab" class="tab-content active">
-            <h1>Chat</h1>
-            <p>Chat interface coming soon</p>
+            <div class="chat-controls">
+                <div class="chat-settings">
+                    <input type="text" id="chat-api-key" placeholder="OpenRouter API Key" />
+                    <input type="text" id="chat-model" placeholder="Model (e.g., openai/gpt-4)" value="anthropic/claude-haiku-4.5" />
+                    <button id="chat-start-btn">Start Chat</button>
+                </div>
+            </div>
+            <div id="chat-container" class="chat-container" style="display: none;">
+                <textarea id="chat-messages" class="chat-messages" readonly></textarea>
+                <div class="chat-input-area">
+                    <input type="text" id="chat-input" class="chat-input" placeholder="Type your message..." />
+                    <button id="chat-send-btn" class="chat-send-btn">Send</button>
+                </div>
+            </div>
         </div>
         
         <div id="docmem-tab" class="tab-content">
@@ -29,7 +41,7 @@
             <div class="docmem-controls">
                 <button id="create-docmem-btn">Create New Docmem</button>
                 <input type="text" id="docmem-id-input" placeholder="Docmem ID" />
-                <button id="load-docmem-btn">Load Docmem</button>
+                <button id="refresh-roots-btn">Refresh Roots</button>
             </div>
             <div id="docmem-container" class="docmem-container">
                 <p>Create or load a docmem to begin</p>
@@ -41,6 +53,8 @@
     <script src="https://cdn.jsdelivr.net/npm/gpt-tokenizer@2.1.2/index.js"></script>
     <script src="/static/js/tools.js"></script>
     <script src="/static/js/docmem.js"></script>
+    <script src="/static/js/docmem_chat.js"></script>
+    <script type="module" src="/static/js/chat.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>
