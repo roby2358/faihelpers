@@ -54,6 +54,15 @@ When summaries are regenerated, their embeddings must be updated in the vector D
 
 **Delete:** Remove a node and its children, updating the vector DB accordingly.
 
+## Operation details
+
+- append_child(node_id, context_type, context_name, context_value, content)
+- insert_between(node_id_1, node_id_2, context_type, context_name, context_value, content)
+- delete(node_id)
+- update_content(node_id, content)
+- find(node_id)
+- add_summary([node_ids], content)
+
 ## Open Questions
 
 **Summary behavior on expansion:** When a summary is expanded, what happens to the summary node itself? Options include replacing it entirely with children (clean but loses framing), keeping it as a header (natural but redundant), making it a parameter of the expand operation, or having serialization modes that skip or include interior nodes.

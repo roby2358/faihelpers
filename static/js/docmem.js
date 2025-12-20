@@ -1,20 +1,18 @@
-class NodeType {
-    static ROOT = 'root';
-    static USER = 'user';
-    static SUMMARY = 'summary';
-    static MEMORY = 'memory';
-}
-
 class Node {
-    constructor(nodeId, parentId, text, nodeType, order, tokenCount = null, createdAt = null, updatedAt = null) {
+    constructor(nodeId, parentId, text, order, tokenCount = null, createdAt = null, updatedAt = null, contextType, contextName, contextValue) {
+        if (!contextType || !contextName || !contextValue) {
+            throw new Error('contextType, contextName, and contextValue are required');
+        }
         this.id = nodeId;
         this.parentId = parentId;
         this.text = text;
-        this.nodeType = nodeType;
         this.order = order;
         this.tokenCount = tokenCount !== null ? tokenCount : this._countTokens(text);
         this.createdAt = createdAt || new Date().toISOString();
         this.updatedAt = updatedAt || new Date().toISOString();
+        this.contextType = contextType;
+        this.contextName = contextName;
+        this.contextValue = contextValue;
     }
 
     _countTokens(text) {
@@ -40,11 +38,13 @@ class Node {
             id: this.id,
             parentId: this.parentId,
             text: this.text,
-            nodeType: this.nodeType,
             order: this.order,
             tokenCount: this.tokenCount,
             createdAt: this.createdAt,
-            updatedAt: this.updatedAt
+            updatedAt: this.updatedAt,
+            contextType: this.contextType,
+            contextName: this.contextName,
+            contextValue: this.contextValue
         };
     }
 
@@ -53,11 +53,13 @@ class Node {
             data.id,
             data.parentId,
             data.text,
-            data.nodeType,
             data.order,
             data.tokenCount,
             data.createdAt,
-            data.updatedAt
+            data.updatedAt,
+            data.contextType,
+            data.contextName,
+            data.contextValue
         );
     }
 }
@@ -108,11 +110,13 @@ class Docmem {
                 id TEXT PRIMARY KEY,
                 parent_id TEXT,
                 text TEXT NOT NULL,
-                node_type TEXT NOT NULL,
                 order_value REAL NOT NULL,
                 token_count INTEGER NOT NULL,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
+                context_type TEXT NOT NULL,
+                context_name TEXT NOT NULL,
+                context_value TEXT NOT NULL,
                 FOREIGN KEY (parent_id) REFERENCES nodes(id) ON DELETE CASCADE
             )
         `);
@@ -122,29 +126,36 @@ class Docmem {
 
     _createRoot() {
         const root = new Node(
-            `${this.docmemId}_root`,
+            this.docmemId,
             null,
             '',
-            NodeType.ROOT,
-            0.0
+            0.0,
+            null,
+            null,
+            null,
+            'root',
+            'purpose',
+            'document'
         );
         this._insertNode(root);
     }
 
     _insertNode(node) {
         const stmt = this.db.prepare(`
-            INSERT INTO nodes (id, parent_id, text, node_type, order_value, token_count, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO nodes (id, parent_id, text, order_value, token_count, created_at, updated_at, context_type, context_name, context_value)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         stmt.bind([
             node.id,
             node.parentId,
             node.text,
-            node.nodeType,
             node.order,
             node.tokenCount,
             node.createdAt,
-            node.updatedAt
+            node.updatedAt,
+            node.contextType,
+            node.contextName,
+            node.contextValue
         ]);
         stmt.step();
         stmt.free();
@@ -179,11 +190,13 @@ class Docmem {
             row.id,
             row.parent_id,
             row.text,
-            row.node_type,
             row.order_value,
             row.token_count,
             row.created_at,
-            row.updated_at
+            row.updated_at,
+            row.context_type,
+            row.context_name,
+            row.context_value
         );
     }
 
@@ -212,100 +225,116 @@ class Docmem {
         return result;
     }
 
-    append(parentId, text, nodeType, contextType, contextValue1, contextValue2) {
-        const parent = this._getNode(parentId);
+    append_child(node_id, context_type, context_name, context_value, content) {
+        const parent = this._getNode(node_id);
         if (!parent) {
-            throw new Error(`Parent node ${parentId} not found`);
+            throw new Error(`Parent node ${node_id} not found`);
         }
 
-        const children = this._getChildren(parentId);
+        const children = this._getChildren(node_id);
         const maxOrder = children.length > 0 
             ? Math.max(...children.map(c => c.order))
             : 0.0;
         const newOrder = maxOrder + 1.0;
 
-        const nodeId = `${contextType}_${contextValue1}_${contextValue2}_${children.length}`;
+        const newNodeId = randomString(8);
         const node = new Node(
-            nodeId,
-            parentId,
-            text,
-            nodeType,
-            newOrder
+            newNodeId,
+            node_id,
+            content,
+            newOrder,
+            null,
+            null,
+            null,
+            context_type,
+            context_name,
+            context_value
         );
         this._insertNode(node);
         return node;
     }
 
-    insert(parentId, text, nodeType, contextType, contextValue1, contextValue2, afterNodeId = null, beforeNodeId = null) {
-        if (afterNodeId && beforeNodeId) {
-            throw new Error('Cannot specify both afterNodeId and beforeNodeId');
+    insert_between(node_id_1, node_id_2, context_type, context_name, context_value, content) {
+        const node1 = this._getNode(node_id_1);
+        const node2 = this._getNode(node_id_2);
+        
+        if (!node1) {
+            throw new Error(`Node ${node_id_1} not found`);
         }
-
-        const parent = this._getNode(parentId);
-        if (!parent) {
-            throw new Error(`Parent node ${parentId} not found`);
+        if (!node2) {
+            throw new Error(`Node ${node_id_2} not found`);
         }
-
+        
+        if (node1.parentId !== node2.parentId) {
+            throw new Error('Nodes must have the same parent');
+        }
+        
+        const parentId = node1.parentId;
         const children = this._getChildren(parentId);
-        let newOrder;
-
-        if (afterNodeId) {
-            const afterNode = this._getNode(afterNodeId);
-            if (!afterNode || afterNode.parentId !== parentId) {
-                throw new Error(`After node ${afterNodeId} not found or not a sibling`);
-            }
-            const afterIdx = children.findIndex(n => n.id === afterNodeId);
-            if (afterIdx === -1) {
-                throw new Error(`After node ${afterNodeId} not found in children`);
-            }
-            if (afterIdx === children.length - 1) {
-                newOrder = children[afterIdx].order + 1.0;
-            } else {
-                const a = children[afterIdx].order;
-                const b = children[afterIdx + 1].order;
-                newOrder = (a * 4 + b * 1) / 5;
-            }
-        } else if (beforeNodeId) {
-            const beforeNode = this._getNode(beforeNodeId);
-            if (!beforeNode || beforeNode.parentId !== parentId) {
-                throw new Error(`Before node ${beforeNodeId} not found or not a sibling`);
-            }
-            const beforeIdx = children.findIndex(n => n.id === beforeNodeId);
-            if (beforeIdx === -1) {
-                throw new Error(`Before node ${beforeNodeId} not found in children`);
-            }
-            if (beforeIdx === 0) {
-                newOrder = children[0].order - 1.0;
-            } else {
-                const a = children[beforeIdx - 1].order;
-                const b = children[beforeIdx].order;
-                newOrder = (a * 4 + b * 1) / 5;
-            }
-        } else {
-            throw new Error('Must specify either afterNodeId or beforeNodeId');
+        
+        // Find the positions of node1 and node2
+        const idx1 = children.findIndex(n => n.id === node_id_1);
+        const idx2 = children.findIndex(n => n.id === node_id_2);
+        
+        if (idx1 === -1 || idx2 === -1) {
+            throw new Error('One or both nodes not found in parent children');
         }
-
-        const nodeId = `${contextType}_${contextValue1}_${contextValue2}_${Math.floor(newOrder * 1000)}`;
+        
+        // Ensure node1 comes before node2
+        if (idx1 >= idx2) {
+            throw new Error('node_id_1 must come before node_id_2 in the ordering');
+        }
+        
+        // Calculate order between the two nodes using 20% interpolation
+        const a = children[idx1].order;
+        const b = children[idx2].order;
+        const newOrder = (a * 4 + b * 1) / 5;
+        
+        const newNodeId = randomString(8);
         const node = new Node(
-            nodeId,
+            newNodeId,
             parentId,
-            text,
-            nodeType,
-            newOrder
+            content,
+            newOrder,
+            null,
+            null,
+            null,
+            context_type,
+            context_name,
+            context_value
         );
         this._insertNode(node);
         return node;
     }
 
-    delete(nodeId) {
-        const node = this._getNode(nodeId);
+    delete(node_id) {
+        const node = this._getNode(node_id);
         if (!node) {
-            throw new Error(`Node ${nodeId} not found`);
+            throw new Error(`Node ${node_id} not found`);
         }
         const stmt = this.db.prepare('DELETE FROM nodes WHERE id = ?');
-        stmt.bind([nodeId]);
+        stmt.bind([node_id]);
         stmt.step();
         stmt.free();
+    }
+
+    update_content(node_id, content) {
+        const node = this._getNode(node_id);
+        if (!node) {
+            throw new Error(`Node ${node_id} not found`);
+        }
+        
+        // Create a temporary node to calculate token count
+        const tempNode = new Node(node_id, node.parentId, content, node.order, null, null, null, node.contextType, node.contextName, node.contextValue);
+        node.text = content;
+        node.tokenCount = tempNode.tokenCount;
+        node.updatedAt = new Date().toISOString();
+        this._updateNode(node);
+        return node;
+    }
+
+    find(node_id) {
+        return this._getNode(node_id);
     }
 
     serialize() {
@@ -355,29 +384,21 @@ class Docmem {
                 break;
             }
             
-            if (node.nodeType === NodeType.SUMMARY) {
-                const children = this._getChildren(node.id);
-                if (children.length > 0) {
-                    // Expand the summary by including its children
-                    const sortedChildren = [...children].sort((a, b) => a.order - b.order);
-                    for (const child of sortedChildren) {
-                        if (totalTokens + child.tokenCount <= maxTokens) {
-                            result.push(child);
-                            totalTokens += child.tokenCount;
-                        } else {
-                            // Stop when we exceed the length
-                            break;
-                        }
-                    }
-                } else {
-                    // Summary with no children, just include the summary
-                    if (totalTokens + node.tokenCount <= maxTokens) {
-                        result.push(node);
-                        totalTokens += node.tokenCount;
+            const children = this._getChildren(node.id);
+            if (children.length > 0) {
+                // Node has children, expand by including its children
+                const sortedChildren = [...children].sort((a, b) => a.order - b.order);
+                for (const child of sortedChildren) {
+                    if (totalTokens + child.tokenCount <= maxTokens) {
+                        result.push(child);
+                        totalTokens += child.tokenCount;
+                    } else {
+                        // Stop when we exceed the length
+                        break;
                     }
                 }
             } else {
-                // Non-summary node, just include it
+                // Node with no children, just include it
                 if (totalTokens + node.tokenCount <= maxTokens) {
                     result.push(node);
                     totalTokens += node.tokenCount;
@@ -390,17 +411,20 @@ class Docmem {
         return result;
     }
 
-    summarize(memoryNodeIds, summaryText, contextType, contextValue1, contextValue2) {
-        if (!memoryNodeIds || memoryNodeIds.length === 0) {
+    add_summary(node_ids, content, context_type, context_name, context_value) {
+        if (!node_ids || node_ids.length === 0) {
             throw new Error('Must provide at least one memory node to summarize');
         }
 
-        const memoryNodes = memoryNodeIds.map(id => this._getNode(id));
-        if (memoryNodes.some(n => !n)) {
-            throw new Error('One or more memory nodes not found');
+        const memoryNodes = node_ids.map(id => this._getNode(id));
+        const missingNodes = memoryNodes.map((n, i) => n ? null : node_ids[i]).filter(id => id !== null);
+        if (missingNodes.length > 0) {
+            throw new Error(`One or more memory nodes not found: ${missingNodes.join(', ')}`);
         }
-        if (memoryNodes.some(n => n.nodeType !== NodeType.MEMORY)) {
-            throw new Error('All nodes to summarize must be of type MEMORY');
+        // Check that all nodes are leaf nodes (have no children) - these are the "memories"
+        const nodesWithChildren = memoryNodes.filter(n => this._getChildren(n.id).length > 0);
+        if (nodesWithChildren.length > 0) {
+            throw new Error(`All nodes to summarize must be leaf nodes (have no children). Nodes with children: ${nodesWithChildren.map(n => n.id).join(', ')}`);
         }
 
         let parentId;
@@ -409,7 +433,11 @@ class Docmem {
         } else {
             const parentIds = new Set(memoryNodes.map(n => n.parentId));
             if (parentIds.size !== 1) {
-                throw new Error('All memory nodes must have the same parent');
+                const parentInfo = Array.from(parentIds).map(pid => {
+                    const nodesWithThisParent = memoryNodes.filter(n => n.parentId === pid).map(n => n.id);
+                    return `parent ${pid}: nodes ${nodesWithThisParent.join(', ')}`;
+                }).join('; ');
+                throw new Error(`All memory nodes must have the same parent. Found: ${parentInfo}`);
             }
             parentId = memoryNodes[0].parentId;
         }
@@ -420,25 +448,37 @@ class Docmem {
         }
 
         const children = this._getChildren(parentId);
-        const memoryNodesSorted = children
-            .filter(n => memoryNodeIds.includes(n.id))
-            .sort((a, b) => a.order - b.order);
-
-        if (memoryNodesSorted.length !== memoryNodeIds.length) {
-            throw new Error('Not all memory nodes found as children of parent');
+        const childrenIds = new Set(children.map(c => c.id));
+        const nodeIdsSet = new Set(node_ids);
+        
+        // Check which nodes are missing from parent's children
+        const missingFromParent = node_ids.filter(id => !childrenIds.has(id));
+        
+        if (missingFromParent.length > 0) {
+            throw new Error(`Not all memory nodes found as children of parent. Missing: ${missingFromParent.join(', ')}. Parent has ${children.length} children.`);
         }
+        
+        const memoryNodesSorted = children
+            .filter(n => nodeIdsSet.has(n.id))
+            .sort((a, b) => a.order - b.order);
 
         const minOrder = memoryNodesSorted[0].order;
         const maxOrder = memoryNodesSorted[memoryNodesSorted.length - 1].order;
         const summaryOrder = (minOrder + maxOrder) / 2;
 
-        const summaryId = `${contextType}_${contextValue1}_${contextValue2}_summary_${Math.floor(summaryOrder * 1000)}`;
+        // Generate summary ID using random string
+        const summaryId = randomString(8);
         const summaryNode = new Node(
             summaryId,
             parentId,
-            summaryText,
-            NodeType.SUMMARY,
-            summaryOrder
+            content,
+            summaryOrder,
+            null,
+            null,
+            null,
+            context_type,
+            context_name,
+            context_value
         );
         this._insertNode(summaryNode);
 

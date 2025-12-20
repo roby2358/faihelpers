@@ -4,12 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FastAPI App</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
     <div class="tab-bar">
         <button class="tab-button active" data-tab="chat">Chat</button>
         <button class="tab-button" data-tab="docmem">Docmem</button>
+    </div>
+    
+    <div id="message-bar" class="message-bar" style="display: none;">
+        <span id="message-text"></span>
+        <button id="message-close" class="message-close">×</button>
     </div>
     
     <div id="app">
@@ -33,6 +39,7 @@
     
     <script src="https://cdn.jsdelivr.net/npm/sql.js@1.8.0/dist/sql-wasm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gpt-tokenizer@2.1.2/index.js"></script>
+    <script src="/static/js/tools.js"></script>
     <script src="/static/js/docmem.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
