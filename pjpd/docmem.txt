@@ -23,11 +23,6 @@ Status: ToDo
 ID: persist-bzb3
 Implement persistence for the SQLite database using IndexedDB so that docmem data survives page reloads and browser sessions. Serialize the database state to IndexedDB on save operations and restore it when loading a docmem instance.
 ---
-Priority:   50
-Status: ToDo
-ID: gitignore-685m
-add pjpd/bak to .gitignore
----
 Priority:   40
 Status: ToDo
 ID: doc-cmds-3s3a
@@ -42,3 +37,8 @@ Priority:   30
 Status: ToDo
 ID: db-mgmt-fayc
 Implement database management functions for docmem instances. Add operations to clear/delete docmem documents, list all available docmem instances, view metadata about stored documents, and perform maintenance tasks. This will provide users with tools to manage their collection of docmem documents and clean up unused or outdated instances.
+---
+Priority:    0
+Status: Done
+ID: gitignore-685m
+add pjpd/bak to .gitignore
