@@ -7,10 +7,33 @@
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-    <div id="app">
-        <h1>FastAPI Application</h1>
-        <p>Dynamic content loaded via JavaScript</p>
+    <div class="tab-bar">
+        <button class="tab-button active" data-tab="chat">Chat</button>
+        <button class="tab-button" data-tab="docmem">Docmem</button>
     </div>
+    
+    <div id="app">
+        <div id="chat-tab" class="tab-content active">
+            <h1>Chat</h1>
+            <p>Chat interface coming soon</p>
+        </div>
+        
+        <div id="docmem-tab" class="tab-content">
+            <h1>Docmem</h1>
+            <div class="docmem-controls">
+                <button id="create-docmem-btn">Create New Docmem</button>
+                <input type="text" id="docmem-id-input" placeholder="Docmem ID" />
+                <button id="load-docmem-btn">Load Docmem</button>
+            </div>
+            <div id="docmem-container" class="docmem-container">
+                <p>Create or load a docmem to begin</p>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/sql.js@1.8.0/dist/sql-wasm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gpt-tokenizer@2.1.2/index.js"></script>
+    <script src="/static/js/docmem.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>
