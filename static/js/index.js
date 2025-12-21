@@ -1,5 +1,4 @@
 let currentDocmem = null;
-let messageTimeout = null;
 
 function showMessage(text, type = 'info') {
     const messageBar = document.getElementById('message-bar');
@@ -7,39 +6,11 @@ function showMessage(text, type = 'info') {
     
     messageText.textContent = text;
     messageBar.className = `message-bar ${type}`;
-    messageBar.style.display = 'flex';
-    document.body.classList.add('has-message');
-    
-    // Clear any existing timeout
-    if (messageTimeout) {
-        clearTimeout(messageTimeout);
-    }
-    
-    // Auto-hide after 5 seconds
-    messageTimeout = setTimeout(() => {
-        hideMessage();
-    }, 5000);
-}
-
-function hideMessage() {
-    const messageBar = document.getElementById('message-bar');
-    messageBar.style.display = 'none';
-    document.body.classList.remove('has-message');
-    if (messageTimeout) {
-        clearTimeout(messageTimeout);
-        messageTimeout = null;
-    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     initTabs();
     initDocmem();
-    
-    // Close button handler
-    const messageClose = document.getElementById('message-close');
-    if (messageClose) {
-        messageClose.addEventListener('click', hideMessage);
-    }
     
     // Initial render to show roots list
     renderDocmem();
