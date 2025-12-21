@@ -11,6 +11,7 @@ function showMessage(text, type = 'info') {
 document.addEventListener('DOMContentLoaded', () => {
     initTabs();
     initDocmem();
+    initView();
     
     // Initial render to show roots list
     renderDocmem();
@@ -31,6 +32,11 @@ function initTabs() {
             // Update content visibility
             tabContents.forEach(content => content.classList.remove('active'));
             document.getElementById(`${targetTab}-tab`).classList.add('active');
+            
+            // Refresh view tab when switching to it
+            if (targetTab === 'view') {
+                renderView();
+            }
         });
     });
 }
@@ -442,6 +448,94 @@ function renderRootsList() {
         });
     } catch (error) {
         rootsListDiv.innerHTML = `<div>Error loading roots: ${escapeHtml(error.message)}</div>`;
+    }
+}
+
+function initView() {
+    // View tab initialization is handled by renderView()
+}
+
+function renderView() {
+    const rootsBar = document.getElementById('view-roots-bar');
+    const contentPanel = document.getElementById('view-content-panel');
+    
+    if (!rootsBar || !contentPanel) {
+        return;
+    }
+    
+    try {
+        const roots = Docmem.getAllRoots();
+        
+        if (roots.length === 0) {
+            rootsBar.innerHTML = '<div class="view-no-roots">No root nodes found</div>';
+            contentPanel.innerHTML = '<div class="view-no-content">Select a root node to view its serialized content</div>';
+            return;
+        }
+        
+        // Render root links
+        rootsBar.innerHTML = roots.map((root, index) => `
+            <a href="#" class="view-root-link ${index === 0 ? 'active' : ''}" data-root-id="${root.id}">
+                ${escapeHtml(root.id)}
+            </a>
+        `).join('');
+        
+        // Add click handlers
+        rootsBar.querySelectorAll('.view-root-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                // Update active state
+                rootsBar.querySelectorAll('.view-root-link').forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+                
+                // Load and display serialized content
+                const rootId = link.getAttribute('data-root-id');
+                renderViewContent(rootId);
+            });
+        });
+        
+        // Load first root by default
+        if (roots.length > 0) {
+            renderViewContent(roots[0].id);
+        }
+    } catch (error) {
+        rootsBar.innerHTML = `<div class="view-error">Error loading roots: ${escapeHtml(error.message)}</div>`;
+        contentPanel.innerHTML = '';
+    }
+}
+
+async function renderViewContent(rootId) {
+    const contentPanel = document.getElementById('view-content-panel');
+    
+    if (!contentPanel) {
+        return;
+    }
+    
+    try {
+        const docmem = new Docmem(rootId);
+        await docmem.ready();
+        
+        const serialized = docmem.serialize();
+        
+        if (serialized.length === 0) {
+            contentPanel.innerHTML = '<div class="view-no-content">No content to display</div>';
+            return;
+        }
+        
+        // Render serialized content as contiguous text
+        const textContent = serialized.map(node => {
+            const header = `${node.id} ${node.contextType} ${node.contextName}:${node.contextValue} ${node.createdAt}`;
+            const content = node.text || '';
+            return `${header}\n${content}`;
+        }).join('\n\n');
+        
+        // Use a pre element to preserve formatting and display as plain text
+        const pre = document.createElement('pre');
+        pre.className = 'view-serialized-text';
+        pre.textContent = textContent;
+        contentPanel.innerHTML = '';
+        contentPanel.appendChild(pre);
+    } catch (error) {
+        contentPanel.innerHTML = `<div class="view-error">Error loading content: ${escapeHtml(error.message)}</div>`;
     }
 }
 
