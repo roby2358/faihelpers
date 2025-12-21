@@ -1,118 +1,276 @@
-# DOCMEM
+# DOCMEM Specification
 
-Docmem is a method of storing discrete bits of memory in a hierarchical structure that bridges semantic retrieval and linear document form. The tree structure can be traversed and serialized directly into documents. A parallel vector database for semantic search is planned but not yet implemented.
+## Overview
 
-The core insight: LLM output is linear and hierarchical (conversations, documents), but memory is high-dimensional and associative. Docmem makes the compression between these representations explicit and controllable, rather than leaving it implicit in generation.
+Docmem MUST store discrete bits of memory in a hierarchical tree structure. The tree structure MUST be traversable and serializable directly into documents. A parallel vector database for semantic search SHOULD be implemented in the future.
+
+The core insight: LLM output is linear and hierarchical (conversations, documents), but memory is high-dimensional and associative. Docmem MUST make the compression between these representations explicit and controllable, rather than leaving it implicit in generation.
 
 ## Design Principles
 
-- **The LLM is a pure function.** Docmem handles context construction and memory management; the LLM handles decisions and text generation.
-- **The tree is the document.** Serialization is traversal. No orchestration or generation required for document assembly.
-- **Compression is visible.** Summarization operations are explicit, auditable, and reversible. The original atoms are preserved.
-- **Dual representation (planned).** Tree structure provides hierarchy and reading order; vector DB will provide semantic access. Query via vectors, contextualize via tree.
+### Separation of Concerns
+- Docmem MUST handle context construction and memory management.
+- The LLM MUST handle decisions and text generation.
+- Docmem MUST NOT generate text content except through explicit summarization operations.
+
+### Tree as Document
+- Serialization MUST be accomplished through tree traversal.
+- Serialization MUST NOT require orchestration or generation logic beyond traversal.
+- The reading order of a document MUST be determined by traversal order.
+
+### Visible Compression
+- Summarization operations MUST be explicit and auditable.
+- Original memory nodes MUST be preserved when summaries are created.
+- Summarization MUST be reversible (the original nodes remain accessible).
+
+### Dual Representation (Planned)
+- Tree structure MUST provide hierarchy and reading order.
+- Vector DB (when implemented) MUST provide semantic access.
+- Query operations SHOULD query via vectors and contextualize via tree structure.
 
 ## Tree Structure
 
-The tree is shallow with clear semantics at each level:
+The tree structure MUST be shallow with clear semantics at each level:
 
-- **Root:** Represents a single docmem instance. Could be a book, a knowledge base, a project.
-- **User node:** Partitions by source or subject. Enables scoped operations ("summarize everything about Alice", "forget Bob").
-- **Summary:** A paragraph-length compression of its children. Regenerated as new memories accumulate. LLM-generated.
-- **Memory:** Atomic unit, typically a sentence. Ground truth—the actual text from the source. A tweet, a sentence from a document, an observation.
+- **Root:** MUST represent a single docmem instance. MAY represent a book, knowledge base, project, or chat session.
+- **User node:** MAY partition by source or subject to enable scoped operations.
+- **Summary:** MUST be a paragraph-length compression of its children. SHOULD be regenerated when new memories accumulate. Summary content SHOULD be LLM-generated when automatic summarization is implemented.
+- **Memory:** MUST be an atomic unit, typically a sentence. MUST preserve ground truth—the actual text from the source.
 
-Cross-entity relationships are carried in content via @ tags rather than structural links. Vector similarity (when implemented) will surface these connections at query time.
+Cross-entity relationships MUST be carried in content via @ tags rather than structural links. Vector similarity (when implemented) SHOULD surface these connections at query time.
 
-## Nodes
+## Node Structure
 
-A node contains an ID, parent reference, text content, token count, creation and update timestamps, ordering within its parent (decimal, to allow insertion without reindexing), and context metadata (context_type, context_name, context_value).
+### Required Fields
+A node MUST contain the following fields:
+- `id`: Unique identifier (TEXT, PRIMARY KEY)
+- `parent_id`: Reference to parent node (TEXT, NULLABLE, FOREIGN KEY)
+- `text`: Text content (TEXT, NOT NULL)
+- `order_value`: Ordering within parent (REAL, NOT NULL)
+- `token_count`: Token count (INTEGER, NOT NULL)
+- `created_at`: Creation timestamp (TEXT, NOT NULL, ISO8601 format)
+- `updated_at`: Update timestamp (TEXT, NOT NULL, ISO8601 format)
+- `context_type`: Node role type (TEXT, NOT NULL)
+- `context_name`: Context metadata name (TEXT, NOT NULL)
+- `context_value`: Context metadata value (TEXT, NOT NULL)
 
-Nodes are differentiated by their context metadata rather than an explicit node type field. The context_type field distinguishes node roles (e.g., "message", "summary", "root", "chat_session"). Context metadata provides semantic organization and enables filtering/querying by purpose, source, or role.
+### Node Differentiation
+- Nodes MUST be differentiated by their context metadata rather than an explicit node type field.
+- The `context_type` field MUST distinguish node roles (e.g., "message", "summary", "root", "chat_session").
+- Context metadata MUST provide semantic organization and enable filtering/querying by purpose, source, or role.
 
-Summaries are distinguished from memories by context_type. Memories are ground truth; summaries are interpretations. This distinction matters for expansion behavior. Summary nodes retain references to the nodes they summarize (via parent-child relationships), enabling drill-down.
+### Node Types
+- Summary nodes MUST be distinguished from memory nodes by `context_type`.
+- Memory nodes MUST preserve ground truth text.
+- Summary nodes MUST represent interpretations of their children.
+- Summary nodes MUST retain references to the nodes they summarize via parent-child relationships.
 
-The database allows updates (not append-only), primarily to support summary regeneration and content updates.
+### Node Ordering
+- Node ordering within a parent MUST use decimal values to allow insertion without reindexing.
+- When inserting between two nodes, the new order value MUST use decimal interpolation to avoid reindexing.
+- Current implementation MUST use 20% interpolation: `(a * 4 + b * 1) / 5` where `a` and `b` are sibling orders.
+
+### Token Counting
+- Token count MUST be calculated for each node.
+- Token counting SHOULD use a tokenizer when available.
+- Token counting MAY use approximation (characters / 4) when tokenizers are unavailable.
 
 ## Database
 
-The implementation uses SQLite (via sql.js) running in the browser. All docmem instances share a single database instance. The schema stores nodes with the following fields: id, parent_id, text, order_value, token_count, created_at, updated_at, context_type, context_name, context_value. Foreign key constraints ensure referential integrity with CASCADE delete for orphans.
+### Storage Implementation
+- The implementation MUST use SQLite (via sql.js) running in the browser.
+- All docmem instances MUST share a single database instance.
+
+### Schema Requirements
+The database schema MUST include a `nodes` table with the following columns:
+- `id TEXT PRIMARY KEY`
+- `parent_id TEXT`
+- `text TEXT NOT NULL`
+- `order_value REAL NOT NULL`
+- `token_count INTEGER NOT NULL`
+- `created_at TEXT NOT NULL`
+- `updated_at TEXT NOT NULL`
+- `context_type TEXT NOT NULL`
+- `context_name TEXT NOT NULL`
+- `context_value TEXT NOT NULL`
+- `FOREIGN KEY (parent_id) REFERENCES nodes(id) ON DELETE CASCADE`
+
+### Database Constraints
+- Foreign key constraints MUST ensure referential integrity.
+- CASCADE delete MUST be used for orphan cleanup.
+- Indexes MUST be created on `parent_id` and `(parent_id, order_value)` for performance.
+
+### Database Updates
+- The database MUST allow updates (not append-only) to support summary regeneration and content updates.
+- When a node is updated, the `updated_at` timestamp MUST be set to the current time.
+
+### Persistence (Planned)
+- Database persistence to IndexedDB SHOULD be implemented to survive page reloads.
+- Current implementation does NOT persist data to IndexedDB (data is lost on page reload).
 
 ## Vector Database (Not Yet Implemented)
 
-Planned: All nodes—memories and summaries alike—will be embedded and stored in a vector DB.
+### Embedding Requirements (Planned)
+- All nodes (memories and summaries) SHOULD be embedded and stored in a vector DB.
+- When summaries are regenerated, their embeddings MUST be updated in the vector DB.
 
-Planned query pattern: semantic search returns matching nodes, then trace each hit up to its parent summary and/or user node, deduplicate (if a summary and its child both match, the child is "covered by" the summary), and return nodes with structural context.
+### Query Pattern (Planned)
+- Semantic search MUST return matching nodes.
+- The implementation MUST trace each hit up to its parent summary and/or user node.
+- The implementation MUST deduplicate results (if a summary and its child both match, the child MUST be considered "covered by" the summary).
+- Results MUST include nodes with structural context.
 
-Summaries will act as attractors—they're semantically denser and more likely to catch queries. Multiple hits tracing to the same parent signal that the whole subtree is relevant. Trace-up is cheap (just parent pointers); the expensive vector search is already done.
-
-When summaries are regenerated, their embeddings must be updated in the vector DB.
+### Summary Attraction (Planned)
+- Summaries SHOULD act as attractors—they're semantically denser and more likely to catch queries.
+- Multiple hits tracing to the same parent SHOULD signal that the whole subtree is relevant.
+- Trace-up operations MUST use parent pointers only (cheap operation after expensive vector search).
 
 ## Operations
 
-**Serialization:** Traversal is serialization. Depth-first, ordered by the node's order field. Reading order is the document. Returns a flat array of nodes in traversal order.
+### Serialization
+- Serialization MUST be accomplished through depth-first tree traversal.
+- Traversal MUST be ordered by each node's `order_value` field.
+- Serialization MUST return a flat array of nodes in traversal order.
+- The reading order of a document MUST be determined by serialization order.
 
-**Expand to length:** Current implementation uses breadth-first search to depth 1, then expands children of those nodes until a token budget is reached. Priority is by order field (left-to-right in the tree). Semantic prioritization and relevance-based expansion are planned but not yet implemented.
+### Expand to Length
+- `expandToLength(maxTokens)` MUST return nodes up to the token limit.
+- Current implementation MUST use breadth-first search to depth 1, then expand children of those nodes.
+- Priority MUST be determined by `order_value` field (left-to-right in the tree).
+- Semantic prioritization and relevance-based expansion SHOULD be implemented in the future.
+- When semantic search is implemented, expansion SHOULD prioritize by relevance score from query.
 
-**Summarization:** Compress a list of contiguous memory nodes by generating summary text (currently manual; LLM generation is planned), creating a summary node as new parent of the memories. Summary nodes are positioned between the first and last memory nodes they summarize using decimal ordering. Vector embeddings will be updated when the vector DB is implemented. Summaries are regenerated when their children change.
+### Summarization
+- `add_summary()` MUST compress a list of contiguous memory nodes.
+- Summary text MAY be provided manually (current implementation).
+- Summary text SHOULD be LLM-generated when automatic summarization is implemented.
+- A summary node MUST be created as the new parent of the memory nodes.
+- Summary nodes MUST be positioned between the first and last memory nodes they summarize using decimal ordering.
+- All nodes to be summarized MUST be leaf nodes with the same parent.
+- When vector DB is implemented, embeddings MUST be updated when summaries are created or regenerated.
+- Summaries SHOULD be regenerated when their children change.
 
-**Append:** Add a new node as child of a parent node. The new node's order is set to max(sibling orders) + 1.0.
+### Append
+- `append_child()` MUST add a new node as a child of the specified parent node.
+- The new node's `order_value` MUST be set to `max(sibling orders) + 1.0`.
+- All context metadata fields (`context_type`, `context_name`, `context_value`) MUST be provided.
+- The operation MUST return the new node.
 
-**Insert:** Add a new node between two existing siblings using decimal ordering (20% interpolation: (a * 4 + b * 1) / 5) to avoid reindexing. Requires both nodes to have the same parent.
+### Insert
+- `insert_between()` MUST add a new node between two existing sibling nodes.
+- Both nodes MUST have the same parent.
+- The new node's `order_value` MUST use decimal interpolation to avoid reindexing.
+- Current implementation MUST use 20% interpolation: `(a * 4 + b * 1) / 5`.
+- All context metadata fields MUST be provided.
+- The operation MUST return the new node.
 
-**Delete:** Remove a node and its children. Uses SQL CASCADE delete for referential integrity. Vector DB cleanup will be needed when implemented.
+### Delete
+- `delete()` MUST remove a node and all its descendants.
+- The operation MUST use SQL CASCADE delete for referential integrity.
+- When vector DB is implemented, embeddings MUST be removed for deleted nodes.
 
-**Update:** Update the text content of an existing node. Token count is recalculated automatically. Updated timestamp is set to current time.
+### Update
+- `update_content()` MUST update the text content of an existing node.
+- Token count MUST be recalculated automatically when content is updated.
+- The `updated_at` timestamp MUST be set to the current time.
+- The operation MUST return the updated node.
 
-## Operation Details
+### Find
+- `find()` MUST retrieve a node by ID.
+- The operation MUST return the node if found, or null if not found.
 
-Current implementation signatures:
+### Query Operations (Planned)
+- Semantic query operations SHOULD be implemented when vector DB is available.
+- Query results SHOULD include structural context through trace-up operations.
 
-- `append_child(node_id, context_type, context_name, context_value, content)` - Adds a child node to the specified parent. Returns the new node.
-- `insert_between(node_id_1, node_id_2, context_type, context_name, context_value, content)` - Inserts a node between two siblings. Returns the new node.
-- `delete(node_id)` - Deletes a node and all its descendants.
-- `update_content(node_id, content)` - Updates a node's text content and recalculates token count. Returns the updated node.
-- `find(node_id)` - Retrieves a node by ID. Returns the node or null.
-- `add_summary(node_ids, content, context_type, context_name, context_value)` - Creates a summary node as parent of the specified memory nodes. All nodes must be leaf nodes with the same parent. Returns the new summary node.
-- `serialize()` - Returns all nodes in depth-first traversal order as a flat array.
-- `expandToLength(maxTokens)` - Returns nodes up to the token limit using current BFS expansion strategy.
-- `_getRoot()` - Returns the root node of this docmem instance.
-- `_getChildren(parentId)` - Returns children of a node, sorted by order.
-- `_getAllRoots()` - Static method returning all root nodes across all docmem instances.
+## Method Signatures
+
+The following method signatures MUST be implemented:
+
+### Core Operations
+- `append_child(node_id, context_type, context_name, context_value, content)` → Node
+- `insert_between(node_id_1, node_id_2, context_type, context_name, context_value, content)` → Node
+- `delete(node_id)` → void
+- `update_content(node_id, content)` → Node
+- `find(node_id)` → Node | null
+
+### Summary Operations
+- `add_summary(node_ids, content, context_type, context_name, context_value)` → Node
+
+### Serialization Operations
+- `serialize()` → Node[]
+- `expandToLength(maxTokens)` → Node[]
+
+### Internal Operations
+- `_getRoot()` → Node
+- `_getChildren(parentId)` → Node[]
+- `_getAllRoots()` → Node[] (static method)
+
+All operations that create or return nodes MUST return Node objects. Operations that modify content MUST update timestamps and token counts as required.
 
 ## Chat Integration
 
-The `DocmemChat` class wraps `Docmem` for chat session management. Chat sessions use:
-- Root: `context_type=chat_session`, `context_name=date`, `context_value=ISO8601 timestamp`
-- Summary nodes (optional): `context_type=summary`, `context_name=role`, `context_value=tool`
-- Message nodes: `context_type=message`, `context_name=role`, `context_value=user|assistant`
+### DocmemChat Wrapper
+- The `DocmemChat` class MUST wrap `Docmem` for chat session management.
+- Chat sessions MUST use the following context metadata:
+  - Root: `context_type=chat_session`, `context_name=date`, `context_value=ISO8601 timestamp`
+  - Summary nodes (optional): `context_type=summary`, `context_name=role`, `context_value=tool`
+  - Message nodes: `context_type=message`, `context_name=role`, `context_value=user|assistant`
 
-The `buildMessageList()` method converts the docmem structure into OpenAI message format, handling summary nodes as tool call/response pairs and message nodes as standard messages.
+### Message List Building
+- `buildMessageList()` MUST convert the docmem structure into OpenAI message format.
+- Summary nodes MUST be formatted as assistant tool call + tool response pairs.
+- Message nodes MUST be formatted as standard messages with role and content.
+- Messages MUST be ordered by node `order_value` (oldest to newest).
 
-## Open Questions
-
-**Summary behavior on expansion:** When a summary is expanded, what happens to the summary node itself? Options include replacing it entirely with children (clean but loses framing), keeping it as a header (natural but redundant), making it a parameter of the expand operation, or having serialization modes that skip or include interior nodes. Current implementation includes summary nodes in serialization.
-
-**Extractive summarization:** When automatic summarization is implemented, should it use extractive approaches (selecting existing sentences rather than generating new text) as a first pass or optimization? Extractive preserves original voice, avoids hallucination, and is faster than abstractive summarization.
-
-**Sticky nodes:** Some memories are tightly coupled and resist being separated. Should there be a mechanism to mark this, or does summarization naturally preserve these relationships?
+### Chat Session Management
+- `createChatSession()` MUST initialize a chat session with proper root node context.
+- `appendUserMessage(content)` MUST append a user message to the chat session root.
+- `appendAssistantMessage(content)` MUST append an assistant message to the chat session root.
 
 ## Current Limitations
 
-- Vector database and semantic search are not yet implemented
-- Token counting uses approximation (characters / 4) when tokenizers are unavailable
-- Expand to length uses simple BFS strategy, not semantic prioritization
-- Summarization content must be provided manually; automatic LLM generation is not implemented
-- Database persistence to IndexedDB is not yet implemented (data lost on page reload)
-- No version history for updates
-- No priority/importance flags for expansion ordering
+The following features are NOT REQUIRED in the current implementation:
 
-## Future Considerations
+- Vector database and semantic search are NOT REQUIRED (planned for future).
+- Automatic LLM-based summarization is NOT REQUIRED (manual summarization is acceptable).
+- Database persistence to IndexedDB is NOT REQUIRED (data may be lost on page reload).
+- Version history for updates is NOT REQUIRED.
+- Priority/importance flags for expansion ordering are NOT REQUIRED.
+- Semantic prioritization in expand to length is NOT REQUIRED (simple BFS is acceptable).
 
-- Vector database implementation with embeddings for all nodes
-- Semantic search with query-time trace-up and deduplication
-- Automatic LLM-based summarization
-- Persistence to IndexedDB for browser sessions
-- Version history for non-destructive updates
-- Semantic prioritization in expand to length
-- Partial expansion (mixed resolution in one document)
-- Priority/importance flags for expansion ordering
-- Ingest classification for incoming threads and documents
+## Future Requirements
+
+### Vector Database
+- Vector database implementation SHOULD be added with embeddings for all nodes.
+- Semantic search with query-time trace-up and deduplication SHOULD be implemented.
+
+### Summarization
+- Automatic LLM-based summarization SHOULD be implemented.
+- Extractive summarization approaches MAY be used as a first pass or optimization.
+
+### Persistence
+- Persistence to IndexedDB for browser sessions SHOULD be implemented.
+
+### Expansion
+- Semantic prioritization in expand to length SHOULD be implemented.
+- Partial expansion (mixed resolution in one document) SHOULD be implemented.
+- Priority/importance flags for expansion ordering SHOULD be implemented.
+
+### Additional Features
+- Version history for non-destructive updates SHOULD be implemented.
+- Ingest classification for incoming threads and documents SHOULD be implemented.
+
+## Open Questions
+
+### Summary Behavior on Expansion
+When a summary is expanded, what SHOULD happen to the summary node itself? Options include:
+- Replacing it entirely with children (clean but loses framing)
+- Keeping it as a header (natural but redundant)
+- Making it a parameter of the expand operation
+- Having serialization modes that skip or include interior nodes
+
+Current implementation includes summary nodes in serialization.
+
+### Sticky Nodes
+Some memories are tightly coupled and resist being separated. SHOULD there be a mechanism to mark this, or does summarization naturally preserve these relationships?
