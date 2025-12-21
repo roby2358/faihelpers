@@ -473,3 +473,4 @@ function renderRootsList() {
         rootsListDiv.innerHTML = `<div>Error loading roots: ${escapeHtml(error.message)}</div>`;
     }
 }
+
