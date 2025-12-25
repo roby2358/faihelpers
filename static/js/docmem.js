@@ -452,13 +452,19 @@ class Docmem {
         }
     }
 
-    expandToLength(maxTokens) {
+    expandToLength(nodeId, maxTokens) {
+        if (!nodeId) {
+            throw new Error('nodeId is required');
+        }
         const result = [];
-        const root = this._getRoot();
+        const startNode = this._getNode(nodeId);
+        if (!startNode) {
+            throw new Error(`Node ${nodeId} not found`);
+        }
         
         // Step 1: BFS to depth 1
         const depth1Nodes = [];
-        const queue = [{ node: root, depth: 0 }];
+        const queue = [{ node: startNode, depth: 0 }];
         
         while (queue.length > 0) {
             const { node, depth } = queue.shift();

@@ -175,7 +175,9 @@ function renderDocmem() {
 
     expandBtn.addEventListener('click', () => {
         const maxTokens = parseInt(expandTokenLimit.value) || 1000;
-        const expanded = currentDocmem.expandToLength(maxTokens);
+        // Use root node ID for expand in the UI
+        const rootId = root.id;
+        const expanded = currentDocmem.expandToLength(rootId, maxTokens);
         renderExpanded(expanded);
     });
 

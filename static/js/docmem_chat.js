@@ -13,8 +13,9 @@ class DocmemChat {
 
     /**
      * Initialize as a chat session with proper root node context
+     * @param {string} systemText - System text to include in the root node
      */
-    async createChatSession() {
+    async createChatSession(systemText) {
         await this.ready();
         
         // Delete the existing root node if it exists (to replace with chat session root)
@@ -28,7 +29,7 @@ class DocmemChat {
         const rootNode = new Node(
             this.docmemId,
             null,
-            '',
+            systemText,
             0.0,
             null,
             null,
@@ -104,6 +105,14 @@ class DocmemChat {
         });
         
         const messages = [];
+        
+        // Add system message from root node text if present
+        if (root.text && root.text.trim()) {
+            messages.push({
+                role: 'system',
+                content: root.text.trim()
+            });
+        }
         
         for (const node of sortedChildren) {
             // Handle summary nodes: context_type=summary, context_name=role, context_value=tool

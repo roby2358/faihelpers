@@ -1,10 +1,5 @@
 Priority:   80
 Status: ToDo
-ID: chat-cvyr
-Build the chat interface tab, creating and managing docmem instances dynamically as conversations progress. Integrate docmem operations (append, summarize, expand) into the chat workflow so that conversation context is automatically captured and organized in the hierarchical structure.
----
-Priority:   80
-Status: ToDo
 ID: llm-api-za72
 Integrate LLM API calls for generating summaries and processing content. Implement round-trip communication where the LLM can read from docmem (via serialization/expansion), generate responses or summaries, and write results back to docmem nodes. This enables the LLM to work with the hierarchical memory structure bidirectionally.
 ---
@@ -17,6 +12,11 @@ Priority:   60
 Status: ToDo
 ID: chat-ui-q4w8
 Implement the chat interface UI components and interaction flow. Create the chat tab interface with message display, input handling, and user interaction patterns. Set up the basic structure for sending and receiving messages, formatting conversation history, and managing chat state within the application.
+---
+Priority:   60
+Status: ToDo
+ID: checksum-5wv6
+Add hash property to track document state for optimistic locking to detect concurrent modifications
 ---
 Priority:   50
 Status: ToDo
@@ -37,6 +37,11 @@ Priority:   30
 Status: ToDo
 ID: db-mgmt-fayc
 Implement database management functions for docmem instances. Add operations to clear/delete docmem documents, list all available docmem instances, view metadata about stored documents, and perform maintenance tasks. This will provide users with tools to manage their collection of docmem documents and clean up unused or outdated instances.
+---
+Priority:    0
+Status: Done
+ID: chat-cvyr
+Build the chat interface tab, creating and managing docmem instances dynamically as conversations progress. Integrate docmem operations (append, summarize, expand) into the chat workflow so that conversation context is automatically captured and organized in the hierarchical structure.
 ---
 Priority:    0
 Status: Done
