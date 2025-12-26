@@ -107,6 +107,11 @@ export class DocmemCommands {
         return { success: true, result: `docmem-add-summary added summary node: ${node.id}` };
     }
 
+    moveAppendChild(nodeId, targetParentId) {
+        const node = this.docmem.move_append_child(nodeId, targetParentId);
+        return { success: true, result: `docmem-move-append-child moved node ${nodeId} to parent ${targetParentId}` };
+    }
+
     getAllRoots() {
         const roots = Docmem.getAllRoots();
         return { success: true, result: `docmem-get-all-roots:\n${JSON.stringify(roots, null, 2)}` };

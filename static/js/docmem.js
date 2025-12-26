@@ -467,6 +467,62 @@ class Docmem {
         return this._getNode(node_id);
     }
 
+    move_append_child(node_id, target_parent_id) {
+        const node = this._getNode(node_id);
+        if (!node) {
+            throw new Error(`Node ${node_id} not found`);
+        }
+
+        const targetParent = this._getNode(target_parent_id);
+        if (!targetParent) {
+            throw new Error(`Target parent node ${target_parent_id} not found`);
+        }
+
+        // Prevent moving a node to be a child of itself
+        if (node_id === target_parent_id) {
+            throw new Error('Cannot move a node to be a child of itself');
+        }
+
+        // Get all descendants recursively to check for cycles
+        const descendants = [];
+        this._getAllDescendants(node_id, descendants);
+        const descendantIds = new Set(descendants.map(n => n.id));
+
+        // Prevent moving a node to be a child of one of its descendants (would create a cycle)
+        if (descendantIds.has(target_parent_id)) {
+            throw new Error('Cannot move a node to be a child of one of its descendants');
+        }
+
+        // Calculate new order value: max(sibling orders) + 1.0
+        const siblings = this._getChildren(target_parent_id);
+        const maxOrder = siblings.length > 0
+            ? Math.max(...siblings.map(s => s.order))
+            : 0.0;
+        const newOrder = maxOrder + 1.0;
+
+        // Update the node's parent_id and order_value
+        const stmt = this.db.prepare(`
+            UPDATE nodes
+            SET parent_id = ?, order_value = ?, updated_at = ?
+            WHERE id = ?
+        `);
+        const updatedAt = new Date().toISOString();
+        stmt.bind([target_parent_id, newOrder, updatedAt, node_id]);
+        stmt.step();
+        stmt.free();
+
+        // Return the updated node
+        return this._getNode(node_id);
+    }
+
+    _getAllDescendants(nodeId, result) {
+        const children = this._getChildren(nodeId);
+        for (const child of children) {
+            result.push(child);
+            this._getAllDescendants(child.id, result);
+        }
+    }
+
     serialize(nodeId) {
         if (!nodeId) {
             throw new Error('nodeId is required');

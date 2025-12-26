@@ -389,6 +389,15 @@ async function executeDocmemCommand(args, docmem) {
                 return commands.addSummary(contextType, contextName, contextValue, content, nodeIds);
             }
             
+            case 'docmem-move-append-child': {
+                if (restArgs.length < 2) {
+                    throw new Error('docmem-move-append-child requires <node_id> <target_parent_id>');
+                }
+                const nodeId = restArgs[0];
+                const targetParentId = restArgs[1];
+                return commands.moveAppendChild(nodeId, targetParentId);
+            }
+            
             case 'docmem-get-all-roots': {
                 return commands.getAllRoots();
             }

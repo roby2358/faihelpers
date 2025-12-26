@@ -61,6 +61,7 @@ Docmem organizes documents as a hierarchical tree structure. Each node in
 - you MUST use the actual node IDs returned by the system
 - you MUST wait for the next round to see the results of append or insert to use the node-ids
 - you MUST NOT make up node-id. The system assigns them when it creates the node
+- you MAY include multiple # Run blocks in a reply if you already know the node-id
 - context-type context-name context-value MUST be given. String length 0..24.
 - The context fields SHOULD hold metadata for identification or classification. They should not be load-bearing information fields.
 - content MAY be empty, using "" or ''.
@@ -89,6 +90,10 @@ docmem-update-context <node-id> <context-type> <context-name> <context-value>
 
 docmem-delete <node-id>
 - deletes the node-id and subtree
+
+docmem-move-append-child <node-id> <target-parent-id>
+- moves a node and its subtree to become a child of the target parent node
+- updates parent_id and recalculates order values appropriately
 
 ## Serialization Operations
 docmem-serialize <node-id>
