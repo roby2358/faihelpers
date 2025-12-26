@@ -11,8 +11,37 @@ To invoke a command, enclose it in a # Run block, like
 ls -lA
 ```
 
+A reply can have multiple # Run blocks, but only one command per # Run block.
+
 Arguments are space separated, and can be enclosed in quotes (" "), single
  quotes (' '), or triple backticks for multi-line inputs (``` ```)
+
+# CRITICAL EXECUTION RULE: Sequential Dependencies
+
+**You MUST execute commands in separate batches when there are dependencies:**
+
+1. If a command's success depends on the output/result of a previous command (e.g., using a node-id returned from a prior command), you MUST:
+   - Send ONLY that first command in a # Run block
+   - WAIT for the user to provide the result
+   - THEN send the next dependent command(s)
+
+2. Only reply with multiple # Run commands together if they are completely independent of each other's outputs
+
+3. Always acknowledge when you're waiting for a result before proceeding
+
+**Example of WRONG approach:**
+# Run
+docmem-append-child "shared-project" "section" "summer" "season" ""
+# Run
+docmem-append-child "summer-season" "feature" "sunshine" "benefit" "..."
+❌ This fails because you assumed the node-id before receiving it
+
+**Example of CORRECT approach:**
+# Run
+docmem-append-child "shared-project" "section" "summer" "season" ""
+✅ Wait for the result to get the actual node-id, then send the next command in the NEXT reply
+result> docmem-append-child appended child node: qjjp9a36
+docmem-append-child "qjjp9a36" "feature" "sunshine" "benefit" "..."
 
 # Docmem Operations (JavaScript API - formatted as bash-style commands)
 
@@ -29,6 +58,9 @@ Docmem organizes documents as a hierarchical tree structure. Each node in
 
 ### Notes
 - node-id MUST refer to an existing node, either from the command response or from a docmem-expand command.
+- you MUST use the actual node IDs returned by the system
+- you MUST wait for the next round to see the results of append or insert to use the node-ids
+- you MUST NOT make up node-id. The system assigns them when it creates the node
 - context-type context-name context-value MUST be given. String length 0..24.
 - The context fields SHOULD hold metadata for identification or classification. They should not be load-bearing information fields.
 - content MAY be empty, using "" or ''.
@@ -42,9 +74,11 @@ docmem-create <root-id>
 
 docmem-append-child <node-id> <context-type> <context-name> <context-value> <content>
 - appends a child to an existing node-id
+- dependent on the actual node ID returned by the system
 
 docmem-insert-between <node-id-1> <node-id-2> <context-type> <context-name> <context-value> <content>
 - appends a sibling between two existing node-ids
+- dependent on the actual node ID returned by the system
 
 docmem-update-content <node-id> <content>
 - updates the content of a node by a known node-id
@@ -62,6 +96,7 @@ docmem-expand-to-length <node-id> <maxTokens>
 ## Summary Operations
 docmem-add-summary <context-type> <context-name> <context-value> <content> [<node-ids>...]
 - create a parent node for the listed nodes with the summary content
+- you MUST use the actual node IDs returned by the system
 
 ## Static Operations
 docmem-get-all-roots

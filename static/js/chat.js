@@ -2,7 +2,7 @@
  * Chat - Chat interface logic using DocmemChat
  */
 import { OpenRouterAPI } from './OpenRouterAPI.js';
-import { parse as parseCommand } from './command_parser.js';
+import { parse as parseCommand } from './bash/command_parser.js';
 import { DocmemCommands } from './docmem_commands.js';
 
 let chatSession = null;
@@ -354,19 +354,13 @@ async function processCommands(responseText, depth = 0) {
                 success: result.success
             });
             
-            // Log to chat display
+            // Build command output text for user message
             if (result.success) {
-                appendToChatDisplay(`command> ${commandText}`);
-                appendToChatDisplay(`result> ${result.result}`);
-                // Build command output text for user message
                 if (commandOutputText) {
                     commandOutputText += '\n';
                 }
                 commandOutputText += `command> ${commandText}\nresult> ${result.result}`;
             } else {
-                appendToChatDisplay(`command> ${commandText}`);
-                appendToChatDisplay(`error> ${result.result}`);
-                // Build command output text for user message
                 if (commandOutputText) {
                     commandOutputText += '\n';
                 }
@@ -379,8 +373,6 @@ async function processCommands(responseText, depth = 0) {
                 result: errorMessage,
                 success: false
             });
-            appendToChatDisplay(`command> ${commandText}`);
-            appendToChatDisplay(`error> ${errorMessage}`);
             // Build command output text for user message
             if (commandOutputText) {
                 commandOutputText += '\n';

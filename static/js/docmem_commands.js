@@ -65,7 +65,8 @@ export class DocmemCommands {
 
     serialize(nodeId) {
         const nodes = this.docmem.serialize(nodeId);
-        return { success: true, result: `docmem-serialize:\n${JSON.stringify(nodes.map(n => n.toDict()), null, 2)}` };
+        const content = nodes.map(n => n.text).join('\n\n');
+        return { success: true, result: `docmem-serialize:\n${content}` };
     }
 
     expandToLength(nodeId, maxTokens) {
