@@ -10,11 +10,6 @@ Integrate LLM API calls for generating summaries and processing content. Impleme
 ---
 Priority:   80
 Status: ToDo
-ID: move-append-r26m
-Add docmem-move-append-child command to move a node (and its subtree) to become a child of a target parent node. Updates parent_id and recalculates order values appropriately.
----
-Priority:   80
-Status: ToDo
 ID: move-after-b6tq
 Add docmem-move-insert-after command to move a node (and its subtree) to be inserted after a target sibling node. Ensures nodes share the same parent and inserts between existing order values.
 ---
@@ -52,6 +47,16 @@ Priority:   60
 Status: ToDo
 ID: summ-span-ubbd
 Change the summarize operation from accepting a list of node IDs to accepting a start node and stop node to pick up a span of contiguous nodes. This simplifies the interface by allowing users to specify a range of nodes (e.g., first and last node in a sequence) rather than listing all individual node IDs. The operation should identify all nodes between the start and stop nodes (inclusive) based on their order values within the same parent, and create a summary node for that contiguous span.
+---
+Priority:   60
+Status: ToDo
+ID: docmem-dl-bkrk
+Add functionality to download docmems. Implement a download feature that allows users to export docmem documents. The exact format (JSON, text, binary, etc.) and structure of the exported data will need to be determined during implementation. This should enable users to save and share docmem documents, potentially including the full hierarchical structure, node metadata, content, and relationships.
+---
+Priority:   60
+Status: ToDo
+ID: docmem-up-zpsm
+Add functionality to upload docmems and parse them. Implement an upload feature that allows users to import docmem documents from files. The exact format (JSON, text, binary, etc.) and parsing logic will need to be determined during implementation. This should enable users to restore previously exported docmem documents, potentially recreating the full hierarchical structure, node metadata, content, and relationships from the uploaded file.
 ---
 Priority:   50
 Status: ToDo
@@ -92,6 +97,11 @@ Priority:   30
 Status: ToDo
 ID: db-mgmt-fayc
 Implement database management functions for docmem instances. Add operations to clear/delete docmem documents, list all available docmem instances, view metadata about stored documents, and perform maintenance tasks. This will provide users with tools to manage their collection of docmem documents and clean up unused or outdated instances.
+---
+Priority:    0
+Status: Done
+ID: move-append-r26m
+Add docmem-move-append-child command to move a node (and its subtree) to become a child of a target parent node. Updates parent_id and recalculates order values appropriately.
 ---
 Priority:    0
 Status: Done
