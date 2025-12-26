@@ -21,24 +21,51 @@ Docmem organizes documents as a hierarchical tree structure. Each node in
  the tree represents a unit of content, contextualized with metadata such
  as type, name, and value. The root node serves as the entry point, and
  child nodes can be appended, inserted between, or deleted. The root node
- is a regular node_id like the others This structure enables granular querying,
+ is a regular node-id like the others This structure enables granular querying,
  updating, and summarization of content, supporting flexible document
  manipulation and efficient information retrieval.
 
 ## Basic Operations
+
+### Notes
+- node-id MUST refer to an existing node, either from the command response or from a docmem-expand command.
+- context-type context-name context-value MUST be given. String length 0..24.
+- The context fields SHOULD hold metadata for identification or classification. They should not be load-bearing information fields.
+- content MAY be empty, using "" or ''.
+- rely on node order instead of enumeration to make it easier to reorder without renumbering.
+
+### commands
 docmem-create <root-id>
-docmem-append-child <node_id> <context_type> <context_name> <context_value> <content>
-docmem-insert-between <node_id_1> <node_id_2> <context_type> <context_name> <context_value> <content>
-docmem-update-content <node_id> <content>
-docmem-find <node_id>
-docmem-delete <node_id>
+- creates a new docmem with the given root
+- root-id is specified by the user
+- root-id is a string of length 0 to 24
+
+docmem-append-child <node-id> <context-type> <context-name> <context-value> <content>
+- appends a child to an existing node-id
+
+docmem-insert-between <node-id-1> <node-id-2> <context-type> <context-name> <context-value> <content>
+- appends a sibling between two existing node-ids
+
+docmem-update-content <node-id> <content>
+- updates the content of a node by a known node-id
+
+docmem-delete <node-id>
+- deletes the node-id and subtree
 
 ## Serialization Operations
-docmem.serialize
-docmem.expandToLength <node_id> <maxTokens>
+docmem-serialize <node-id>
+- serializes starting at the existing node-id
+
+docmem-expand-to-length <node-id> <maxTokens>
+- BFS expansion of the existing node up to a length of maxTokens
 
 ## Summary Operations
-docmem.add_summary <context_type> <context_name> <context_value> <content> [<node_ids>...]
+docmem-add-summary <context-type> <context-name> <context-value> <content> [<node-ids>...]
+- create a parent node for the listed nodes with the summary content
 
 ## Static Operations
-Docmem.getAllRoots
+docmem-get-all-roots
+- return a list of all root node-ids
+
+docmem-find <node-id>
+- finds a node with the existing node-id

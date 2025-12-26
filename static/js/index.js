@@ -182,7 +182,9 @@ function renderDocmem() {
     });
 
     serializeBtn.addEventListener('click', () => {
-        const serialized = currentDocmem.serialize();
+        // Use root node ID for serialize in the UI
+        const rootId = root.id;
+        const serialized = currentDocmem.serialize(rootId);
         renderExpanded(serialized);
     });
 
@@ -516,7 +518,8 @@ async function renderViewContent(rootId) {
         const docmem = new Docmem(rootId);
         await docmem.ready();
         
-        const serialized = docmem.serialize();
+        // Serialize from the root node
+        const serialized = docmem.serialize(rootId);
         
         if (serialized.length === 0) {
             contentPanel.innerHTML = '<div class="view-no-content">No content to display</div>';

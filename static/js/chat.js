@@ -3,6 +3,7 @@
  */
 import { OpenRouterAPI } from './OpenRouterAPI.js';
 import { parse as parseCommand } from './command_parser.js';
+import { DocmemCommands } from './docmem_commands.js';
 
 let chatSession = null;
 let api = null;
@@ -198,7 +199,7 @@ async function executeDocmemCommand(args, docmem) {
     const restArgs = args.slice(1);
     
     // Commands that don't require a docmem instance
-    const staticCommands = ['Docmem.getAllRoots', 'docmem-create'];
+    const staticCommands = ['docmem-get-all-roots', 'docmem-create'];
     const needsDocmem = !staticCommands.includes(command);
     
     if (needsDocmem && !docmem) {
@@ -206,16 +207,15 @@ async function executeDocmemCommand(args, docmem) {
     }
     
     try {
+        const commands = new DocmemCommands(docmem);
+        
         switch (command) {
             case 'docmem-create': {
                 if (restArgs.length < 1) {
                     throw new Error('docmem-create requires <root-id>');
                 }
                 const rootId = restArgs[0];
-                // Docmem is created automatically when instantiated
-                const newDocmem = new Docmem(rootId);
-                await newDocmem.ready();
-                return { success: true, result: `Created docmem: ${rootId}` };
+                return await commands._create(rootId);
             }
             
             case 'docmem-append-child': {
@@ -229,20 +229,7 @@ async function executeDocmemCommand(args, docmem) {
                 // Content can be empty - join remaining args (if any) and trim leading/trailing newlines
                 // Note: Empty strings are filtered out by the parser, so if content was "", restArgs.length will be 4
                 const content = restArgs.length > 4 ? restArgs.slice(4).join(' ').replace(/^\n+|\n+$/g, '') : '';
-                
-                // Validate context fields are non-empty
-                if (!contextType || !contextType.trim()) {
-                    throw new Error('context_type must be non-empty');
-                }
-                if (!contextName || !contextName.trim()) {
-                    throw new Error('context_name must be non-empty');
-                }
-                if (!contextValue || !contextValue.trim()) {
-                    throw new Error('context_value must be non-empty');
-                }
-                
-                const node = docmem.append_child(nodeId, contextType.trim(), contextName.trim(), contextValue.trim(), content);
-                return { success: true, result: `Appended child node: ${node.id}` };
+                return commands._appendChild(nodeId, contextType, contextName, contextValue, content);
             }
             
             case 'docmem-insert-between': {
@@ -257,20 +244,7 @@ async function executeDocmemCommand(args, docmem) {
                 // Content can be empty - join remaining args (if any) and trim leading/trailing newlines
                 // Note: Empty strings are filtered out by the parser, so if content was "", restArgs.length will be 5
                 const content = restArgs.length > 5 ? restArgs.slice(5).join(' ').replace(/^\n+|\n+$/g, '') : '';
-                
-                // Validate context fields are non-empty
-                if (!contextType || !contextType.trim()) {
-                    throw new Error('context_type must be non-empty');
-                }
-                if (!contextName || !contextName.trim()) {
-                    throw new Error('context_name must be non-empty');
-                }
-                if (!contextValue || !contextValue.trim()) {
-                    throw new Error('context_value must be non-empty');
-                }
-                
-                const node = docmem.insert_between(nodeId1, nodeId2, contextType.trim(), contextName.trim(), contextValue.trim(), content);
-                return { success: true, result: `Inserted node: ${node.id}` };
+                return commands._insertBetween(nodeId1, nodeId2, contextType, contextName, contextValue, content);
             }
             
             case 'docmem-update-content': {
@@ -281,8 +255,7 @@ async function executeDocmemCommand(args, docmem) {
                 // Content can be empty - join remaining args (if any) and trim leading/trailing newlines
                 // Note: Empty strings are filtered out by the parser, so if content was "", restArgs.length will be 1
                 const content = restArgs.length > 1 ? restArgs.slice(1).join(' ').replace(/^\n+|\n+$/g, '') : '';
-                const node = docmem.update_content(nodeId, content);
-                return { success: true, result: `Updated node: ${node.id}` };
+                return commands._updateContent(nodeId, content);
             }
             
             case 'docmem-find': {
@@ -290,11 +263,7 @@ async function executeDocmemCommand(args, docmem) {
                     throw new Error('docmem-find requires <node_id>');
                 }
                 const nodeId = restArgs[0];
-                const node = docmem.find(nodeId);
-                if (!node) {
-                    return { success: false, result: `Node not found: ${nodeId}` };
-                }
-                return { success: true, result: JSON.stringify(node.toDict(), null, 2) };
+                return commands._find(nodeId);
             }
             
             case 'docmem-delete': {
@@ -302,34 +271,29 @@ async function executeDocmemCommand(args, docmem) {
                     throw new Error('docmem-delete requires <node_id>');
                 }
                 const nodeId = restArgs[0];
-                docmem.delete(nodeId);
-                return { success: true, result: `Deleted node: ${nodeId}` };
+                return commands._delete(nodeId);
             }
             
-            case 'docmem.serialize': {
-                // Note: serialize() works on the root of the docmem instance
-                // If node_id is provided in args, we ignore it for now (current impl doesn't support subtree serialization)
-                const nodes = docmem.serialize();
-                return { success: true, result: JSON.stringify(nodes.map(n => n.toDict()), null, 2) };
+            case 'docmem-serialize': {
+                if (restArgs.length < 1) {
+                    throw new Error('docmem-serialize requires <node_id>');
+                }
+                const nodeId = restArgs[0];
+                return commands._serialize(nodeId);
             }
             
-            case 'docmem.expandToLength': {
+            case 'docmem-expand-to-length': {
                 if (restArgs.length < 2) {
-                    throw new Error('docmem.expandToLength requires <node_id> <maxTokens>');
+                    throw new Error('docmem-expand-to-length requires <node_id> <maxTokens>');
                 }
                 const nodeId = restArgs[0];
                 const maxTokensArg = restArgs[1];
-                const maxTokens = parseInt(maxTokensArg, 10);
-                if (isNaN(maxTokens)) {
-                    throw new Error(`maxTokens must be a number, got: ${maxTokensArg}`);
-                }
-                const nodes = docmem.expandToLength(nodeId, maxTokens);
-                return { success: true, result: JSON.stringify(nodes.map(n => n.toDict()), null, 2) };
+                return commands._expandToLength(nodeId, maxTokensArg);
             }
             
-            case 'docmem.add_summary': {
+            case 'docmem-add-summary': {
                 if (restArgs.length < 5) {
-                    throw new Error('docmem.add_summary requires <context_type> <context_name> <context_value> <content> [<node_ids>...]');
+                    throw new Error('docmem-add-summary requires <context_type> <context_name> <context_value> <content> [<node_ids>...]');
                 }
                 // Format: context_type context_name context_value content node_id1 node_id2 ...
                 const contextType = restArgs[0];
@@ -340,16 +304,11 @@ async function executeDocmemCommand(args, docmem) {
                 // Simplest: content is arg[3], node_ids are the rest
                 const content = restArgs[3];
                 const nodeIds = restArgs.slice(4);
-                if (nodeIds.length === 0) {
-                    throw new Error('docmem.add_summary requires at least one node_id');
-                }
-                const node = docmem.add_summary(nodeIds, content, contextType, contextName, contextValue);
-                return { success: true, result: `Added summary node: ${node.id}` };
+                return commands._addSummary(contextType, contextName, contextValue, content, nodeIds);
             }
             
-            case 'Docmem.getAllRoots': {
-                const roots = Docmem.getAllRoots();
-                return { success: true, result: JSON.stringify(roots, null, 2) };
+            case 'docmem-get-all-roots': {
+                return commands._getAllRoots();
             }
             
             default:
@@ -362,8 +321,10 @@ async function executeDocmemCommand(args, docmem) {
 
 /**
  * Process commands from assistant response
+ * @param {string} responseText - The assistant response text to extract commands from
+ * @param {number} depth - Current recursion depth (max 3 rounds)
  */
-async function processCommands(responseText) {
+async function processCommands(responseText, depth = 0) {
     const commands = extractRunSections(responseText);
     if (commands.length === 0) {
         return;
@@ -371,6 +332,9 @@ async function processCommands(responseText) {
     
     const results = [];
     const docmem = chatSession.docmem; // Access underlying docmem from DocmemChat
+    
+    // Build command output text
+    let commandOutputText = '';
     
     for (const commandText of commands) {
         try {
@@ -394,18 +358,59 @@ async function processCommands(responseText) {
             if (result.success) {
                 appendToChatDisplay(`command> ${commandText}`);
                 appendToChatDisplay(`result> ${result.result}`);
+                // Build command output text for user message
+                if (commandOutputText) {
+                    commandOutputText += '\n';
+                }
+                commandOutputText += `command> ${commandText}\nresult> ${result.result}`;
             } else {
                 appendToChatDisplay(`command> ${commandText}`);
                 appendToChatDisplay(`error> ${result.result}`);
+                // Build command output text for user message
+                if (commandOutputText) {
+                    commandOutputText += '\n';
+                }
+                commandOutputText += `command> ${commandText}\nerror> ${result.result}`;
             }
         } catch (error) {
+            const errorMessage = `Parse error: ${error.message}`;
             results.push({
                 command: commandText,
-                result: `Parse error: ${error.message}`,
+                result: errorMessage,
                 success: false
             });
             appendToChatDisplay(`command> ${commandText}`);
-            appendToChatDisplay(`error> Parse error: ${error.message}`);
+            appendToChatDisplay(`error> ${errorMessage}`);
+            // Build command output text for user message
+            if (commandOutputText) {
+                commandOutputText += '\n';
+            }
+            commandOutputText += `command> ${commandText}\nerror> ${errorMessage}`;
+        }
+    }
+    
+    // If we have command output, append it as a user message
+    if (commandOutputText) {
+        // Append command output as user message
+        chatSession.appendUserMessage(commandOutputText);
+        appendToChatDisplay(`user> ${commandOutputText}`);
+        
+        // Only invoke the model again if we haven't exceeded the depth limit (max 3 rounds)
+        if (depth < 3) {
+            // Build message list for LLM
+            const messages = chatSession.buildMessageList();
+            
+            // Call LLM again
+            const response = await api.chat(messages);
+            
+            // Append assistant response to chat session
+            chatSession.appendAssistantMessage(response);
+            appendToChatDisplay(`assistant> ${response}`);
+            
+            // Process any new # Run commands in the response (recursive, increment depth)
+            await processCommands(response, depth + 1);
+        } else {
+            appendToChatDisplay(`info> Maximum command processing depth (3 rounds) reached. Command outputs have been recorded but will not trigger automatic model response.`);
         }
     }
     

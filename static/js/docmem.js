@@ -436,10 +436,16 @@ class Docmem {
         return this._getNode(node_id);
     }
 
-    serialize() {
+    serialize(nodeId) {
+        if (!nodeId) {
+            throw new Error('nodeId is required');
+        }
         const result = [];
-        const root = this._getRoot();
-        this._serializeRecursive(root, result);
+        const startNode = this._getNode(nodeId);
+        if (!startNode) {
+            throw new Error(`Node ${nodeId} not found`);
+        }
+        this._serializeRecursive(startNode, result);
         return result;
     }
 
