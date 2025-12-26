@@ -17,6 +17,7 @@ const CHAT_DOCMEM_ID = 'chat_session';
 function initChat() {
     const startBtn = document.getElementById('chat-start-btn');
     const sendBtn = document.getElementById('chat-send-btn');
+    const continueBtn = document.getElementById('chat-continue-btn');
     const chatInput = document.getElementById('chat-input');
     const apiKeyInput = document.getElementById('chat-api-key');
     const modelInput = document.getElementById('chat-model');
@@ -27,6 +28,10 @@ function initChat() {
 
     sendBtn.addEventListener('click', async () => {
         await sendMessage();
+    });
+
+    continueBtn.addEventListener('click', async () => {
+        await sendContinueMessage();
     });
 
     chatInput.addEventListener('keypress', async (e) => {
@@ -134,7 +139,9 @@ async function sendMessage() {
     isProcessing = true;
     chatInput.disabled = true;
     const sendBtn = document.getElementById('chat-send-btn');
+    const continueBtn = document.getElementById('chat-continue-btn');
     sendBtn.disabled = true;
+    continueBtn.disabled = true;
 
     try {
         // Append user message to chat session
@@ -164,6 +171,61 @@ async function sendMessage() {
         isProcessing = false;
         chatInput.disabled = false;
         sendBtn.disabled = false;
+        continueBtn.disabled = false;
+        chatInput.focus();
+    }
+}
+
+/**
+ * Send a continue message to the LLM
+ * Appends "Please continue." as a user message and sends the context window to the LLM
+ */
+async function sendContinueMessage() {
+    if (isProcessing) {
+        return;
+    }
+
+    if (!chatSession || !api) {
+        window.showMessage('Please start a chat session first', 'error');
+        return;
+    }
+
+    const message = 'Please continue.';
+
+    isProcessing = true;
+    const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('chat-send-btn');
+    const continueBtn = document.getElementById('chat-continue-btn');
+    chatInput.disabled = true;
+    sendBtn.disabled = true;
+    continueBtn.disabled = true;
+
+    try {
+        // Append user message to chat session
+        chatSession.appendUserMessage(message);
+        appendToChatDisplay(`user> ${message}`);
+
+        // Build message list for LLM
+        const messages = chatSession.buildMessageList();
+
+        // Call LLM
+        const response = await api.chat(messages);
+
+        // Append assistant response to chat session
+        chatSession.appendAssistantMessage(response);
+        appendToChatDisplay(`assistant> ${response}`);
+
+        // Process any # Run commands in the response
+        await processCommands(response);
+    } catch (error) {
+        console.error('Error sending continue message:', error);
+        window.showMessage('Error: ' + error.message, 'error');
+        appendToChatDisplay(`error> ${error.message}`);
+    } finally {
+        isProcessing = false;
+        chatInput.disabled = false;
+        sendBtn.disabled = false;
+        continueBtn.disabled = false;
         chatInput.focus();
     }
 }
