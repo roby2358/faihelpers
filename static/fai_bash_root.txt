@@ -83,6 +83,10 @@ docmem-insert-between <node-id-1> <node-id-2> <context-type> <context-name> <con
 docmem-update-content <node-id> <content>
 - updates the content of a node by a known node-id
 
+docmem-update-context <node-id> <context-type> <context-name> <context-value>
+- updates the context metadata (context_type, context_name, context_value) of an existing node
+- dependent on the actual node ID returned by the system
+
 docmem-delete <node-id>
 - deletes the node-id and subtree
 

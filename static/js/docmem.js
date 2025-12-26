@@ -243,6 +243,23 @@ class Docmem {
         stmt.free();
     }
 
+    _updateNodeContext(node) {
+        const stmt = this.db.prepare(`
+            UPDATE nodes
+            SET context_type = ?, context_name = ?, context_value = ?, updated_at = ?
+            WHERE id = ?
+        `);
+        stmt.bind([
+            node.contextType,
+            node.contextName,
+            node.contextValue,
+            new Date().toISOString(),
+            node.id
+        ]);
+        stmt.step();
+        stmt.free();
+    }
+
     _getNode(nodeId) {
         const stmt = this.db.prepare('SELECT * FROM nodes WHERE id = ?');
         stmt.bind([nodeId]);
@@ -429,6 +446,20 @@ class Docmem {
         node.tokenCount = tempNode.tokenCount;
         node.updatedAt = new Date().toISOString();
         this._updateNode(node);
+        return node;
+    }
+
+    update_context(node_id, context_type, context_name, context_value) {
+        const node = this._getNode(node_id);
+        if (!node) {
+            throw new Error(`Node ${node_id} not found`);
+        }
+        
+        node.contextType = context_type;
+        node.contextName = context_name;
+        node.contextValue = context_value;
+        node.updatedAt = new Date().toISOString();
+        this._updateNodeContext(node);
         return node;
     }
 

@@ -50,6 +50,22 @@ export class DocmemCommands {
         return { success: true, result: `docmem-update-content updated node: ${node.id}` };
     }
 
+    updateContext(nodeId, contextType, contextName, contextValue) {
+        // Validate context fields are non-empty
+        if (!contextType || !contextType.trim()) {
+            throw new Error('docmem-update-context requires context_type to be a string of length 0 to 24');
+        }
+        if (!contextName || !contextName.trim()) {
+            throw new Error('docmem-update-context requires context_name to be a string of length 0 to 24');
+        }
+        if (!contextValue || !contextValue.trim()) {
+            throw new Error('docmem-update-context requires context_value to be a string of length 0 to 24');
+        }
+
+        const node = this.docmem.update_context(nodeId, contextType.trim(), contextName.trim(), contextValue.trim());
+        return { success: true, result: `docmem-update-context updated node: ${node.id}` };
+    }
+
     find(nodeId) {
         const node = this.docmem.find(nodeId);
         if (!node) {

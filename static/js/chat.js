@@ -258,6 +258,17 @@ async function executeDocmemCommand(args, docmem) {
                 return commands.updateContent(nodeId, content);
             }
             
+            case 'docmem-update-context': {
+                if (restArgs.length < 4) {
+                    throw new Error('docmem-update-context requires <node_id> <context_type> <context_name> <context_value>');
+                }
+                const nodeId = restArgs[0];
+                const contextType = restArgs[1];
+                const contextName = restArgs[2];
+                const contextValue = restArgs[3];
+                return commands.updateContext(nodeId, contextType, contextName, contextValue);
+            }
+            
             case 'docmem-find': {
                 if (restArgs.length < 1) {
                     throw new Error('docmem-find requires <node_id>');
