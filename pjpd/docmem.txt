@@ -18,6 +18,11 @@ Status: ToDo
 ID: checksum-5wv6
 Add hash property to track document state for optimistic locking to detect concurrent modifications
 ---
+Priority:   60
+Status: ToDo
+ID: global-ids-9xnx
+Remove the docmem state from DocmemCommands and instead treat node-ids as global (and globally unique)
+---
 Priority:   50
 Status: ToDo
 ID: persist-bzb3
