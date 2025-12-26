@@ -48,6 +48,11 @@ Status: ToDo
 ID: persist-bzb3
 Implement persistence for the SQLite database using IndexedDB so that docmem data survives page reloads and browser sessions. Serialize the database state to IndexedDB on save operations and restore it when loading a docmem instance.
 ---
+Priority:   50
+Status: ToDo
+ID: py-parse-r2be
+Support Python function call parsing as an alternative to bash command syntax. Allow docmem commands to be specified as Python function calls (e.g., docmem_append_child(node_id, context_type, context_name, context_value, content)) in addition to the current bash-style command format, providing flexibility in how commands are expressed and parsed.
+---
 Priority:   45
 Status: ToDo
 ID: ctx-schema-85zu
