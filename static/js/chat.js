@@ -215,7 +215,7 @@ async function executeDocmemCommand(args, docmem) {
                     throw new Error('docmem-create requires <root-id>');
                 }
                 const rootId = restArgs[0];
-                return await commands._create(rootId);
+                return await commands.create(rootId);
             }
             
             case 'docmem-append-child': {
@@ -229,7 +229,7 @@ async function executeDocmemCommand(args, docmem) {
                 // Content can be empty - join remaining args (if any) and trim leading/trailing newlines
                 // Note: Empty strings are filtered out by the parser, so if content was "", restArgs.length will be 4
                 const content = restArgs.length > 4 ? restArgs.slice(4).join(' ').replace(/^\n+|\n+$/g, '') : '';
-                return commands._appendChild(nodeId, contextType, contextName, contextValue, content);
+                return commands.appendChild(nodeId, contextType, contextName, contextValue, content);
             }
             
             case 'docmem-insert-between': {
@@ -244,7 +244,7 @@ async function executeDocmemCommand(args, docmem) {
                 // Content can be empty - join remaining args (if any) and trim leading/trailing newlines
                 // Note: Empty strings are filtered out by the parser, so if content was "", restArgs.length will be 5
                 const content = restArgs.length > 5 ? restArgs.slice(5).join(' ').replace(/^\n+|\n+$/g, '') : '';
-                return commands._insertBetween(nodeId1, nodeId2, contextType, contextName, contextValue, content);
+                return commands.insertBetween(nodeId1, nodeId2, contextType, contextName, contextValue, content);
             }
             
             case 'docmem-update-content': {
@@ -255,7 +255,7 @@ async function executeDocmemCommand(args, docmem) {
                 // Content can be empty - join remaining args (if any) and trim leading/trailing newlines
                 // Note: Empty strings are filtered out by the parser, so if content was "", restArgs.length will be 1
                 const content = restArgs.length > 1 ? restArgs.slice(1).join(' ').replace(/^\n+|\n+$/g, '') : '';
-                return commands._updateContent(nodeId, content);
+                return commands.updateContent(nodeId, content);
             }
             
             case 'docmem-find': {
@@ -263,7 +263,7 @@ async function executeDocmemCommand(args, docmem) {
                     throw new Error('docmem-find requires <node_id>');
                 }
                 const nodeId = restArgs[0];
-                return commands._find(nodeId);
+                return commands.find(nodeId);
             }
             
             case 'docmem-delete': {
@@ -271,7 +271,7 @@ async function executeDocmemCommand(args, docmem) {
                     throw new Error('docmem-delete requires <node_id>');
                 }
                 const nodeId = restArgs[0];
-                return commands._delete(nodeId);
+                return commands.delete(nodeId);
             }
             
             case 'docmem-serialize': {
@@ -279,7 +279,7 @@ async function executeDocmemCommand(args, docmem) {
                     throw new Error('docmem-serialize requires <node_id>');
                 }
                 const nodeId = restArgs[0];
-                return commands._serialize(nodeId);
+                return commands.serialize(nodeId);
             }
             
             case 'docmem-expand-to-length': {
@@ -288,7 +288,7 @@ async function executeDocmemCommand(args, docmem) {
                 }
                 const nodeId = restArgs[0];
                 const maxTokensArg = restArgs[1];
-                return commands._expandToLength(nodeId, maxTokensArg);
+                return commands.expandToLength(nodeId, maxTokensArg);
             }
             
             case 'docmem-add-summary': {
@@ -304,11 +304,11 @@ async function executeDocmemCommand(args, docmem) {
                 // Simplest: content is arg[3], node_ids are the rest
                 const content = restArgs[3];
                 const nodeIds = restArgs.slice(4);
-                return commands._addSummary(contextType, contextName, contextValue, content, nodeIds);
+                return commands.addSummary(contextType, contextName, contextValue, content, nodeIds);
             }
             
             case 'docmem-get-all-roots': {
-                return commands._getAllRoots();
+                return commands.getAllRoots();
             }
             
             default:
