@@ -85,6 +85,11 @@ export class DocmemCommands {
         return { success: true, result: `docmem-serialize:\n${content}` };
     }
 
+    structure(nodeId) {
+        const structure = this.docmem.structure(nodeId);
+        return { success: true, result: `docmem-structure:\n${JSON.stringify(structure, null, 2)}` };
+    }
+
     expandToLength(nodeId, maxTokens) {
         const maxTokensNum = parseInt(maxTokens, 10);
         if (isNaN(maxTokensNum)) {

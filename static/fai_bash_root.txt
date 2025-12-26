@@ -94,6 +94,11 @@ docmem-delete <node-id>
 docmem-serialize <node-id>
 - serializes starting at the existing node-id
 
+docmem-structure <node-id>
+- returns the metadata and hierarchical structure without any content
+- provides node IDs, parent relationships, order values, context metadata, and token counts
+- excludes the actual text content for efficient navigation and overview
+
 docmem-expand-to-length <node-id> <maxTokens>
 - BFS expansion of the existing node up to a length of maxTokens
 
@@ -108,3 +113,8 @@ docmem-get-all-roots
 
 docmem-find <node-id>
 - finds a node with the existing node-id
+
+# System Operations
+
+hello-world
+- prints a simple greeting message

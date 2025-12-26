@@ -489,6 +489,39 @@ class Docmem {
         }
     }
 
+    structure(nodeId) {
+        if (!nodeId) {
+            throw new Error('nodeId is required');
+        }
+        const result = [];
+        const startNode = this._getNode(nodeId);
+        if (!startNode) {
+            throw new Error(`Node ${nodeId} not found`);
+        }
+        this._structureRecursive(startNode, result);
+        return result;
+    }
+
+    _structureRecursive(node, result) {
+        // Return structure without text content
+        result.push({
+            id: node.id,
+            parentId: node.parentId,
+            order: node.order,
+            tokenCount: node.tokenCount,
+            createdAt: node.createdAt,
+            updatedAt: node.updatedAt,
+            contextType: node.contextType,
+            contextName: node.contextName,
+            contextValue: node.contextValue
+        });
+        const children = this._getChildren(node.id);
+        const sortedChildren = [...children].sort((a, b) => a.order - b.order);
+        for (const child of sortedChildren) {
+            this._structureRecursive(child, result);
+        }
+    }
+
     expandToLength(nodeId, maxTokens) {
         if (!nodeId) {
             throw new Error('nodeId is required');

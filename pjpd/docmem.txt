@@ -1,12 +1,12 @@
+Priority:   90
+Status: ToDo
+ID: model-select-mv5t
+Replace the model input text box with a dropdown/select menu in the chat interface. The dropdown should contain a curated list of available models (e.g., from OpenRouter) with common options pre-populated. This improves usability by preventing typos, making model selection faster, and ensuring users select valid model identifiers. The dropdown should still allow for custom model entry if needed, or provide an "Other" option for manual entry.
+---
 Priority:   80
 Status: ToDo
 ID: llm-api-za72
 Integrate LLM API calls for generating summaries and processing content. Implement round-trip communication where the LLM can read from docmem (via serialization/expansion), generate responses or summaries, and write results back to docmem nodes. This enables the LLM to work with the hierarchical memory structure bidirectionally.
----
-Priority:   80
-Status: ToDo
-ID: update-ctx-dq62
-Add a docmem-update-context function to allow updating the context metadata (context_type, context_name, context_value) of existing nodes
 ---
 Priority:   80
 Status: ToDo
@@ -25,8 +25,8 @@ Add docmem-move-insert-before command to move a node (and its subtree) to be ins
 ---
 Priority:   70
 Status: ToDo
-ID: cmd-parse-ihmj
-Integrate command parsing functionality from the AI Parliament project. Adapt the command parsing system to work with docmem operations, allowing structured commands to trigger docmem actions like append, summarize, expand, and query. This will enable a command-driven interface for interacting with docmem instances.
+ID: prompt-cache-7kad
+Configure provider calls for prompt caching. Set up caching mechanisms for LLM API calls to reduce costs and improve response times by caching prompt prefixes and reusing them across requests. This includes configuring cache settings in the OpenRouter API integration and managing cache invalidation strategies.
 ---
 Priority:   60
 Status: ToDo
@@ -42,6 +42,16 @@ Priority:   60
 Status: ToDo
 ID: global-ids-9xnx
 Remove the docmem state from DocmemCommands and instead treat node-ids as global (and globally unique)
+---
+Priority:   60
+Status: ToDo
+ID: view-meta-4a6m
+Add a checkbox to the View page that allows users to toggle showing or hiding metadata. When checked, display node metadata (context_type, context_name, context_value, token counts, order values, timestamps, etc.) alongside the content. When unchecked, show only the content without metadata. This provides a cleaner view option for reading documents while still allowing access to structural information when needed.
+---
+Priority:   60
+Status: ToDo
+ID: summ-span-ubbd
+Change the summarize operation from accepting a list of node IDs to accepting a start node and stop node to pick up a span of contiguous nodes. This simplifies the interface by allowing users to specify a range of nodes (e.g., first and last node in a sequence) rather than listing all individual node IDs. The operation should identify all nodes between the start and stop nodes (inclusive) based on their order values within the same parent, and create a summary node for that contiguous span.
 ---
 Priority:   50
 Status: ToDo
@@ -82,6 +92,21 @@ Priority:   30
 Status: ToDo
 ID: db-mgmt-fayc
 Implement database management functions for docmem instances. Add operations to clear/delete docmem documents, list all available docmem instances, view metadata about stored documents, and perform maintenance tasks. This will provide users with tools to manage their collection of docmem documents and clean up unused or outdated instances.
+---
+Priority:    0
+Status: Done
+ID: cmd-parse-ihmj
+Integrate command parsing functionality from the AI Parliament project. Adapt the command parsing system to work with docmem operations, allowing structured commands to trigger docmem actions like append, summarize, expand, and query. This will enable a command-driven interface for interacting with docmem instances.
+---
+Priority:    0
+Status: Done
+ID: update-ctx-dq62
+Add a docmem-update-context function to allow updating the context metadata (context_type, context_name, context_value) of existing nodes
+---
+Priority:    0
+Status: Done
+ID: structure-3i4e
+Add a docmem-structure command that returns the metadata and hierarchical structure of nodes without any content. This command should provide a lightweight view of the document structure including node IDs, parent relationships, order values, context metadata (context_type, context_name, context_value), and token counts, but exclude the actual text content. This enables efficient navigation and overview of document organization without loading full content.
 ---
 Priority:    0
 Status: Done

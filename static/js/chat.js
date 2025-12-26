@@ -4,6 +4,7 @@
 import { OpenRouterAPI } from './OpenRouterAPI.js';
 import { parse as parseCommand } from './bash/command_parser.js';
 import { DocmemCommands } from './docmem_commands.js';
+import { SystemCommands } from './system_commands.js';
 
 let chatSession = null;
 let api = null;
@@ -355,6 +356,14 @@ async function executeDocmemCommand(args, docmem) {
                 return commands.serialize(nodeId);
             }
             
+            case 'docmem-structure': {
+                if (restArgs.length < 1) {
+                    throw new Error('docmem-structure requires <node_id>');
+                }
+                const nodeId = restArgs[0];
+                return commands.structure(nodeId);
+            }
+            
             case 'docmem-expand-to-length': {
                 if (restArgs.length < 2) {
                     throw new Error('docmem-expand-to-length requires <node_id> <maxTokens>');
@@ -393,6 +402,50 @@ async function executeDocmemCommand(args, docmem) {
 }
 
 /**
+ * Execute a parsed system command
+ */
+async function executeSystemCommand(args) {
+    if (!args || args.length === 0) {
+        throw new Error('Empty command');
+    }
+    
+    const command = args[0];
+    const restArgs = args.slice(1);
+    
+    try {
+        const commands = new SystemCommands();
+        
+        switch (command) {
+            case 'hello-world': {
+                return commands.helloWorld();
+            }
+            
+            default:
+                return { success: false, result: `Unknown system command: ${command}` };
+        }
+    } catch (error) {
+        return { success: false, result: `Error: ${error.message}` };
+    }
+}
+
+/**
+ * Execute a parsed command (routes to appropriate handler based on prefix)
+ */
+async function executeCommand(args, docmem) {
+    if (!args || args.length === 0) {
+        throw new Error('Empty command');
+    }
+    
+    const command = args[0];
+    
+    if (command.startsWith('docmem-')) {
+        return await executeDocmemCommand(args, docmem);
+    } else {
+        return await executeSystemCommand(args);
+    }
+}
+
+/**
  * Process commands from assistant response
  * @param {string} responseText - The assistant response text to extract commands from
  * @param {number} depth - Current recursion depth (max 3 rounds)
@@ -419,7 +472,7 @@ async function processCommands(responseText, depth = 0) {
             }
             
             // Execute the command
-            const result = await executeDocmemCommand(args, docmem);
+            const result = await executeCommand(args, docmem);
             
             results.push({
                 command: commandText,
