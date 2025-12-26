@@ -3,6 +3,26 @@ Status: ToDo
 ID: llm-api-za72
 Integrate LLM API calls for generating summaries and processing content. Implement round-trip communication where the LLM can read from docmem (via serialization/expansion), generate responses or summaries, and write results back to docmem nodes. This enables the LLM to work with the hierarchical memory structure bidirectionally.
 ---
+Priority:   80
+Status: ToDo
+ID: update-ctx-dq62
+Add a docmem-update-context function to allow updating the context metadata (context_type, context_name, context_value) of existing nodes
+---
+Priority:   80
+Status: ToDo
+ID: move-append-r26m
+Add docmem-move-append-child command to move a node (and its subtree) to become a child of a target parent node. Updates parent_id and recalculates order values appropriately.
+---
+Priority:   80
+Status: ToDo
+ID: move-after-b6tq
+Add docmem-move-insert-after command to move a node (and its subtree) to be inserted after a target sibling node. Ensures nodes share the same parent and inserts between existing order values.
+---
+Priority:   80
+Status: ToDo
+ID: move-before-5rz7
+Add docmem-move-insert-before command to move a node (and its subtree) to be inserted before a target sibling node. Ensures nodes share the same parent and inserts between existing order values.
+---
 Priority:   70
 Status: ToDo
 ID: cmd-parse-ihmj
@@ -28,10 +48,25 @@ Status: ToDo
 ID: persist-bzb3
 Implement persistence for the SQLite database using IndexedDB so that docmem data survives page reloads and browser sessions. Serialize the database state to IndexedDB on save operations and restore it when loading a docmem instance.
 ---
+Priority:   45
+Status: ToDo
+ID: ctx-schema-85zu
+Define a context schema scheme that specifies the structure and validation rules for context metadata (context_type, context_name, context_value) used across docmem nodes
+---
 Priority:   40
 Status: ToDo
 ID: doc-cmds-3s3a
 Enable document creation and editing through parsed command interface. Allow models to create new docmem documents and modify existing ones using structured commands. Implement command handlers that translate parsed commands into docmem operations like creating nodes, updating content, organizing structure, and managing document hierarchy.
+---
+Priority:   40
+Status: ToDo
+ID: lock-ctx-9phx
+Add a docmem-lock-context function that accepts a context schema and applies validation/constraints to ensure nodes conform to the specified context schema structure
+---
+Priority:   40
+Status: ToDo
+ID: node-path-v5y6
+Support @root-id/node-id syntax to reference and relate docmem nodes across different docmem instances. This enables cross-document node references using a path-like notation that combines the root docmem ID with the specific node ID.
 ---
 Priority:   30
 Status: ToDo
