@@ -1,8 +1,3 @@
-Priority:   90
-Status: ToDo
-ID: model-select-mv5t
-Replace the model input text box with a dropdown/select menu in the chat interface. The dropdown should contain a curated list of available models (e.g., from OpenRouter) with common options pre-populated. This improves usability by preventing typos, making model selection faster, and ensuring users select valid model identifiers. The dropdown should still allow for custom model entry if needed, or provide an "Other" option for manual entry.
----
 Priority:   80
 Status: ToDo
 ID: llm-api-za72
@@ -10,23 +5,13 @@ Integrate LLM API calls for generating summaries and processing content. Impleme
 ---
 Priority:   80
 Status: ToDo
-ID: move-after-b6tq
-Add docmem-move-insert-after command to move a node (and its subtree) to be inserted after a target sibling node. Ensures nodes share the same parent and inserts between existing order values.
----
-Priority:   80
-Status: ToDo
-ID: move-before-5rz7
-Add docmem-move-insert-before command to move a node (and its subtree) to be inserted before a target sibling node. Ensures nodes share the same parent and inserts between existing order values.
+ID: llm-api-za72
+Integrate LLM API calls for generating summaries and processing content. Implement round-trip communication where the LLM can read from docmem (via serialization/expansion), generate responses or summaries, and write results back to docmem nodes. This enables the LLM to work with the hierarchical memory structure bidirectionally.
 ---
 Priority:   70
 Status: ToDo
 ID: prompt-cache-7kad
 Configure provider calls for prompt caching. Set up caching mechanisms for LLM API calls to reduce costs and improve response times by caching prompt prefixes and reusing them across requests. This includes configuring cache settings in the OpenRouter API integration and managing cache invalidation strategies.
----
-Priority:   60
-Status: ToDo
-ID: chat-ui-q4w8
-Implement the chat interface UI components and interaction flow. Create the chat tab interface with message display, input handling, and user interaction patterns. Set up the basic structure for sending and receiving messages, formatting conversation history, and managing chat state within the application.
 ---
 Priority:   60
 Status: ToDo
@@ -50,13 +35,8 @@ Change the summarize operation from accepting a list of node IDs to accepting a 
 ---
 Priority:   60
 Status: ToDo
-ID: docmem-dl-bkrk
-Add functionality to download docmems. Implement a download feature that allows users to export docmem documents. The exact format (JSON, text, binary, etc.) and structure of the exported data will need to be determined during implementation. This should enable users to save and share docmem documents, potentially including the full hierarchical structure, node metadata, content, and relationships.
----
-Priority:   60
-Status: ToDo
-ID: docmem-up-zpsm
-Add functionality to upload docmems and parse them. Implement an upload feature that allows users to import docmem documents from files. The exact format (JSON, text, binary, etc.) and parsing logic will need to be determined during implementation. This should enable users to restore previously exported docmem documents, potentially recreating the full hierarchical structure, node metadata, content, and relationships from the uploaded file.
+ID: chat-ui-q4w8
+Implement the chat interface UI components and interaction flow. Create the chat tab interface with message display, input handling, and user interaction patterns. Set up the basic structure for sending and receiving messages, formatting conversation history, and managing chat state within the application.
 ---
 Priority:   50
 Status: ToDo
@@ -68,15 +48,15 @@ Status: ToDo
 ID: py-parse-r2be
 Support Python function call parsing as an alternative to bash command syntax. Allow docmem commands to be specified as Python function calls (e.g., docmem_append_child(node_id, context_type, context_name, context_value, content)) in addition to the current bash-style command format, providing flexibility in how commands are expressed and parsed.
 ---
+Priority:   50
+Status: ToDo
+ID: persist-bzb3
+Implement persistence for the SQLite database using IndexedDB so that docmem data survives page reloads and browser sessions. Serialize the database state to IndexedDB on save operations and restore it when loading a docmem instance.
+---
 Priority:   45
 Status: ToDo
 ID: ctx-schema-85zu
 Define a context schema scheme that specifies the structure and validation rules for context metadata (context_type, context_name, context_value) used across docmem nodes
----
-Priority:   40
-Status: ToDo
-ID: doc-cmds-3s3a
-Enable document creation and editing through parsed command interface. Allow models to create new docmem documents and modify existing ones using structured commands. Implement command handlers that translate parsed commands into docmem operations like creating nodes, updating content, organizing structure, and managing document hierarchy.
 ---
 Priority:   40
 Status: ToDo
@@ -88,6 +68,16 @@ Status: ToDo
 ID: node-path-v5y6
 Support @root-id/node-id syntax to reference and relate docmem nodes across different docmem instances. This enables cross-document node references using a path-like notation that combines the root docmem ID with the specific node ID.
 ---
+Priority:   40
+Status: ToDo
+ID: doc-cmds-3s3a
+Enable document creation and editing through parsed command interface. Allow models to create new docmem documents and modify existing ones using structured commands. Implement command handlers that translate parsed commands into docmem operations like creating nodes, updating content, organizing structure, and managing document hierarchy.
+---
+Priority:   30
+Status: ToDo
+ID: db-mgmt-fayc
+Implement database management functions for docmem instances. Add operations to clear/delete docmem documents, list all available docmem instances, view metadata about stored documents, and perform maintenance tasks. This will provide users with tools to manage their collection of docmem documents and clean up unused or outdated instances.
+---
 Priority:   30
 Status: ToDo
 ID: download-3ck4
@@ -97,6 +87,56 @@ Priority:   30
 Status: ToDo
 ID: db-mgmt-fayc
 Implement database management functions for docmem instances. Add operations to clear/delete docmem documents, list all available docmem instances, view metadata about stored documents, and perform maintenance tasks. This will provide users with tools to manage their collection of docmem documents and clean up unused or outdated instances.
+---
+Priority:    0
+Status: Done
+ID: download-3ck4
+Add a download button that exports a serialized docmem document. Implement functionality to serialize the current docmem tree structure into a downloadable format (JSON, text, or other format) so users can save and share docmem documents. The download should include the full hierarchical structure with all nodes, their content, context information, and relationships.
+---
+Priority:    0
+Status: Done
+ID: doc-cmds-3s3a
+Enable document creation and editing through parsed command interface. Allow models to create new docmem documents and modify existing ones using structured commands. Implement command handlers that translate parsed commands into docmem operations like creating nodes, updating content, organizing structure, and managing document hierarchy.
+---
+Priority:    0
+Status: Done
+ID: chat-ui-q4w8
+Implement the chat interface UI components and interaction flow. Create the chat tab interface with message display, input handling, and user interaction patterns. Set up the basic structure for sending and receiving messages, formatting conversation history, and managing chat state within the application.
+---
+Priority:    0
+Status: Done
+ID: docmem-up-zpsm
+Add functionality to upload docmems and parse them. Implement an upload feature that allows users to import docmem documents from files. The exact format (JSON, text, binary, etc.) and parsing logic will need to be determined during implementation. This should enable users to restore previously exported docmem documents, potentially recreating the full hierarchical structure, node metadata, content, and relationships from the uploaded file.
+---
+Priority:    0
+Status: Done
+ID: docmem-dl-bkrk
+Add functionality to download docmems. Implement a download feature that allows users to export docmem documents. The exact format (JSON, text, binary, etc.) and structure of the exported data will need to be determined during implementation. This should enable users to save and share docmem documents, potentially including the full hierarchical structure, node metadata, content, and relationships.
+---
+Priority:    0
+Status: Done
+ID: cmd-parse-ihmj
+Integrate command parsing functionality from the AI Parliament project. Adapt the command parsing system to work with docmem operations, allowing structured commands to trigger docmem actions like append, summarize, expand, and query. This will enable a command-driven interface for interacting with docmem instances.
+---
+Priority:    0
+Status: Done
+ID: chat-cvyr
+Build the chat interface tab, creating and managing docmem instances dynamically as conversations progress. Integrate docmem operations (append, summarize, expand) into the chat workflow so that conversation context is automatically captured and organized in the hierarchical structure.
+---
+Priority:    0
+Status: Done
+ID: move-before-5rz7
+Add docmem-move-insert-before command to move a node (and its subtree) to be inserted before a target sibling node. Ensures nodes share the same parent and inserts between existing order values.
+---
+Priority:    0
+Status: Done
+ID: move-after-b6tq
+Add docmem-move-insert-after command to move a node (and its subtree) to be inserted after a target sibling node. Ensures nodes share the same parent and inserts between existing order values.
+---
+Priority:    0
+Status: Done
+ID: model-select-mv5t
+Replace the model input text box with a dropdown/select menu in the chat interface. The dropdown should contain a curated list of available models (e.g., from OpenRouter) with common options pre-populated. This improves usability by preventing typos, making model selection faster, and ensuring users select valid model identifiers. The dropdown should still allow for custom model entry if needed, or provide an "Other" option for manual entry.
 ---
 Priority:    0
 Status: Done
@@ -127,3 +167,8 @@ Priority:    0
 Status: Done
 ID: gitignore-685m
 add pjpd/bak to .gitignore
+---
+Priority:    0
+Status: Done
+ID: persist-tab-ttdc
+Create a persistence tab with a serialization scheme and save/load functionality. Implement a UI tab for managing persistence operations, design a serialization format for docmem documents, and add save/load capabilities to persist docmem instances to storage and restore them later.
