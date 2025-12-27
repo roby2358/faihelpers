@@ -124,6 +124,9 @@ async function initSharedDatabase() {
             });
             sharedDatabase = new SQL.Database();
             
+            // Enable foreign key constraints (required for CASCADE delete to work)
+            sharedDatabase.run('PRAGMA foreign_keys = ON');
+            
             // Initialize database schema (CREATE TABLE IF NOT EXISTS)
             sharedDatabase.run(`
                 CREATE TABLE IF NOT EXISTS nodes (
@@ -497,6 +500,24 @@ class Docmem {
 
     delete(node_id) {
         this._requireNode(node_id);
+        
+        // Collect all descendants recursively before deletion
+        // This ensures we delete all children to prevent orphaned nodes
+        const descendants = [];
+        this._getAllDescendants(node_id, descendants);
+        
+        // Delete all descendants first (bottom-up: children before parents)
+        // _getAllDescendants returns nodes in pre-order (parent before children)
+        // Reversing gives us post-order (children before parents) for safe deletion
+        const descendantIds = descendants.map(n => n.id).reverse();
+        for (const descendantId of descendantIds) {
+            const stmt = this.db.prepare('DELETE FROM nodes WHERE id = ?');
+            stmt.bind([descendantId]);
+            stmt.step();
+            stmt.free();
+        }
+        
+        // Finally delete the target node itself
         const stmt = this.db.prepare('DELETE FROM nodes WHERE id = ?');
         stmt.bind([node_id]);
         stmt.step();
