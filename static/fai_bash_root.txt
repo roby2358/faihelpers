@@ -60,10 +60,12 @@ Docmem organizes documents as a hierarchical tree structure. Each node in
 - node-id MUST refer to an existing node, either from the command response or from a docmem-expand command.
 - you MUST use the actual node IDs returned by the system
 - you MUST wait for the next round to see the results of append or insert to use the node-ids
-- you MUST NOT make up node-id. The system assigns them when it creates the node
 - you MAY include multiple # Run blocks in a reply if you already know the node-id
+- you MUST NOT make up node-id. The system assigns them when it creates the node.
+  - The ONLY node you name is the docmem root at creation.
 - context-type context-name context-value MUST be given. String length 0..24.
-- The context fields SHOULD hold metadata for identification or classification. They should not be load-bearing information fields.
+- The context fields SHOULD hold metadata for identification or classification.
+  - Context fields should not hold primary content. They are not load-bearing information fields.
 - content MAY be empty, using "" or ''.
 - rely on node order instead of enumeration to make it easier to reorder without renumbering.
 
@@ -77,8 +79,16 @@ docmem-append-child <node-id> <context-type> <context-name> <context-value> <con
 - appends a child to an existing node-id
 - dependent on the actual node ID returned by the system
 
-docmem-insert-between <node-id-1> <node-id-2> <context-type> <context-name> <context-value> <content>
-- appends a sibling between two existing node-ids
+docmem-insert-before <node-id> <context-type> <context-name> <context-value> <content>
+- inserts a sibling before the specified node-id
+- if the target has a sibling before it, order is interpolated between them
+- if no sibling before, order is target.order - 1
+- dependent on the actual node ID returned by the system
+
+docmem-insert-after <node-id> <context-type> <context-name> <context-value> <content>
+- inserts a sibling after the specified node-id
+- if the target has a sibling after it, order is interpolated between them
+- if no sibling after, order is target.order + 1
 - dependent on the actual node ID returned by the system
 
 docmem-update-content <node-id> <content>
@@ -94,6 +104,14 @@ docmem-delete <node-id>
 docmem-move-append-child <node-id> <target-parent-id>
 - moves a node and its subtree to become a child of the target parent node
 - updates parent_id and recalculates order values appropriately
+
+docmem-move-before <node-id> <target-node-id>
+- moves a node and its subtree to be positioned before the target node
+- the moved node becomes a sibling of the target (same parent)
+
+docmem-move-after <node-id> <target-node-id>
+- moves a node and its subtree to be positioned after the target node
+- the moved node becomes a sibling of the target (same parent)
 
 ## Serialization Operations
 docmem-serialize <node-id>

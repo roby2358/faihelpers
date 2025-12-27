@@ -341,93 +341,162 @@ class Docmem {
         return roots;
     }
 
-    append_child(node_id, context_type, context_name, context_value, content) {
-        const parent = this._getNode(node_id);
-        if (!parent) {
-            throw new Error(`Parent node ${node_id} not found`);
+    _requireNode(nodeId) {
+        const node = this._getNode(nodeId);
+        if (!node) {
+            throw new Error(`Node ${nodeId} not found`);
         }
+        return node;
+    }
 
-        const children = this._getChildren(node_id);
+    _getSortedChildren(parentId) {
+        const children = this._getChildren(parentId);
+        return [...children].sort((a, b) => a.order - b.order);
+    }
+
+    _calculateOrderForAppend(parentId) {
+        const children = this._getChildren(parentId);
         const maxOrder = children.length > 0 
             ? Math.max(...children.map(c => c.order))
             : 0.0;
-        const newOrder = maxOrder + 1.0;
+        return maxOrder + 1.0;
+    }
 
+    _calculateOrderForBefore(targetNode, sortedChildren, targetIdx) {
+        if (targetIdx > 0) {
+            const siblingBefore = sortedChildren[targetIdx - 1];
+            const targetOrder = targetNode.order;
+            const siblingOrder = siblingBefore.order;
+            return (siblingOrder * 4 + targetOrder * 1) / 5;
+        } else {
+            return targetNode.order - 1.0;
+        }
+    }
+
+    _calculateOrderForAfter(targetNode, sortedChildren, targetIdx) {
+        if (targetIdx < sortedChildren.length - 1) {
+            const siblingAfter = sortedChildren[targetIdx + 1];
+            const targetOrder = targetNode.order;
+            const siblingOrder = siblingAfter.order;
+            return (targetOrder * 4 + siblingOrder * 1) / 5;
+        } else {
+            return targetNode.order + 1.0;
+        }
+    }
+
+    _findTargetIndexInSorted(sortedChildren, nodeId) {
+        const targetIdx = sortedChildren.findIndex(n => n.id === nodeId);
+        if (targetIdx === -1) {
+            throw new Error('Target node not found in parent children');
+        }
+        return targetIdx;
+    }
+
+    _validateCycleBeforeMove(nodeId, targetParentId) {
+        if (nodeId === targetParentId) {
+            throw new Error('Cannot move a node to be a child of itself');
+        }
+
+        const descendants = [];
+        this._getAllDescendants(nodeId, descendants);
+        const descendantIds = new Set(descendants.map(n => n.id));
+
+        if (descendantIds.has(targetParentId)) {
+            throw new Error('Cannot move a node to be a child of one of its descendants');
+        }
+    }
+
+    _validateCycleBeforeMoveSibling(nodeId, targetNode, operation) {
+        if (nodeId === targetNode.id) {
+            throw new Error(`Cannot move a node to be ${operation} itself`);
+        }
+
+        if (!targetNode.parentId) {
+            throw new Error(`Cannot move a node to be ${operation} root node`);
+        }
+
+        const descendants = [];
+        this._getAllDescendants(nodeId, descendants);
+        const descendantIds = new Set(descendants.map(n => n.id));
+
+        if (descendantIds.has(targetNode.parentId)) {
+            throw new Error('Cannot move a node to be a sibling of a descendant');
+        }
+    }
+
+    _updateNodeParentAndOrder(nodeId, newParentId, newOrder) {
+        const stmt = this.db.prepare(`
+            UPDATE nodes
+            SET parent_id = ?, order_value = ?, updated_at = ?
+            WHERE id = ?
+        `);
+        const updatedAt = new Date().toISOString();
+        stmt.bind([newParentId, newOrder, updatedAt, nodeId]);
+        stmt.step();
+        stmt.free();
+        return this._getNode(nodeId);
+    }
+
+    _createNodeWithContext(parentId, content, order, contextType, contextName, contextValue) {
         const newNodeId = randomString(8);
-        const node = new Node(
+        return new Node(
             newNodeId,
-            node_id,
+            parentId,
             content,
-            newOrder,
+            order,
             null,
             null,
             null,
-            context_type,
-            context_name,
-            context_value
+            contextType,
+            contextName,
+            contextValue
         );
+    }
+
+    append_child(node_id, context_type, context_name, context_value, content) {
+        this._requireNode(node_id);
+        const newOrder = this._calculateOrderForAppend(node_id);
+        const node = this._createNodeWithContext(node_id, content, newOrder, context_type, context_name, context_value);
         this._insertNode(node);
         return node;
     }
 
-    insert_between(node_id_1, node_id_2, context_type, context_name, context_value, content) {
-        const node1 = this._getNode(node_id_1);
-        const node2 = this._getNode(node_id_2);
+    insert_before(node_id, context_type, context_name, context_value, content) {
+        const targetNode = this._requireNode(node_id);
         
-        if (!node1) {
-            throw new Error(`Node ${node_id_1} not found`);
-        }
-        if (!node2) {
-            throw new Error(`Node ${node_id_2} not found`);
+        const parentId = targetNode.parentId;
+        if (!parentId) {
+            throw new Error('Cannot insert before root node');
         }
         
-        if (node1.parentId !== node2.parentId) {
-            throw new Error('Nodes must have the same parent');
+        const sortedChildren = this._getSortedChildren(parentId);
+        const targetIdx = this._findTargetIndexInSorted(sortedChildren, node_id);
+        const newOrder = this._calculateOrderForBefore(targetNode, sortedChildren, targetIdx);
+        
+        const node = this._createNodeWithContext(parentId, content, newOrder, context_type, context_name, context_value);
+        this._insertNode(node);
+        return node;
+    }
+
+    insert_after(node_id, context_type, context_name, context_value, content) {
+        const targetNode = this._requireNode(node_id);
+        
+        const parentId = targetNode.parentId;
+        if (!parentId) {
+            throw new Error('Cannot insert after root node');
         }
         
-        const parentId = node1.parentId;
-        const children = this._getChildren(parentId);
+        const sortedChildren = this._getSortedChildren(parentId);
+        const targetIdx = this._findTargetIndexInSorted(sortedChildren, node_id);
+        const newOrder = this._calculateOrderForAfter(targetNode, sortedChildren, targetIdx);
         
-        // Find the positions of node1 and node2
-        const idx1 = children.findIndex(n => n.id === node_id_1);
-        const idx2 = children.findIndex(n => n.id === node_id_2);
-        
-        if (idx1 === -1 || idx2 === -1) {
-            throw new Error('One or both nodes not found in parent children');
-        }
-        
-        // Ensure node1 comes before node2
-        if (idx1 >= idx2) {
-            throw new Error('node_id_1 must come before node_id_2 in the ordering');
-        }
-        
-        // Calculate order between the two nodes using 20% interpolation
-        const a = children[idx1].order;
-        const b = children[idx2].order;
-        const newOrder = (a * 4 + b * 1) / 5;
-        
-        const newNodeId = randomString(8);
-        const node = new Node(
-            newNodeId,
-            parentId,
-            content,
-            newOrder,
-            null,
-            null,
-            null,
-            context_type,
-            context_name,
-            context_value
-        );
+        const node = this._createNodeWithContext(parentId, content, newOrder, context_type, context_name, context_value);
         this._insertNode(node);
         return node;
     }
 
     delete(node_id) {
-        const node = this._getNode(node_id);
-        if (!node) {
-            throw new Error(`Node ${node_id} not found`);
-        }
+        this._requireNode(node_id);
         const stmt = this.db.prepare('DELETE FROM nodes WHERE id = ?');
         stmt.bind([node_id]);
         stmt.step();
@@ -435,10 +504,7 @@ class Docmem {
     }
 
     update_content(node_id, content) {
-        const node = this._getNode(node_id);
-        if (!node) {
-            throw new Error(`Node ${node_id} not found`);
-        }
+        const node = this._requireNode(node_id);
         
         // Create a temporary node to calculate token count
         const tempNode = new Node(node_id, node.parentId, content, node.order, null, null, null, node.contextType, node.contextName, node.contextValue);
@@ -450,10 +516,7 @@ class Docmem {
     }
 
     update_context(node_id, context_type, context_name, context_value) {
-        const node = this._getNode(node_id);
-        if (!node) {
-            throw new Error(`Node ${node_id} not found`);
-        }
+        const node = this._requireNode(node_id);
         
         node.contextType = context_type;
         node.contextName = context_name;
@@ -468,51 +531,38 @@ class Docmem {
     }
 
     move_append_child(node_id, target_parent_id) {
-        const node = this._getNode(node_id);
-        if (!node) {
-            throw new Error(`Node ${node_id} not found`);
-        }
+        this._requireNode(node_id);
+        this._requireNode(target_parent_id);
+        this._validateCycleBeforeMove(node_id, target_parent_id);
 
-        const targetParent = this._getNode(target_parent_id);
-        if (!targetParent) {
-            throw new Error(`Target parent node ${target_parent_id} not found`);
-        }
+        const newOrder = this._calculateOrderForAppend(target_parent_id);
+        return this._updateNodeParentAndOrder(node_id, target_parent_id, newOrder);
+    }
 
-        // Prevent moving a node to be a child of itself
-        if (node_id === target_parent_id) {
-            throw new Error('Cannot move a node to be a child of itself');
-        }
+    move_before(node_id, target_node_id) {
+        this._requireNode(node_id);
+        const targetNode = this._requireNode(target_node_id);
+        this._validateCycleBeforeMoveSibling(node_id, targetNode, 'before');
 
-        // Get all descendants recursively to check for cycles
-        const descendants = [];
-        this._getAllDescendants(node_id, descendants);
-        const descendantIds = new Set(descendants.map(n => n.id));
+        const targetParentId = targetNode.parentId;
+        const sortedChildren = this._getSortedChildren(targetParentId);
+        const targetIdx = this._findTargetIndexInSorted(sortedChildren, target_node_id);
+        const newOrder = this._calculateOrderForBefore(targetNode, sortedChildren, targetIdx);
 
-        // Prevent moving a node to be a child of one of its descendants (would create a cycle)
-        if (descendantIds.has(target_parent_id)) {
-            throw new Error('Cannot move a node to be a child of one of its descendants');
-        }
+        return this._updateNodeParentAndOrder(node_id, targetParentId, newOrder);
+    }
 
-        // Calculate new order value: max(sibling orders) + 1.0
-        const siblings = this._getChildren(target_parent_id);
-        const maxOrder = siblings.length > 0
-            ? Math.max(...siblings.map(s => s.order))
-            : 0.0;
-        const newOrder = maxOrder + 1.0;
+    move_after(node_id, target_node_id) {
+        this._requireNode(node_id);
+        const targetNode = this._requireNode(target_node_id);
+        this._validateCycleBeforeMoveSibling(node_id, targetNode, 'after');
 
-        // Update the node's parent_id and order_value
-        const stmt = this.db.prepare(`
-            UPDATE nodes
-            SET parent_id = ?, order_value = ?, updated_at = ?
-            WHERE id = ?
-        `);
-        const updatedAt = new Date().toISOString();
-        stmt.bind([target_parent_id, newOrder, updatedAt, node_id]);
-        stmt.step();
-        stmt.free();
+        const targetParentId = targetNode.parentId;
+        const sortedChildren = this._getSortedChildren(targetParentId);
+        const targetIdx = this._findTargetIndexInSorted(sortedChildren, target_node_id);
+        const newOrder = this._calculateOrderForAfter(targetNode, sortedChildren, targetIdx);
 
-        // Return the updated node
-        return this._getNode(node_id);
+        return this._updateNodeParentAndOrder(node_id, targetParentId, newOrder);
     }
 
     _getAllDescendants(nodeId, result) {
@@ -528,18 +578,14 @@ class Docmem {
             throw new Error('nodeId is required');
         }
         const result = [];
-        const startNode = this._getNode(nodeId);
-        if (!startNode) {
-            throw new Error(`Node ${nodeId} not found`);
-        }
+        const startNode = this._requireNode(nodeId);
         this._serializeRecursive(startNode, result);
         return result;
     }
 
     _serializeRecursive(node, result) {
         result.push(node);
-        const children = this._getChildren(node.id);
-        const sortedChildren = [...children].sort((a, b) => a.order - b.order);
+        const sortedChildren = this._getSortedChildren(node.id);
         for (const child of sortedChildren) {
             this._serializeRecursive(child, result);
         }
@@ -550,10 +596,7 @@ class Docmem {
             throw new Error('nodeId is required');
         }
         const result = [];
-        const startNode = this._getNode(nodeId);
-        if (!startNode) {
-            throw new Error(`Node ${nodeId} not found`);
-        }
+        const startNode = this._requireNode(nodeId);
         this._structureRecursive(startNode, result);
         return result;
     }
@@ -571,8 +614,7 @@ class Docmem {
             contextName: node.contextName,
             contextValue: node.contextValue
         });
-        const children = this._getChildren(node.id);
-        const sortedChildren = [...children].sort((a, b) => a.order - b.order);
+        const sortedChildren = this._getSortedChildren(node.id);
         for (const child of sortedChildren) {
             this._structureRecursive(child, result);
         }
@@ -583,10 +625,7 @@ class Docmem {
             throw new Error('nodeId is required');
         }
         const result = [];
-        const startNode = this._getNode(nodeId);
-        if (!startNode) {
-            throw new Error(`Node ${nodeId} not found`);
-        }
+        const startNode = this._requireNode(nodeId);
         
         // Step 1: BFS to depth 1
         const depth1Nodes = [];
@@ -598,8 +637,7 @@ class Docmem {
             if (depth === 1) {
                 depth1Nodes.push(node);
             } else if (depth < 1) {
-                const children = this._getChildren(node.id);
-                const sortedChildren = [...children].sort((a, b) => a.order - b.order);
+                const sortedChildren = this._getSortedChildren(node.id);
                 for (const child of sortedChildren) {
                     queue.push({ node: child, depth: depth + 1 });
                 }
@@ -618,7 +656,7 @@ class Docmem {
             const children = this._getChildren(node.id);
             if (children.length > 0) {
                 // Node has children, expand by including its children
-                const sortedChildren = [...children].sort((a, b) => a.order - b.order);
+                const sortedChildren = this._getSortedChildren(node.id);
                 for (const child of sortedChildren) {
                     if (totalTokens + child.tokenCount <= maxTokens) {
                         result.push(child);
@@ -647,11 +685,8 @@ class Docmem {
             throw new Error('Must provide at least one memory node to summarize');
         }
 
-        const memoryNodes = node_ids.map(id => this._getNode(id));
-        const missingNodes = memoryNodes.map((n, i) => n ? null : node_ids[i]).filter(id => id !== null);
-        if (missingNodes.length > 0) {
-            throw new Error(`One or more memory nodes not found: ${missingNodes.join(', ')}`);
-        }
+        const memoryNodes = node_ids.map(id => this._requireNode(id));
+        
         // Check that all nodes are leaf nodes (have no children) - these are the "memories"
         const nodesWithChildren = memoryNodes.filter(n => this._getChildren(n.id).length > 0);
         if (nodesWithChildren.length > 0) {
@@ -673,10 +708,7 @@ class Docmem {
             parentId = memoryNodes[0].parentId;
         }
 
-        const parent = this._getNode(parentId);
-        if (!parent) {
-            throw new Error(`Parent node ${parentId} not found`);
-        }
+        this._requireNode(parentId);
 
         const children = this._getChildren(parentId);
         const childrenIds = new Set(children.map(c => c.id));
@@ -689,33 +721,19 @@ class Docmem {
             throw new Error(`Not all memory nodes found as children of parent. Missing: ${missingFromParent.join(', ')}. Parent has ${children.length} children.`);
         }
         
-        const memoryNodesSorted = children
-            .filter(n => nodeIdsSet.has(n.id))
-            .sort((a, b) => a.order - b.order);
+        const memoryNodesSorted = this._getSortedChildren(parentId)
+            .filter(n => nodeIdsSet.has(n.id));
 
         const minOrder = memoryNodesSorted[0].order;
         const maxOrder = memoryNodesSorted[memoryNodesSorted.length - 1].order;
         const summaryOrder = (minOrder + maxOrder) / 2;
 
-        // Generate summary ID using random string
-        const summaryId = randomString(8);
-        const summaryNode = new Node(
-            summaryId,
-            parentId,
-            content,
-            summaryOrder,
-            null,
-            null,
-            null,
-            context_type,
-            context_name,
-            context_value
-        );
+        const summaryNode = this._createNodeWithContext(parentId, content, summaryOrder, context_type, context_name, context_value);
         this._insertNode(summaryNode);
 
         for (const memoryNode of memoryNodesSorted) {
             const stmt = this.db.prepare('UPDATE nodes SET parent_id = ? WHERE id = ?');
-            stmt.bind([summaryId, memoryNode.id]);
+            stmt.bind([summaryNode.id, memoryNode.id]);
             stmt.step();
             stmt.free();
         }

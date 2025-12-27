@@ -29,20 +29,36 @@ export class DocmemCommands {
         return { success: true, result: `docmem-append-child appended child node: ${node.id}` };
     }
 
-    insertBetween(nodeId1, nodeId2, contextType, contextName, contextValue, content) {
+    insertBefore(nodeId, contextType, contextName, contextValue, content) {
         // Validate context fields are non-empty
         if (!contextType || !contextType.trim()) {
-            throw new Error('docmem-insert-between requires context_type to be a string of length 0 to 24');
+            throw new Error('docmem-insert-before requires context_type to be a string of length 0 to 24');
         }
         if (!contextName || !contextName.trim()) {
-            throw new Error('docmem-insert-between requires context_name to be a string of length 0 to 24');
+            throw new Error('docmem-insert-before requires context_name to be a string of length 0 to 24');
         }
         if (!contextValue || !contextValue.trim()) {
-            throw new Error('docmem-insert-between requires context_value to be a string of length 0 to 24');
+            throw new Error('docmem-insert-before requires context_value to be a string of length 0 to 24');
         }
 
-        const node = this.docmem.insert_between(nodeId1, nodeId2, contextType.trim(), contextName.trim(), contextValue.trim(), content);
-        return { success: true, result: `docmem-insert-between inserted node: ${node.id}` };
+        const node = this.docmem.insert_before(nodeId, contextType.trim(), contextName.trim(), contextValue.trim(), content);
+        return { success: true, result: `docmem-insert-before inserted node: ${node.id}` };
+    }
+
+    insertAfter(nodeId, contextType, contextName, contextValue, content) {
+        // Validate context fields are non-empty
+        if (!contextType || !contextType.trim()) {
+            throw new Error('docmem-insert-after requires context_type to be a string of length 0 to 24');
+        }
+        if (!contextName || !contextName.trim()) {
+            throw new Error('docmem-insert-after requires context_name to be a string of length 0 to 24');
+        }
+        if (!contextValue || !contextValue.trim()) {
+            throw new Error('docmem-insert-after requires context_value to be a string of length 0 to 24');
+        }
+
+        const node = this.docmem.insert_after(nodeId, contextType.trim(), contextName.trim(), contextValue.trim(), content);
+        return { success: true, result: `docmem-insert-after inserted node: ${node.id}` };
     }
 
     updateContent(nodeId, content) {
@@ -110,6 +126,16 @@ export class DocmemCommands {
     moveAppendChild(nodeId, targetParentId) {
         const node = this.docmem.move_append_child(nodeId, targetParentId);
         return { success: true, result: `docmem-move-append-child moved node ${nodeId} to parent ${targetParentId}` };
+    }
+
+    moveBefore(nodeId, targetNodeId) {
+        const node = this.docmem.move_before(nodeId, targetNodeId);
+        return { success: true, result: `docmem-move-before moved node ${nodeId} before node ${targetNodeId}` };
+    }
+
+    moveAfter(nodeId, targetNodeId) {
+        const node = this.docmem.move_after(nodeId, targetNodeId);
+        return { success: true, result: `docmem-move-after moved node ${nodeId} after node ${targetNodeId}` };
     }
 
     getAllRoots() {

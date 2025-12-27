@@ -295,19 +295,32 @@ async function executeDocmemCommand(args, docmem) {
                 return commands.appendChild(nodeId, contextType, contextName, contextValue, content);
             }
             
-            case 'docmem-insert-between': {
-                if (restArgs.length < 5) {
-                    throw new Error('docmem-insert-between requires <node_id_1> <node_id_2> <context_type> <context_name> <context_value> [<content>]');
+            case 'docmem-insert-before': {
+                if (restArgs.length < 4) {
+                    throw new Error('docmem-insert-before requires <node_id> <context_type> <context_name> <context_value> [<content>]');
                 }
-                const nodeId1 = restArgs[0];
-                const nodeId2 = restArgs[1];
-                const contextType = restArgs[2];
-                const contextName = restArgs[3];
-                const contextValue = restArgs[4];
+                const nodeId = restArgs[0];
+                const contextType = restArgs[1];
+                const contextName = restArgs[2];
+                const contextValue = restArgs[3];
                 // Content can be empty - join remaining args (if any) and trim leading/trailing newlines
-                // Note: Empty strings are filtered out by the parser, so if content was "", restArgs.length will be 5
-                const content = restArgs.length > 5 ? restArgs.slice(5).join(' ').replace(/^\n+|\n+$/g, '') : '';
-                return commands.insertBetween(nodeId1, nodeId2, contextType, contextName, contextValue, content);
+                // Note: Empty strings are filtered out by the parser, so if content was "", restArgs.length will be 4
+                const content = restArgs.length > 4 ? restArgs.slice(4).join(' ').replace(/^\n+|\n+$/g, '') : '';
+                return commands.insertBefore(nodeId, contextType, contextName, contextValue, content);
+            }
+            
+            case 'docmem-insert-after': {
+                if (restArgs.length < 4) {
+                    throw new Error('docmem-insert-after requires <node_id> <context_type> <context_name> <context_value> [<content>]');
+                }
+                const nodeId = restArgs[0];
+                const contextType = restArgs[1];
+                const contextName = restArgs[2];
+                const contextValue = restArgs[3];
+                // Content can be empty - join remaining args (if any) and trim leading/trailing newlines
+                // Note: Empty strings are filtered out by the parser, so if content was "", restArgs.length will be 4
+                const content = restArgs.length > 4 ? restArgs.slice(4).join(' ').replace(/^\n+|\n+$/g, '') : '';
+                return commands.insertAfter(nodeId, contextType, contextName, contextValue, content);
             }
             
             case 'docmem-update-content': {
@@ -396,6 +409,24 @@ async function executeDocmemCommand(args, docmem) {
                 const nodeId = restArgs[0];
                 const targetParentId = restArgs[1];
                 return commands.moveAppendChild(nodeId, targetParentId);
+            }
+            
+            case 'docmem-move-before': {
+                if (restArgs.length < 2) {
+                    throw new Error('docmem-move-before requires <node_id> <target_node_id>');
+                }
+                const nodeId = restArgs[0];
+                const targetNodeId = restArgs[1];
+                return commands.moveBefore(nodeId, targetNodeId);
+            }
+            
+            case 'docmem-move-after': {
+                if (restArgs.length < 2) {
+                    throw new Error('docmem-move-after requires <node_id> <target_node_id>');
+                }
+                const nodeId = restArgs[0];
+                const targetNodeId = restArgs[1];
+                return commands.moveAfter(nodeId, targetNodeId);
             }
             
             case 'docmem-get-all-roots': {

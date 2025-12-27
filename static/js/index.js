@@ -127,18 +127,30 @@ function renderDocmem() {
                 <button id="append-btn">Append</button>
             </div>
             <div class="operation-section">
-                <h4>Insert Between</h4>
+                <h4>Insert Before</h4>
                 <div class="input-row">
-                    <input type="text" id="insert-node1-id" placeholder="Node ID 1" />
-                    <input type="text" id="insert-node2-id" placeholder="Node ID 2" />
+                    <input type="text" id="insert-before-node-id" placeholder="Node ID" />
                 </div>
                 <div class="input-row">
-                    <input type="text" id="insert-context-type" placeholder="Context Type" />
-                    <input type="text" id="insert-context-name" placeholder="Context Name" />
-                    <input type="text" id="insert-context-value" placeholder="Context Value" />
+                    <input type="text" id="insert-before-context-type" placeholder="Context Type" />
+                    <input type="text" id="insert-before-context-name" placeholder="Context Name" />
+                    <input type="text" id="insert-before-context-value" placeholder="Context Value" />
                 </div>
-                <textarea id="insert-content" placeholder="Content"></textarea>
-                <button id="insert-btn">Insert</button>
+                <textarea id="insert-before-content" placeholder="Content"></textarea>
+                <button id="insert-before-btn">Insert Before</button>
+            </div>
+            <div class="operation-section">
+                <h4>Insert After</h4>
+                <div class="input-row">
+                    <input type="text" id="insert-after-node-id" placeholder="Node ID" />
+                </div>
+                <div class="input-row">
+                    <input type="text" id="insert-after-context-type" placeholder="Context Type" />
+                    <input type="text" id="insert-after-context-name" placeholder="Context Name" />
+                    <input type="text" id="insert-after-context-value" placeholder="Context Value" />
+                </div>
+                <textarea id="insert-after-content" placeholder="Content"></textarea>
+                <button id="insert-after-btn">Insert After</button>
             </div>
             <div class="operation-section">
                 <h4>Update Content</h4>
@@ -211,23 +223,44 @@ function renderDocmem() {
         }
     });
 
-    const insertBtn = document.getElementById('insert-btn');
-    insertBtn.addEventListener('click', () => {
-        const nodeId1 = document.getElementById('insert-node1-id').value.trim();
-        const nodeId2 = document.getElementById('insert-node2-id').value.trim();
-        const contextType = document.getElementById('insert-context-type').value.trim();
-        const contextName = document.getElementById('insert-context-name').value.trim();
-        const contextValue = document.getElementById('insert-context-value').value.trim();
-        const content = document.getElementById('insert-content').value.trim();
+    const insertBeforeBtn = document.getElementById('insert-before-btn');
+    insertBeforeBtn.addEventListener('click', () => {
+        const nodeId = document.getElementById('insert-before-node-id').value.trim();
+        const contextType = document.getElementById('insert-before-context-type').value.trim();
+        const contextName = document.getElementById('insert-before-context-name').value.trim();
+        const contextValue = document.getElementById('insert-before-context-value').value.trim();
+        const content = document.getElementById('insert-before-content').value.trim();
         
-        if (!nodeId1 || !nodeId2 || !content || !contextType || !contextName || !contextValue) {
-            showMessage('Both node IDs, content, and all context fields are required', 'error');
+        if (!nodeId || !content || !contextType || !contextName || !contextValue) {
+            showMessage('Node ID, content, and all context fields are required', 'error');
             return;
         }
         
         try {
-            const node = currentDocmem.insert_between(nodeId1, nodeId2, contextType, contextName, contextValue, content);
-            showMessage(`Node inserted: ${node.id}`, 'success');
+            const node = currentDocmem.insert_before(nodeId, contextType, contextName, contextValue, content);
+            showMessage(`Node inserted before: ${node.id}`, 'success');
+            renderDocmem();
+        } catch (error) {
+            showMessage('Error: ' + error.message, 'error');
+        }
+    });
+
+    const insertAfterBtn = document.getElementById('insert-after-btn');
+    insertAfterBtn.addEventListener('click', () => {
+        const nodeId = document.getElementById('insert-after-node-id').value.trim();
+        const contextType = document.getElementById('insert-after-context-type').value.trim();
+        const contextName = document.getElementById('insert-after-context-name').value.trim();
+        const contextValue = document.getElementById('insert-after-context-value').value.trim();
+        const content = document.getElementById('insert-after-content').value.trim();
+        
+        if (!nodeId || !content || !contextType || !contextName || !contextValue) {
+            showMessage('Node ID, content, and all context fields are required', 'error');
+            return;
+        }
+        
+        try {
+            const node = currentDocmem.insert_after(nodeId, contextType, contextName, contextValue, content);
+            showMessage(`Node inserted after: ${node.id}`, 'success');
             renderDocmem();
         } catch (error) {
             showMessage('Error: ' + error.message, 'error');

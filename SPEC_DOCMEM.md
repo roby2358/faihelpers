@@ -30,14 +30,12 @@ The core insight: LLM output is linear and hierarchical (conversations, document
 
 ## Tree Structure
 
-The tree structure MUST be shallow with clear semantics at each level:
+The tree structure MUST be shallow with clear semantics at each level. For example:
 
 - **Root:** MUST represent a single docmem instance. MAY represent a book, knowledge base, project, or chat session.
 - **User node:** MAY partition by source or subject to enable scoped operations.
 - **Summary:** MUST be a paragraph-length compression of its children. SHOULD be regenerated when new memories accumulate. Summary content SHOULD be LLM-generated when automatic summarization is implemented.
 - **Memory:** MUST be an atomic unit, typically a sentence. MUST preserve ground truth—the actual text from the source.
-
-Cross-entity relationships MUST be carried in content via @ tags rather than structural links. Vector similarity (when implemented) SHOULD surface these connections at query time.
 
 ## Node Structure
 
@@ -128,105 +126,81 @@ The database schema MUST include a `nodes` table with the following columns:
 ## Operations
 
 ### Serialization
-- Serialization MUST be accomplished through depth-first tree traversal.
+- `serialize(nodeId)` MUST perform depth-first tree traversal starting from the specified node.
 - Traversal MUST be ordered by each node's `order_value` field.
-- Serialization MUST return a flat array of nodes in traversal order.
+- Serialization MUST return a flat array of nodes in traversal order (including the starting node and all descendants).
 - The reading order of a document MUST be determined by serialization order.
 
 ### Expand to Length
-- `expandToLength(maxTokens)` MUST return nodes up to the token limit.
-- Current implementation MUST use breadth-first search to depth 1, then expand children of those nodes.
+- `expandToLength(nodeId, maxTokens)` MUST return nodes until the concatenated node content reaches the token limit, starting from the specified node.
+- The starting node itself is included in the result.
+- Current implementation MUST use breadth-first search to depth 1 from the starting node, then expand the last children of those nodes moving toward the first.
+- The node and itself are included, until the concatenated node content reaches the token limit.
 - Priority MUST be determined by `order_value` field (left-to-right in the tree).
+- Nodes are added to the result until the concatenated node content reaches the token limit.
 - Semantic prioritization and relevance-based expansion SHOULD be implemented in the future.
-- When semantic search is implemented, expansion SHOULD prioritize by relevance score from query.
 
 ### Summarization
-- `add_summary()` MUST compress a list of contiguous memory nodes.
+- `add_summary(startNodeId, endNodeId)` MUST compress a list of contiguous memory nodes.
 - Summary text MAY be provided manually (current implementation).
 - Summary text SHOULD be LLM-generated when automatic summarization is implemented.
 - A summary node MUST be created as the new parent of the memory nodes.
-- Summary nodes MUST be positioned between the first and last memory nodes they summarize using decimal ordering.
-- All nodes to be summarized MUST be leaf nodes with the same parent.
+- All nodes to be summarized MUST have the same parent.
 - When vector DB is implemented, embeddings MUST be updated when summaries are created or regenerated.
 - Summaries SHOULD be regenerated when their children change.
+- The operation MUST return the new node id.
 
 ### Append
-- `append_child()` MUST add a new node as a child of the specified parent node.
+- `append_child(nodeId)` MUST add a new node as a child of the specified parent node.
 - The new node's `order_value` MUST be set to `max(sibling orders) + 1.0`.
 - All context metadata fields (`context_type`, `context_name`, `context_value`) MUST be provided.
-- The operation MUST return the new node.
+- The operation MUST return the new node id.
 
 ### Insert
-- `insert_between()` MUST add a new node between two existing sibling nodes.
+- `insert_between(firstNodeId, secondNodeId)` MUST add a new node between two existing contiguous sibling nodes.
 - Both nodes MUST have the same parent.
 - The new node's `order_value` MUST use decimal interpolation to avoid reindexing.
 - Current implementation MUST use 20% interpolation: `(a * 4 + b * 1) / 5`.
+- This biases new nodes toward the left sibling, preserving more space to the right.
+- The asymmetry optimizes for forward insertion patterns (repeated `insert_after` 
+  on newly created nodes), allowing ~3x more sequential insertions before 
+  hitting floating-point precision limits compared to midpoint interpolation.
 - All context metadata fields MUST be provided.
-- The operation MUST return the new node.
+- The operation MUST return the new node id.
 
 ### Delete
 - `delete()` MUST remove a node and all its descendants.
 - The operation MUST use SQL CASCADE delete for referential integrity.
 - When vector DB is implemented, embeddings MUST be removed for deleted nodes.
 
-### Update
-- `update_content()` MUST update the text content of an existing node.
+### Update Content
+- `update_content(nodeId)` MUST update the text content of an existing node.
 - Token count MUST be recalculated automatically when content is updated.
 - The `updated_at` timestamp MUST be set to the current time.
-- The operation MUST return the updated node.
+- The operation MUST return the node id.
+
+### Update Context
+- `update_context(nodeId)` MUST update the context metadata (`context_type`, `context_name`, `context_value`) of an existing node.
+- The `updated_at` timestamp MUST be set to the current time.
+- All context metadata fields MUST be provided.
+- The operation MUST return the node id.
+
+### Move
+- `move_append_child(nodeId, targetNodeId)` MUST move a node to become a child of a different parent node.
+- The moved node MUST be appended to the new parent's children (positioned after all existing children).
+- The operation MUST prevent cycles (cannot move a node to be a child of itself or its descendants).
+- The `updated_at` timestamp MUST be set to the current time.
+- The operation MUST return the node id.
+
+### Structure
+- `structure(nodeId)` MUST return the tree structure starting from the specified node without text content.
+- The result MUST be a flat array of node objects containing all fields except `text` (including the starting node and all descendants).
+- Traversal MUST use preorder traversal ordered by `order_value`.
+- This operation is useful for inspecting tree structure without loading full text content.
 
 ### Find
-- `find()` MUST retrieve a node by ID.
-- The operation MUST return the node if found, or null if not found.
-
-### Query Operations (Planned)
-- Semantic query operations SHOULD be implemented when vector DB is available.
-- Query results SHOULD include structural context through trace-up operations.
-
-## Method Signatures
-
-The following method signatures MUST be implemented:
-
-### Core Operations
-- `append_child(node_id, context_type, context_name, context_value, content)` → Node
-- `insert_between(node_id_1, node_id_2, context_type, context_name, context_value, content)` → Node
-- `delete(node_id)` → void
-- `update_content(node_id, content)` → Node
-- `find(node_id)` → Node | null
-
-### Summary Operations
-- `add_summary(node_ids, content, context_type, context_name, context_value)` → Node
-
-### Serialization Operations
-- `serialize()` → Node[]
-- `expandToLength(maxTokens)` → Node[]
-
-### Internal Operations
-- `_getRoot()` → Node
-- `_getChildren(parentId)` → Node[]
-- `_getAllRoots()` → Node[] (static method)
-
-All operations that create or return nodes MUST return Node objects. Operations that modify content MUST update timestamps and token counts as required.
-
-## Chat Integration
-
-### DocmemChat Wrapper
-- The `DocmemChat` class MUST wrap `Docmem` for chat session management.
-- Chat sessions MUST use the following context metadata:
-  - Root: `context_type=chat_session`, `context_name=date`, `context_value=ISO8601 timestamp`
-  - Summary nodes (optional): `context_type=summary`, `context_name=role`, `context_value=tool`
-  - Message nodes: `context_type=message`, `context_name=role`, `context_value=user|assistant`
-
-### Message List Building
-- `buildMessageList()` MUST convert the docmem structure into OpenAI message format.
-- Summary nodes MUST be formatted as assistant tool call + tool response pairs.
-- Message nodes MUST be formatted as standard messages with role and content.
-- Messages MUST be ordered by node `order_value` (oldest to newest).
-
-### Chat Session Management
-- `createChatSession()` MUST initialize a chat session with proper root node context.
-- `appendUserMessage(content)` MUST append a user message to the chat session root.
-- `appendAssistantMessage(content)` MUST append an assistant message to the chat session root.
+- `find(nodeId)` MUST retrieve a node by ID.
+- The operation MUST return all the node properties if found, or null if not found.
 
 ## Current Limitations
 
@@ -241,9 +215,17 @@ The following features are NOT REQUIRED in the current implementation:
 
 ## Future Requirements
 
+### Linking
+
+Cross-entity relationships MUST be carried in content via @ tags rather than structural links. Vector similarity (when implemented) SHOULD surface these connections at query time.
+
 ### Vector Database
 - Vector database implementation SHOULD be added with embeddings for all nodes.
 - Semantic search with query-time trace-up and deduplication SHOULD be implemented.
+
+### Query Operations (Planned)
+- Semantic query operations SHOULD be implemented when vector DB is available.
+- Query results SHOULD include structural context through trace-up operations.
 
 ### Summarization
 - Automatic LLM-based summarization SHOULD be implemented.
