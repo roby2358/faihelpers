@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initTabs();
     initDocmem();
     initView();
+    initPersist();
     
     // Initial render to show roots list
     renderDocmem();
@@ -36,6 +37,10 @@ function initTabs() {
             // Refresh view tab when switching to it
             if (targetTab === 'view') {
                 renderView();
+            }
+            // Refresh persist tab when switching to it
+            if (targetTab === 'persist') {
+                renderPersist();
             }
         });
     });
@@ -332,6 +337,7 @@ function renderTree(node, container, depth = 0) {
             <span class="docmem-node-meta">(tokens: ${node.tokenCount}, order: ${node.order.toFixed(3)})</span>
             <button class="node-action-btn" data-action="append" data-node-id="${node.id}" title="Append child">+</button>
             <button class="node-action-btn" data-action="update" data-node-id="${node.id}" title="Update content">✎</button>
+            <button class="node-action-btn delete-btn" data-action="delete" data-node-id="${node.id}" title="Delete node">X</button>
         </div>
         ${node.text ? `<div class="docmem-node-text">${escapeHtml(node.text)}</div>` : ''}
         ${isExpanded && hasChildren ? `<div class="docmem-node-children" data-parent-id="${node.id}"></div>` : ''}
@@ -434,6 +440,26 @@ function handleNodeAction(action, nodeId) {
                 document.getElementById('update-node-id').value = nodeId;
                 document.getElementById('update-content').value = node.text;
                 document.getElementById('update-node-id').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            break;
+        case 'delete':
+            const nodeToDelete = currentDocmem.find(nodeId);
+            if (!nodeToDelete) {
+                showMessage('Node not found', 'error');
+                return;
+            }
+            if (nodeToDelete.parentId === null) {
+                showMessage('Cannot delete root node', 'error');
+                return;
+            }
+            if (confirm(`Are you sure you want to delete node ${nodeId}? This will also delete all its children.`)) {
+                try {
+                    currentDocmem.delete(nodeId);
+                    showMessage(`Node deleted: ${nodeId}`, 'success');
+                    renderDocmem();
+                } catch (error) {
+                    showMessage('Error: ' + error.message, 'error');
+                }
             }
             break;
     }
@@ -574,6 +600,115 @@ async function renderViewContent(rootId) {
         contentPanel.appendChild(pre);
     } catch (error) {
         contentPanel.innerHTML = `<div class="view-error">Error loading content: ${escapeHtml(error.message)}</div>`;
+    }
+}
+
+let tomlSerializer = new TomlSerializer();
+
+function initPersist() {
+    const saveBtn = document.getElementById('persist-save-btn');
+    const loadBtn = document.getElementById('persist-load-btn');
+    const fileInput = document.getElementById('persist-file-input');
+
+    if (saveBtn) {
+        saveBtn.addEventListener('click', async () => {
+            try {
+                const roots = Docmem.getAllRoots();
+                if (roots.length === 0) {
+                    showMessage('No docmem roots found to save', 'error');
+                    return;
+                }
+
+                const selectedRootId = tomlSerializer.currentRootId || roots[0].id;
+                const docmem = new Docmem(selectedRootId);
+                await docmem.ready();
+                
+                const filename = `${selectedRootId}.toml`;
+                await tomlSerializer.saveToFile(docmem, selectedRootId, filename);
+                showMessage(`Saved ${filename}`, 'success');
+            } catch (error) {
+                console.error('Error saving TOML:', error);
+                showMessage('Error saving TOML: ' + error.message, 'error');
+            }
+        });
+    }
+
+    if (loadBtn) {
+        loadBtn.addEventListener('click', () => {
+            if (fileInput) {
+                fileInput.click();
+            }
+        });
+    }
+
+    if (fileInput) {
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) {
+                return;
+            }
+
+            try {
+                const tomlText = await tomlSerializer.loadFromFile(file);
+                const nodeData = tomlSerializer.parseToml(tomlText);
+                
+                if (nodeData.length === 0) {
+                    showMessage('No nodes found in TOML file', 'error');
+                    return;
+                }
+
+                const docmem = await tomlSerializer.deserializeFromToml(tomlText);
+                const docmemId = docmem.docmemId;
+                
+                showMessage(`Loaded docmem: ${docmemId}`, 'success');
+                await loadDocmem(docmemId);
+                renderPersist();
+            } catch (error) {
+                console.error('Error loading TOML:', error);
+                showMessage('Error loading TOML: ' + error.message, 'error');
+            } finally {
+                fileInput.value = '';
+            }
+        });
+    }
+}
+
+function renderPersist() {
+    const rootsBar = document.getElementById('persist-roots-bar');
+    
+    if (!rootsBar) {
+        return;
+    }
+    
+    try {
+        const roots = Docmem.getAllRoots();
+        
+        if (roots.length === 0) {
+            rootsBar.innerHTML = '<div class="persist-no-roots">No root nodes found</div>';
+            return;
+        }
+        
+        const currentRootId = tomlSerializer.currentRootId || roots[0].id;
+        
+        rootsBar.innerHTML = roots.map((root, index) => {
+            const isActive = root.id === currentRootId;
+            return `
+                <a href="#" class="persist-root-link ${isActive ? 'active' : ''}" data-root-id="${root.id}">
+                    ${escapeHtml(root.id)}
+                </a>
+            `;
+        }).join('');
+        
+        rootsBar.querySelectorAll('.persist-root-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const rootId = link.getAttribute('data-root-id');
+                tomlSerializer.setRootId(rootId);
+                renderPersist();
+            });
+        });
+    } catch (error) {
+        rootsBar.innerHTML = `<div class="persist-error">Error loading roots: ${escapeHtml(error.message)}</div>`;
     }
 }
 

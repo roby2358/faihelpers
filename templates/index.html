@@ -12,6 +12,7 @@
         <button class="tab-button active" data-tab="chat">Chat</button>
         <button class="tab-button" data-tab="docmem">Docmem</button>
         <button class="tab-button" data-tab="view">View</button>
+        <button class="tab-button" data-tab="persist">Persist</button>
     </div>
     
     <div id="app">
@@ -71,6 +72,17 @@
                 <div id="view-content-panel" class="view-content-panel"></div>
             </div>
         </div>
+        
+        <div id="persist-tab" class="tab-content">
+            <div class="persist-container">
+                <div id="persist-roots-bar" class="persist-roots-bar"></div>
+                <div class="persist-controls">
+                    <button id="persist-save-btn">Save .toml</button>
+                    <button id="persist-load-btn">Load .toml</button>
+                    <input type="file" id="persist-file-input" accept=".toml" style="display: none;" />
+                </div>
+            </div>
+        </div>
     </div>
     
     <div id="message-bar" class="message-bar">
@@ -84,6 +96,7 @@
     <script src="/static/js/docmem_chat.js"></script>
     <script type="module" src="/static/js/bash/command_parser.js"></script>
     <script type="module" src="/static/js/docmem_commands.js"></script>
+    <script src="/static/js/persist/toml.js"></script>
     <script type="module" src="/static/js/chat.js"></script>
     <script src="/static/js/index.js"></script>
 </body>

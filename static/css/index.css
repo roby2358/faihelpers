@@ -204,6 +204,16 @@ h1 {
     background-color: #f0f0f0;
 }
 
+.node-action-btn.delete-btn {
+    color: #dc3545;
+    border-color: #dc3545;
+}
+
+.node-action-btn.delete-btn:hover {
+    background-color: #dc3545;
+    color: white;
+}
+
 .node-id-copy {
     color: #0066cc;
     cursor: pointer;
@@ -634,5 +644,81 @@ h1 {
     background-color: white;
     border-radius: 4px;
     border: 1px solid #e0e0e0;
+}
+
+.persist-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.persist-roots-bar {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 0.5rem;
+    padding: 1rem;
+    background-color: #f9f9f9;
+    border-bottom: 2px solid #e0e0e0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+}
+
+.persist-root-link {
+    color: #0066cc;
+    text-decoration: none;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    padding: 0.25rem 0.5rem;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+    border-radius: 4px;
+}
+
+.persist-root-link:hover {
+    text-decoration: underline;
+    background-color: #e8f0ff;
+}
+
+.persist-root-link.active {
+    font-weight: 500;
+    color: #0052a3;
+    background-color: #d6e9ff;
+    border-color: #0066cc;
+}
+
+.persist-controls {
+    flex: 0 0 auto;
+    padding: 1rem;
+    background-color: #f9f9f9;
+    border-bottom: 2px solid #e0e0e0;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.persist-controls button {
+    padding: 0.5rem 1rem;
+    border: 1px solid #ccc;
+    background-color: white;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.persist-controls button:hover {
+    background-color: #f0f0f0;
+}
+
+.persist-no-roots,
+.persist-error {
+    padding: 1rem;
+    text-align: center;
+    color: #666;
+    font-style: italic;
+}
+
+.persist-error {
+    color: #dc3545;
 }
 
