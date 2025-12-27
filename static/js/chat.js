@@ -22,18 +22,6 @@ function initChat() {
     const chatInput = document.getElementById('chat-input');
     const apiKeyInput = document.getElementById('chat-api-key');
     const modelSelect = document.getElementById('chat-model');
-    const modelCustomInput = document.getElementById('chat-model-custom');
-
-    // Handle model selection change - show/hide custom input
-    modelSelect.addEventListener('change', () => {
-        if (modelSelect.value === 'other') {
-            modelCustomInput.style.display = 'block';
-            modelCustomInput.focus();
-        } else {
-            modelCustomInput.style.display = 'none';
-            modelCustomInput.value = '';
-        }
-    });
 
     startBtn.addEventListener('click', async () => {
         await startChatSession();
@@ -54,6 +42,22 @@ function initChat() {
         }
     });
 
+    // Handle model selection change - update API instance if chat is active
+    modelSelect.addEventListener('change', () => {
+        if (api) {
+            // Chat session is active, update the API instance with new model
+            const apiKey = apiKeyInput.value.trim() || sessionStorage.getItem('chat_api_key');
+            const newModel = modelSelect.value;
+            
+            if (apiKey && newModel) {
+                api = new OpenRouterAPI(apiKey, newModel);
+                sessionStorage.setItem('chat_model', newModel);
+                const modelLabel = modelSelect.options[modelSelect.selectedIndex].text;
+                window.showMessage(`Model changed to ${modelLabel}`, 'info');
+            }
+        }
+    });
+
     // Try to load API key from sessionStorage
     const storedApiKey = sessionStorage.getItem('chat_api_key');
     if (storedApiKey) {
@@ -67,11 +71,6 @@ function initChat() {
         const optionExists = Array.from(modelSelect.options).some(opt => opt.value === storedModel);
         if (optionExists) {
             modelSelect.value = storedModel;
-        } else {
-            // If not in options, set to "other" and populate custom input
-            modelSelect.value = 'other';
-            modelCustomInput.style.display = 'block';
-            modelCustomInput.value = storedModel;
         }
     }
 }
@@ -100,25 +99,11 @@ async function fetchSystemText() {
 async function startChatSession() {
     const apiKeyInput = document.getElementById('chat-api-key');
     const modelSelect = document.getElementById('chat-model');
-    const modelCustomInput = document.getElementById('chat-model-custom');
     const chatContainer = document.getElementById('chat-container');
     const chatMessages = document.getElementById('chat-messages');
 
     const apiKey = apiKeyInput.value.trim();
-    let model;
-    let modelForStorage;
-    
-    if (modelSelect.value === 'other') {
-        model = modelCustomInput.value.trim();
-        modelForStorage = model;
-        if (!model) {
-            window.showMessage('Please enter a custom model', 'error');
-            return;
-        }
-    } else {
-        modelForStorage = modelSelect.value; // Store original value for restoration
-        model = modelSelect.value;
-    }
+    const model = modelSelect.value;
 
     if (!apiKey) {
         window.showMessage('Please enter an API key', 'error');
@@ -126,15 +111,15 @@ async function startChatSession() {
     }
 
     if (!model) {
-        window.showMessage('Please select or enter a model', 'error');
+        window.showMessage('Please select a model', 'error');
         return;
     }
 
     try {
         // Store API key in sessionStorage
         sessionStorage.setItem('chat_api_key', apiKey);
-        // Store model in sessionStorage (use original value for proper restoration)
-        sessionStorage.setItem('chat_model', modelForStorage);
+        // Store model in sessionStorage
+        sessionStorage.setItem('chat_model', model);
 
         // Initialize API
         api = new OpenRouterAPI(apiKey, model);
