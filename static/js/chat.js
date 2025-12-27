@@ -21,7 +21,19 @@ function initChat() {
     const continueBtn = document.getElementById('chat-continue-btn');
     const chatInput = document.getElementById('chat-input');
     const apiKeyInput = document.getElementById('chat-api-key');
-    const modelInput = document.getElementById('chat-model');
+    const modelSelect = document.getElementById('chat-model');
+    const modelCustomInput = document.getElementById('chat-model-custom');
+
+    // Handle model selection change - show/hide custom input
+    modelSelect.addEventListener('change', () => {
+        if (modelSelect.value === 'other') {
+            modelCustomInput.style.display = 'block';
+            modelCustomInput.focus();
+        } else {
+            modelCustomInput.style.display = 'none';
+            modelCustomInput.value = '';
+        }
+    });
 
     startBtn.addEventListener('click', async () => {
         await startChatSession();
@@ -46,6 +58,21 @@ function initChat() {
     const storedApiKey = sessionStorage.getItem('chat_api_key');
     if (storedApiKey) {
         apiKeyInput.value = storedApiKey;
+    }
+
+    // Try to load model from sessionStorage
+    const storedModel = sessionStorage.getItem('chat_model');
+    if (storedModel) {
+        // Check if stored model is in the select options
+        const optionExists = Array.from(modelSelect.options).some(opt => opt.value === storedModel);
+        if (optionExists) {
+            modelSelect.value = storedModel;
+        } else {
+            // If not in options, set to "other" and populate custom input
+            modelSelect.value = 'other';
+            modelCustomInput.style.display = 'block';
+            modelCustomInput.value = storedModel;
+        }
     }
 }
 
@@ -72,12 +99,26 @@ async function fetchSystemText() {
  */
 async function startChatSession() {
     const apiKeyInput = document.getElementById('chat-api-key');
-    const modelInput = document.getElementById('chat-model');
+    const modelSelect = document.getElementById('chat-model');
+    const modelCustomInput = document.getElementById('chat-model-custom');
     const chatContainer = document.getElementById('chat-container');
     const chatMessages = document.getElementById('chat-messages');
 
     const apiKey = apiKeyInput.value.trim();
-    const model = modelInput.value.trim() || 'anthropic/claude-haiku-4.5';
+    let model;
+    let modelForStorage;
+    
+    if (modelSelect.value === 'other') {
+        model = modelCustomInput.value.trim();
+        modelForStorage = model;
+        if (!model) {
+            window.showMessage('Please enter a custom model', 'error');
+            return;
+        }
+    } else {
+        modelForStorage = modelSelect.value; // Store original value for restoration
+        model = modelSelect.value;
+    }
 
     if (!apiKey) {
         window.showMessage('Please enter an API key', 'error');
@@ -85,13 +126,15 @@ async function startChatSession() {
     }
 
     if (!model) {
-        window.showMessage('Please enter a model', 'error');
+        window.showMessage('Please select or enter a model', 'error');
         return;
     }
 
     try {
         // Store API key in sessionStorage
         sessionStorage.setItem('chat_api_key', apiKey);
+        // Store model in sessionStorage (use original value for proper restoration)
+        sessionStorage.setItem('chat_model', modelForStorage);
 
         // Initialize API
         api = new OpenRouterAPI(apiKey, model);

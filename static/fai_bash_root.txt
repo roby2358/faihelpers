@@ -34,13 +34,18 @@ Arguments are space separated, and can be enclosed in quotes (" "), single
 docmem-append-child "shared-project" "section" "summer" "season" ""
 # Run
 docmem-append-child "summer-season" "feature" "sunshine" "benefit" "..."
+(reply)
 ❌ This fails because you assumed the node-id before receiving it
 
 **Example of CORRECT approach:**
 # Run
 docmem-append-child "shared-project" "section" "summer" "season" ""
+Waiting for result.
+(reply)
 ✅ Wait for the result to get the actual node-id, then send the next command in the NEXT reply
 result> docmem-append-child appended child node: qjjp9a36
+docmem-append-child "qjjp9a36" "feature" "sunshine" "benefit" "..."
+# Run
 docmem-append-child "qjjp9a36" "feature" "sunshine" "benefit" "..."
 
 # Docmem Operations (JavaScript API - formatted as bash-style commands)

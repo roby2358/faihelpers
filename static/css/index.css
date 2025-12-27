@@ -395,7 +395,8 @@ h1 {
     align-items: center;
 }
 
-.chat-settings input {
+.chat-settings input,
+.chat-settings select {
     flex: 1;
     padding: 0.5rem;
     border: 1px solid #ccc;
