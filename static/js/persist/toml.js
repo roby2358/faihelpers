@@ -24,56 +24,63 @@ class TomlSerializer {
         return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
     }
 
+    formatContext(contextType, contextName, contextValue) {
+        return `${contextType}:${contextName}:${contextValue}`;
+    }
+
+    parseContext(contextString) {
+        const parts = contextString.split(':');
+        if (parts.length !== 3) {
+            return { contextType: null, contextName: null, contextValue: null };
+        }
+        return {
+            contextType: parts[0],
+            contextName: parts[1],
+            contextValue: parts[2]
+        };
+    }
+
+    serializeSection(node) {
+        const sectionName = this.escapeKey(node.id);
+        const lines = [`[${sectionName}]`];
+        
+        if (node.parentId) {
+            lines.push(`parent-node-id=${this.escapeKey(node.parentId)}`);
+        } else {
+            lines.push('parent-node-id=');
+        }
+        
+        const contextValue = this.formatContext(node.contextType, node.contextName, node.contextValue);
+        lines.push(`context=${this.escapeValue(contextValue)}`);
+        
+        lines.push(`content=${this.escapeValue(node.text)}`);
+        
+        return lines.join('\n');
+    }
+
     serializeToToml(docmem, rootId) {
         const nodes = docmem.serialize(rootId);
         if (nodes.length === 0) {
             return '';
         }
 
-        const sections = [];
-        for (const node of nodes) {
-            const sectionName = this.escapeKey(node.id);
-            const lines = [`[${sectionName}]`];
-            
-            if (node.parentId) {
-                lines.push(`parent-node-id=${this.escapeKey(node.parentId)}`);
-            } else {
-                lines.push('parent-node-id=');
-            }
-            
-            const contextValue = `${node.contextType}:${node.contextName}:${node.contextValue}`;
-            lines.push(`context=${this.escapeValue(contextValue)}`);
-            
-            lines.push(`content=${this.escapeValue(node.text)}`);
-            
-            sections.push(lines.join('\n'));
-        }
-
+        const sections = nodes.map(node => this.serializeSection(node));
         return sections.join('\n\n');
     }
 
-    async deserializeFromToml(tomlText) {
-        const nodeData = this.parseToml(tomlText);
-        
+    validateNodeData(nodeData) {
         if (nodeData.length === 0) {
             throw new Error('No nodes found in TOML file');
         }
-
-        const nodeMap = new Map();
-        const rootNodes = [];
 
         for (const data of nodeData) {
             if (!data.id) {
                 throw new Error('Node missing id in TOML');
             }
-
-            if (!data.parentId) {
-                rootNodes.push(data);
-            }
-
-            nodeMap.set(data.id, data);
         }
 
+        const rootNodes = nodeData.filter(data => !data.parentId);
+        
         if (rootNodes.length === 0) {
             throw new Error('No root node found in TOML file');
         }
@@ -82,17 +89,25 @@ class TomlSerializer {
             throw new Error('Multiple root nodes found in TOML file');
         }
 
-        const rootData = rootNodes[0];
-        const docmemId = rootData.id;
-        
-        const docmem = new Docmem(docmemId);
-        await docmem.ready();
+        return rootNodes[0];
+    }
 
-        const existingRoot = docmem._getRootById(docmemId);
-        if (existingRoot) {
-            docmem.delete(docmemId);
-        }
+    createNodeFromData(data, parentId, order) {
+        return new Node(
+            data.id,
+            parentId,
+            data.content || '',
+            order,
+            null,
+            null,
+            null,
+            data.contextType,
+            data.contextName,
+            data.contextValue
+        );
+    }
 
+    buildNodeGraph(docmem, nodeMap, rootData) {
         const processed = new Set();
         const toProcess = Array.from(nodeMap.values());
 
@@ -102,18 +117,7 @@ class TomlSerializer {
                 const data = toProcess[i];
                 
                 if (!data.parentId) {
-                    const rootNode = new Node(
-                        data.id,
-                        null,
-                        data.content || '',
-                        0.0,
-                        null,
-                        null,
-                        null,
-                        data.contextType,
-                        data.contextName,
-                        data.contextValue
-                    );
+                    const rootNode = this.createNodeFromData(data, null, 0.0);
                     docmem._insertNode(rootNode);
                     processed.add(data.id);
                     toProcess.splice(i, 1);
@@ -133,18 +137,7 @@ class TomlSerializer {
                         : 0.0;
                     const newOrder = maxOrder + 1.0;
                     
-                    const newNode = new Node(
-                        data.id,
-                        data.parentId,
-                        data.content || '',
-                        newOrder,
-                        null,
-                        null,
-                        null,
-                        data.contextType,
-                        data.contextName,
-                        data.contextValue
-                    );
+                    const newNode = this.createNodeFromData(data, data.parentId, newOrder);
                     docmem._insertNode(newNode);
                     
                     processed.add(data.id);
@@ -157,17 +150,114 @@ class TomlSerializer {
                 throw new Error('Circular dependency or orphaned nodes in TOML file');
             }
         }
+    }
 
+    async deserializeFromToml(tomlText) {
+        const nodeData = this.parseToml(tomlText);
+        const rootData = this.validateNodeData(nodeData);
+
+        const nodeMap = new Map();
+        for (const data of nodeData) {
+            nodeMap.set(data.id, data);
+        }
+
+        const docmemId = rootData.id;
+        const docmem = new Docmem(docmemId);
+        await docmem.ready();
+
+        const existingRoot = docmem._getRootById(docmemId);
+        if (existingRoot) {
+            docmem.delete(docmemId);
+        }
+
+        this.buildNodeGraph(docmem, nodeMap, rootData);
         return docmem;
+    }
+
+    parseMultilineString(lines, startIndex, initialValue) {
+        let accumulator = initialValue || '';
+        let i = startIndex;
+
+        for (; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmed = line.trim();
+
+            if (trimmed === '"""' || trimmed.endsWith('"""')) {
+                const endIndex = trimmed === '"""' ? 0 : trimmed.length - 3;
+                if (trimmed !== '"""') {
+                    accumulator += '\n' + line.slice(0, endIndex).trimEnd();
+                }
+                return {
+                    value: this.unescapeMultilineString(accumulator),
+                    nextIndex: i + 1
+                };
+            } else {
+                if (accumulator === '') {
+                    accumulator = line;
+                } else {
+                    accumulator += '\n' + line;
+                }
+            }
+        }
+
+        throw new Error('Unterminated multiline string');
+    }
+
+    parseKeyValue(trimmed) {
+        const eqIndex = trimmed.indexOf('=');
+        if (eqIndex === -1) {
+            return null;
+        }
+
+        const key = trimmed.slice(0, eqIndex).trim();
+        const value = trimmed.slice(eqIndex + 1).trim();
+        return { key, value };
+    }
+
+    createEmptySection(sectionName) {
+        return {
+            id: this.unescapeKey(sectionName),
+            parentId: null,
+            contextType: null,
+            contextName: null,
+            contextValue: null,
+            content: null
+        };
+    }
+
+    applyKeyValueToSection(section, key, value, state) {
+        if (key === 'parent-node-id') {
+            section.parentId = value === '' ? null : this.unescapeKey(value);
+        } else if (key === 'context') {
+            const unescapedValue = this.unescapeValue(value);
+            const context = this.parseContext(unescapedValue);
+            section.contextType = context.contextType;
+            section.contextName = context.contextName;
+            section.contextValue = context.contextValue;
+        } else if (key === 'content') {
+            if (value.startsWith('"""')) {
+                if (value.endsWith('"""') && value.length > 6) {
+                    const content = value.slice(3, -3);
+                    state.currentContent = this.unescapeMultilineString(content);
+                } else {
+                    state.inMultilineString = true;
+                    state.multilineStringAccumulator = value.slice(3);
+                }
+            } else {
+                state.currentContent = this.unescapeValue(value);
+            }
+        }
     }
 
     parseToml(tomlText) {
         const nodes = [];
         const lines = tomlText.split('\n');
         let currentSection = null;
-        let currentContent = null;
-        let inMultilineString = false;
-        let multilineStringAccumulator = '';
+        const state = {
+            currentContent: null,
+            inMultilineString: false,
+            multilineStringAccumulator: ''
+        };
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
@@ -179,24 +269,17 @@ class TomlSerializer {
 
             if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
                 if (currentSection) {
-                    if (currentContent !== null) {
-                        currentSection.content = currentContent;
+                    if (state.currentContent !== null) {
+                        currentSection.content = state.currentContent;
                     }
                     nodes.push(currentSection);
                 }
                 
                 const sectionName = trimmed.slice(1, -1).trim();
-                currentSection = {
-                    id: this.unescapeKey(sectionName),
-                    parentId: null,
-                    contextType: null,
-                    contextName: null,
-                    contextValue: null,
-                    content: null
-                };
-                currentContent = null;
-                inMultilineString = false;
-                multilineStringAccumulator = '';
+                currentSection = this.createEmptySection(sectionName);
+                state.currentContent = null;
+                state.inMultilineString = false;
+                state.multilineStringAccumulator = '';
                 continue;
             }
 
@@ -204,61 +287,26 @@ class TomlSerializer {
                 continue;
             }
 
-            if (inMultilineString) {
-                if (trimmed === '"""' || trimmed.endsWith('"""')) {
-                    const endIndex = trimmed === '"""' ? 0 : trimmed.length - 3;
-                    if (trimmed !== '"""') {
-                        multilineStringAccumulator += '\n' + line.slice(0, endIndex).trimEnd();
-                    }
-                    currentContent = this.unescapeMultilineString(multilineStringAccumulator);
-                    multilineStringAccumulator = '';
-                    inMultilineString = false;
-                } else {
-                    if (multilineStringAccumulator === '') {
-                        multilineStringAccumulator = line;
-                    } else {
-                        multilineStringAccumulator += '\n' + line;
-                    }
-                }
+            if (state.inMultilineString) {
+                const result = this.parseMultilineString(lines, i, state.multilineStringAccumulator);
+                state.currentContent = result.value;
+                i = result.nextIndex - 1;
+                state.inMultilineString = false;
+                state.multilineStringAccumulator = '';
                 continue;
             }
 
-            const eqIndex = trimmed.indexOf('=');
-            if (eqIndex === -1) {
+            const kv = this.parseKeyValue(trimmed);
+            if (!kv) {
                 continue;
             }
 
-            const key = trimmed.slice(0, eqIndex).trim();
-            let value = trimmed.slice(eqIndex + 1).trim();
-
-            if (key === 'parent-node-id') {
-                currentSection.parentId = value === '' ? null : this.unescapeKey(value);
-            } else if (key === 'context') {
-                value = this.unescapeValue(value);
-                const parts = value.split(':');
-                if (parts.length === 3) {
-                    currentSection.contextType = parts[0];
-                    currentSection.contextName = parts[1];
-                    currentSection.contextValue = parts[2];
-                }
-            } else if (key === 'content') {
-                if (value.startsWith('"""')) {
-                    if (value.endsWith('"""') && value.length > 6) {
-                        const content = value.slice(3, -3);
-                        currentContent = this.unescapeMultilineString(content);
-                    } else {
-                        inMultilineString = true;
-                        multilineStringAccumulator = value.slice(3);
-                    }
-                } else {
-                    currentContent = this.unescapeValue(value);
-                }
-            }
+            this.applyKeyValueToSection(currentSection, kv.key, kv.value, state);
         }
 
         if (currentSection) {
-            if (currentContent !== null) {
-                currentSection.content = currentContent;
+            if (state.currentContent !== null) {
+                currentSection.content = state.currentContent;
             }
             nodes.push(currentSection);
         }
