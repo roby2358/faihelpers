@@ -6,58 +6,52 @@ export class DocmemCommands {
         this.docmem = docmem;
     }
 
+    _validateFieldLength(value, fieldName, commandName, allowEmpty = false) {
+        if (value === null || value === undefined || typeof value !== 'string') {
+            throw new Error(`${commandName} requires ${fieldName} to be a string of length 0 to 24`);
+        }
+        const trimmed = value.trim();
+        if (!allowEmpty && trimmed.length === 0) {
+            throw new Error(`${commandName} requires ${fieldName} to be a string of length 0 to 24`);
+        }
+        if (trimmed.length > 24) {
+            throw new Error(`${commandName} requires ${fieldName} to be a string of length 0 to 24, got length ${trimmed.length}`);
+        }
+        return trimmed;
+    }
+
     async create(rootId) {
+        const validatedRootId = this._validateFieldLength(rootId, 'root-id', 'docmem-create', true);
         // Docmem is created automatically when instantiated
-        const newDocmem = new Docmem(rootId);
+        const newDocmem = new Docmem(validatedRootId);
         await newDocmem.ready();
-        return { success: true, result: `docmem-create created docmem: ${rootId}` };
+        return { success: true, result: `docmem-create created docmem: ${validatedRootId}` };
     }
 
     appendChild(nodeId, contextType, contextName, contextValue, content) {
-        // Validate context fields are non-empty
-        if (!contextType || !contextType.trim()) {
-            throw new Error('docmem-append-child requires context_type to be a string of length 0 to 24');
-        }
-        if (!contextName || !contextName.trim()) {
-            throw new Error('docmem-append-child requires context_name to be a string of length 0 to 24');
-        }
-        if (!contextValue || !contextValue.trim()) {
-            throw new Error('docmem-append-child requires context_value to be a string of length 0 to 24');
-        }
+        const validatedContextType = this._validateFieldLength(contextType, 'context_type', 'docmem-append-child');
+        const validatedContextName = this._validateFieldLength(contextName, 'context_name', 'docmem-append-child');
+        const validatedContextValue = this._validateFieldLength(contextValue, 'context_value', 'docmem-append-child');
 
-        const node = this.docmem.append_child(nodeId, contextType.trim(), contextName.trim(), contextValue.trim(), content);
+        const node = this.docmem.append_child(nodeId, validatedContextType, validatedContextName, validatedContextValue, content);
         return { success: true, result: `docmem-append-child appended child node: ${node.id}` };
     }
 
     insertBefore(nodeId, contextType, contextName, contextValue, content) {
-        // Validate context fields are non-empty
-        if (!contextType || !contextType.trim()) {
-            throw new Error('docmem-insert-before requires context_type to be a string of length 0 to 24');
-        }
-        if (!contextName || !contextName.trim()) {
-            throw new Error('docmem-insert-before requires context_name to be a string of length 0 to 24');
-        }
-        if (!contextValue || !contextValue.trim()) {
-            throw new Error('docmem-insert-before requires context_value to be a string of length 0 to 24');
-        }
+        const validatedContextType = this._validateFieldLength(contextType, 'context_type', 'docmem-insert-before');
+        const validatedContextName = this._validateFieldLength(contextName, 'context_name', 'docmem-insert-before');
+        const validatedContextValue = this._validateFieldLength(contextValue, 'context_value', 'docmem-insert-before');
 
-        const node = this.docmem.insert_before(nodeId, contextType.trim(), contextName.trim(), contextValue.trim(), content);
+        const node = this.docmem.insert_before(nodeId, validatedContextType, validatedContextName, validatedContextValue, content);
         return { success: true, result: `docmem-insert-before inserted node: ${node.id}` };
     }
 
     insertAfter(nodeId, contextType, contextName, contextValue, content) {
-        // Validate context fields are non-empty
-        if (!contextType || !contextType.trim()) {
-            throw new Error('docmem-insert-after requires context_type to be a string of length 0 to 24');
-        }
-        if (!contextName || !contextName.trim()) {
-            throw new Error('docmem-insert-after requires context_name to be a string of length 0 to 24');
-        }
-        if (!contextValue || !contextValue.trim()) {
-            throw new Error('docmem-insert-after requires context_value to be a string of length 0 to 24');
-        }
+        const validatedContextType = this._validateFieldLength(contextType, 'context_type', 'docmem-insert-after');
+        const validatedContextName = this._validateFieldLength(contextName, 'context_name', 'docmem-insert-after');
+        const validatedContextValue = this._validateFieldLength(contextValue, 'context_value', 'docmem-insert-after');
 
-        const node = this.docmem.insert_after(nodeId, contextType.trim(), contextName.trim(), contextValue.trim(), content);
+        const node = this.docmem.insert_after(nodeId, validatedContextType, validatedContextName, validatedContextValue, content);
         return { success: true, result: `docmem-insert-after inserted node: ${node.id}` };
     }
 
@@ -67,18 +61,11 @@ export class DocmemCommands {
     }
 
     updateContext(nodeId, contextType, contextName, contextValue) {
-        // Validate context fields are non-empty
-        if (!contextType || !contextType.trim()) {
-            throw new Error('docmem-update-context requires context_type to be a string of length 0 to 24');
-        }
-        if (!contextName || !contextName.trim()) {
-            throw new Error('docmem-update-context requires context_name to be a string of length 0 to 24');
-        }
-        if (!contextValue || !contextValue.trim()) {
-            throw new Error('docmem-update-context requires context_value to be a string of length 0 to 24');
-        }
+        const validatedContextType = this._validateFieldLength(contextType, 'context_type', 'docmem-update-context');
+        const validatedContextName = this._validateFieldLength(contextName, 'context_name', 'docmem-update-context');
+        const validatedContextValue = this._validateFieldLength(contextValue, 'context_value', 'docmem-update-context');
 
-        const node = this.docmem.update_context(nodeId, contextType.trim(), contextName.trim(), contextValue.trim());
+        const node = this.docmem.update_context(nodeId, validatedContextType, validatedContextName, validatedContextValue);
         return { success: true, result: `docmem-update-context updated node: ${node.id}` };
     }
 
@@ -119,7 +106,11 @@ export class DocmemCommands {
         if (nodeIds.length === 0) {
             throw new Error('docmem-add-summary requires at least one node_id');
         }
-        const node = this.docmem.add_summary(nodeIds, content, contextType, contextName, contextValue);
+        const validatedContextType = this._validateFieldLength(contextType, 'context_type', 'docmem-add-summary');
+        const validatedContextName = this._validateFieldLength(contextName, 'context_name', 'docmem-add-summary');
+        const validatedContextValue = this._validateFieldLength(contextValue, 'context_value', 'docmem-add-summary');
+
+        const node = this.docmem.add_summary(nodeIds, content, validatedContextType, validatedContextName, validatedContextValue);
         return { success: true, result: `docmem-add-summary added summary node: ${node.id}` };
     }
 
