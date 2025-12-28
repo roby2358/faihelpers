@@ -767,4 +767,3 @@ class Docmem {
         this.db.close();
     }
 }
-
