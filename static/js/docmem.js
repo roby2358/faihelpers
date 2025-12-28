@@ -649,6 +649,10 @@ class Docmem {
         const result = [];
         const startNode = this._requireNode(nodeId);
         
+        // Include the starting node itself first (always included, even if it exceeds limit)
+        result.push(startNode);
+        let totalTokens = startNode.tokenCount || 0;
+        
         // Step 1: BFS to depth 1
         const depth1Nodes = [];
         const queue = [{ node: startNode, depth: 0 }];
@@ -667,7 +671,6 @@ class Docmem {
         }
         
         // Step 2: Expand nodes one by one if possible
-        let totalTokens = 0;
         const sortedDepth1 = depth1Nodes.sort((a, b) => a.order - b.order);
         
         for (const node of sortedDepth1) {

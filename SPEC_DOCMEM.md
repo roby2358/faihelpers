@@ -133,9 +133,10 @@ The database schema MUST include a `nodes` table with the following columns:
 
 ### Expand to Length
 - `expandToLength(nodeId, maxTokens)` MUST return nodes until the concatenated node content reaches the token limit, starting from the specified node.
-- The starting node itself is included in the result.
-- Current implementation MUST use breadth-first search to depth 1 from the starting node, then expand the last children of those nodes moving toward the first.
-- The node and itself are included, until the concatenated node content reaches the token limit.
+- The starting node itself MUST be included in the result as the first element.
+- If the starting node's token count exceeds maxTokens, the result MUST contain only the starting node.
+- Current implementation MUST use breadth-first search to depth 1 from the starting node, then expand the children of those nodes moving in order_value order.
+- The starting node's token count MUST be included in the total token count before expanding children.
 - Priority MUST be determined by `order_value` field (left-to-right in the tree).
 - Nodes are added to the result until the concatenated node content reaches the token limit.
 - Semantic prioritization and relevance-based expansion SHOULD be implemented in the future.

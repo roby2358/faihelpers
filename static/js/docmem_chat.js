@@ -82,12 +82,166 @@ class DocmemChat {
     }
 
     /**
+     * Format a node with metadata and content into a human-readable string
+     * @param {Node} node - The node to format
+     * @returns {string} Formatted string representation
+     */
+    _formatNodeWithMetadata(node) {
+        const parts = [];
+        parts.push(`id: ${node.id}`);
+        if (node.parentId) {
+            parts.push(`parent_id: ${node.parentId}`);
+        }
+        parts.push(`context_type: ${node.contextType}`);
+        parts.push(`context_name: ${node.contextName}`);
+        parts.push(`context_value: ${node.contextValue}`);
+        parts.push(`order: ${node.order}`);
+        parts.push(`token_count: ${node.tokenCount}`);
+        parts.push(`created_at: ${node.createdAt}`);
+        parts.push(`updated_at: ${node.updatedAt}`);
+        
+        const metadataStr = parts.join(', ');
+        const contentStr = node.text || '';
+        
+        return `${metadataStr}\n${contentStr}`;
+    }
+
+    /**
+     * Build system messages from all non-chat docmems
+     * @returns {Array<Object>} Array of system message objects
+     */
+    _buildNonChatDocmemSystemMessages() {
+        const messages = [];
+        
+        try {
+            const allRoots = Docmem.getAllRoots();
+            const nonChatDocmems = allRoots.filter(rootInfo => 
+                !rootInfo.id.startsWith('chat_') && rootInfo.id !== this.docmemId
+            );
+            
+            console.log(`=== INCLUDING ${nonChatDocmems.length} NON-CHAT DOCMEMS ===`);
+            
+            for (const rootInfo of nonChatDocmems) {
+                try {
+                    const expandedNodes = this.docmem.expandToLength(rootInfo.id, 20000);
+                    if (expandedNodes.length === 0) {
+                        console.warn(`Could not find root node for docmem ${rootInfo.id}, skipping`);
+                        continue;
+                    }
+                    
+                    const nodeStrings = expandedNodes.map(node => this._formatNodeWithMetadata(node));
+                    const docmemContent = nodeStrings.join('\n\n---\n\n');
+                    
+                    messages.push({
+                        role: 'system',
+                        content: `# Docmem: ${rootInfo.id}\n\n${docmemContent}`
+                    });
+                    
+                    console.log(`Added docmem ${rootInfo.id} as system message (${expandedNodes.length} nodes)`);
+                } catch (error) {
+                    console.error(`Error including docmem ${rootInfo.id}:`, error);
+                }
+            }
+        } catch (error) {
+            console.error('Error getting docmem roots for system context:', error);
+        }
+        
+        return messages;
+    }
+
+    /**
+     * Convert a summary node to OpenAI message format (tool call + tool response)
+     * @param {Node} node - The summary node to convert
+     * @returns {Array<Object>} Array of two message objects [assistant message with tool_calls, tool response]
+     */
+    _convertSummaryNodeToMessages(node) {
+        const toolCallId = `call_${node.id}`;
+        
+        return [
+            {
+                role: 'assistant',
+                tool_calls: [
+                    {
+                        id: toolCallId,
+                        type: 'function',
+                        function: {
+                            name: 'summary',
+                            arguments: '{}'
+                        }
+                    }
+                ]
+            },
+            {
+                role: 'tool',
+                tool_call_id: toolCallId,
+                name: 'summary',
+                content: JSON.stringify({ text: node.text })
+            }
+        ];
+    }
+
+    /**
+     * Convert a message node to OpenAI message format
+     * @param {Node} node - The message node to convert
+     * @returns {Object|null} Message object, or null if node format is invalid
+     */
+    _convertMessageNodeToMessage(node) {
+        if (node.contextName === 'role' && node.contextValue === 'tool') {
+            return {
+                role: 'tool',
+                content: node.text
+            };
+        }
+        
+        if (node.contextName === 'role') {
+            const role = node.contextValue;
+            if (role !== 'user' && role !== 'assistant') {
+                console.warn(`Unknown message role: ${role}, skipping node ${node.id}`);
+                return null;
+            }
+            return {
+                role: role,
+                content: node.text
+            };
+        }
+        
+        console.warn(`Unknown node format: contextName=${node.contextName}, contextValue=${node.contextValue}, skipping node ${node.id}`);
+        return null;
+    }
+
+    /**
+     * Convert a chat session node to OpenAI message format(s)
+     * @param {Node} node - The node to convert
+     * @returns {Array<Object>} Array of message objects (may be empty)
+     */
+    _convertChatNodeToMessages(node) {
+        if (node.contextType === 'summary' && node.contextName === 'role' && node.contextValue === 'tool') {
+            console.log(`Including summary node ${node.id} as assistant tool call + tool message pair`);
+            return this._convertSummaryNodeToMessages(node);
+        }
+        
+        if (node.contextType === 'message') {
+            if (node.contextName === 'role' && node.contextValue === 'tool') {
+                console.log(`Including tool node ${node.id} as tool message`);
+                return [{ role: 'tool', content: node.text }];
+            }
+            
+            const message = this._convertMessageNodeToMessage(node);
+            return message ? [message] : [];
+        }
+        
+        console.warn(`Skipping node ${node.id}: context_type is not 'message' or 'summary' (got '${node.contextType}')`);
+        return [];
+    }
+
+    /**
      * Build OpenAI message list from chat session
      * Iterates over root's children, oldest to newest
      * Summary nodes are formatted as assistant tool call + tool response pairs
      * Message nodes are formatted as standard messages
+     * Also includes expanded content from non-chat docmems as system messages
      */
-    buildMessageList() {
+    async buildMessageList() {
         const root = this.getRoot();
         if (!root) {
             throw new Error('Chat session root not found. Call createChatSession() first.');
@@ -96,13 +250,7 @@ class DocmemChat {
         const children = this.docmem._getChildren(root.id);
         const sortedChildren = [...children].sort((a, b) => a.order - b.order);
         
-        // Log all children for debugging
-        console.log('=== BUILDING MESSAGE LIST ===');
-        console.log(`Root ID: ${root.id}`);
-        console.log(`Total children: ${children.length}`);
-        sortedChildren.forEach(node => {
-            console.log(`  Node: ${node.id}, contextType: ${node.contextType}, contextName: ${node.contextName}, contextValue: ${node.contextValue}, order: ${node.order}, text: ${node.text.substring(0, 50)}...`);
-        });
+        this._logBuildingMessageList(root, sortedChildren);
         
         const messages = [];
         
@@ -114,70 +262,43 @@ class DocmemChat {
             });
         }
         
+        // Add system messages from non-chat docmems
+        messages.push(...this._buildNonChatDocmemSystemMessages());
+        
+        // Convert chat session nodes to messages
         for (const node of sortedChildren) {
-            // Handle summary nodes: context_type=summary, context_name=role, context_value=tool
-            if (node.contextType === 'summary' && node.contextName === 'role' && node.contextValue === 'tool') {
-                console.log(`Including summary node ${node.id} as assistant tool call + tool message pair`);
-                const toolCallId = `call_${node.id}`;
-                
-                // First message: assistant with tool_calls
-                messages.push({
-                    role: 'assistant',
-                    tool_calls: [
-                        {
-                            id: toolCallId,
-                            type: 'function',
-                            function: {
-                                name: 'summary',
-                                arguments: '{}'
-                            }
-                        }
-                    ]
-                });
-                
-                // Second message: tool response
-                messages.push({
-                    role: 'tool',
-                    tool_call_id: toolCallId,
-                    name: 'summary',
-                    content: JSON.stringify({ text: node.text })
-                });
-            }
-            // Handle message nodes: context_type=message
-            else if (node.contextType === 'message') {
-                // Check for tool nodes: context_name=role and context_value=tool
-                if (node.contextName === 'role' && node.contextValue === 'tool') {
-                    // Format as tool message, don't traverse children
-                    console.log(`Including tool node ${node.id} as tool message`);
-                    messages.push({
-                        role: 'tool',
-                        content: node.text
-                    });
-                } else if (node.contextName === 'role') {
-                    // Format message node based on role
-                    const role = node.contextValue; // 'user' or 'assistant'
-                    if (role !== 'user' && role !== 'assistant') {
-                        console.warn(`Unknown message role: ${role}, skipping node ${node.id}`);
-                        continue;
-                    }
-                    messages.push({
-                        role: role,
-                        content: node.text
-                    });
-                } else {
-                    console.warn(`Unknown node format: contextName=${node.contextName}, contextValue=${node.contextValue}, skipping node ${node.id}`);
-                }
-            } else {
-                console.warn(`Skipping node ${node.id}: context_type is not 'message' or 'summary' (got '${node.contextType}')`);
-            }
+            const nodeMessages = this._convertChatNodeToMessages(node);
+            messages.push(...nodeMessages);
         }
         
-        // Log the message list that will be sent to the LLM
+        this._logFinalMessageList(messages);
+        
+        return messages;
+    }
+
+    /**
+     * Log information about building the message list
+     * @param {Node} root - The root node
+     * @param {Array<Node>} sortedChildren - Sorted children nodes
+     */
+    _logBuildingMessageList(root, sortedChildren) {
+        console.log('=== BUILDING MESSAGE LIST ===');
+        console.log(`Root ID: ${root.id}`);
+        console.log(`Total children: ${sortedChildren.length}`);
+        sortedChildren.forEach(node => {
+            const textPreview = node.text ? node.text.substring(0, 50) : '(empty)';
+            console.log(`  Node: ${node.id}, contextType: ${node.contextType}, contextName: ${node.contextName}, contextValue: ${node.contextValue}, order: ${node.order}, text: ${textPreview}...`);
+        });
+    }
+
+    /**
+     * Log the final message list
+     * @param {Array<Object>} messages - The message list to log
+     */
+    _logFinalMessageList(messages) {
         console.log('=== CHAT MESSAGE LIST TO LLM ===');
         console.log(JSON.stringify(messages, null, 2));
         console.log('================================');
-        
-        return messages;
     }
 
     /**

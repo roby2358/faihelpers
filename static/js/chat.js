@@ -181,7 +181,7 @@ async function sendMessage() {
         chatInput.value = '';
 
         // Build message list for LLM
-        const messages = chatSession.buildMessageList();
+        const messages = await chatSession.buildMessageList();
 
         // Call LLM
         const response = await api.chat(messages);
@@ -235,7 +235,7 @@ async function sendContinueMessage() {
         appendToChatDisplay(`user> ${message}`);
 
         // Build message list for LLM
-        const messages = chatSession.buildMessageList();
+        const messages = await chatSession.buildMessageList();
 
         // Call LLM
         const response = await api.chat(messages);
@@ -584,7 +584,7 @@ async function processCommands(responseText, depth = 0) {
         // Only invoke the model again if we haven't exceeded the depth limit (max 3 rounds)
         if (depth < 3) {
             // Build message list for LLM
-            const messages = chatSession.buildMessageList();
+            const messages = await chatSession.buildMessageList();
             
             // Call LLM again
             const response = await api.chat(messages);
