@@ -90,72 +90,73 @@ class Node {
     }
 }
 
-// Shared database instance for all docmem instances
-let sharedDatabase = null;
-let databaseInitPromise = null;
+class SharedDatabase {
+    static _instance = null;
+    static _initPromise = null;
 
-async function initSharedDatabase() {
-    if (sharedDatabase) {
-        return sharedDatabase;
-    }
-    
-    if (databaseInitPromise) {
-        return databaseInitPromise;
-    }
-    
-    databaseInitPromise = (async () => {
-        // Wait for initSqlJs to be available (sql.js script should be loaded first)
-        let attempts = 0;
-        while (typeof initSqlJs === 'undefined' && attempts < 100) {
-            await new Promise(resolve => setTimeout(resolve, 50));
-            attempts++;
+    static async getInstance() {
+        if (SharedDatabase._instance) {
+            return SharedDatabase._instance;
         }
         
-        if (typeof initSqlJs === 'undefined') {
-            throw new Error('sql.js not loaded. Please include sql.js script before docmem.js');
+        if (SharedDatabase._initPromise) {
+            return SharedDatabase._initPromise;
         }
         
-        try {
-            const SQL = await initSqlJs({
-                locateFile: file => {
-                    // Use jsdelivr CDN for WASM files - same version as script
-                    return `https://cdn.jsdelivr.net/npm/sql.js@1.8.0/dist/${file}`;
-                }
-            });
-            sharedDatabase = new SQL.Database();
+        SharedDatabase._initPromise = (async () => {
+            // Wait for initSqlJs to be available (sql.js script should be loaded first)
+            let attempts = 0;
+            while (typeof initSqlJs === 'undefined' && attempts < 100) {
+                await new Promise(resolve => setTimeout(resolve, 50));
+                attempts++;
+            }
             
-            // Enable foreign key constraints (required for CASCADE delete to work)
-            sharedDatabase.run('PRAGMA foreign_keys = ON');
+            if (typeof initSqlJs === 'undefined') {
+                throw new Error('sql.js not loaded. Please include sql.js script before docmem.js');
+            }
             
-            // Initialize database schema (CREATE TABLE IF NOT EXISTS)
-            sharedDatabase.run(`
-                CREATE TABLE IF NOT EXISTS nodes (
-                    id TEXT PRIMARY KEY,
-                    parent_id TEXT,
-                    text TEXT NOT NULL,
-                    order_value REAL NOT NULL,
-                    token_count INTEGER NOT NULL,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    context_type TEXT NOT NULL,
-                    context_name TEXT NOT NULL,
-                    context_value TEXT NOT NULL,
-                    FOREIGN KEY (parent_id) REFERENCES nodes(id) ON DELETE CASCADE
-                )
-            `);
-            sharedDatabase.run('CREATE INDEX IF NOT EXISTS idx_parent_id ON nodes(parent_id)');
-            sharedDatabase.run('CREATE INDEX IF NOT EXISTS idx_order ON nodes(parent_id, order_value)');
-            
-            return sharedDatabase;
-        } catch (error) {
-            console.error('Error initializing SQL.js:', error);
-            console.error('Error details:', error.stack);
-            databaseInitPromise = null;
-            throw new Error('Failed to initialize SQL.js: ' + error.message);
-        }
-    })();
-    
-    return databaseInitPromise;
+            try {
+                const SQL = await initSqlJs({
+                    locateFile: file => {
+                        // Use jsdelivr CDN for WASM files - same version as script
+                        return `https://cdn.jsdelivr.net/npm/sql.js@1.8.0/dist/${file}`;
+                    }
+                });
+                SharedDatabase._instance = new SQL.Database();
+                
+                // Enable foreign key constraints (required for CASCADE delete to work)
+                SharedDatabase._instance.run('PRAGMA foreign_keys = ON');
+                
+                // Initialize database schema (CREATE TABLE IF NOT EXISTS)
+                SharedDatabase._instance.run(`
+                    CREATE TABLE IF NOT EXISTS nodes (
+                        id TEXT PRIMARY KEY,
+                        parent_id TEXT,
+                        text TEXT NOT NULL,
+                        order_value REAL NOT NULL,
+                        token_count INTEGER NOT NULL,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        context_type TEXT NOT NULL,
+                        context_name TEXT NOT NULL,
+                        context_value TEXT NOT NULL,
+                        FOREIGN KEY (parent_id) REFERENCES nodes(id) ON DELETE CASCADE
+                    )
+                `);
+                SharedDatabase._instance.run('CREATE INDEX IF NOT EXISTS idx_parent_id ON nodes(parent_id)');
+                SharedDatabase._instance.run('CREATE INDEX IF NOT EXISTS idx_order ON nodes(parent_id, order_value)');
+                
+                return SharedDatabase._instance;
+            } catch (error) {
+                console.error('Error initializing SQL.js:', error);
+                console.error('Error details:', error.stack);
+                SharedDatabase._initPromise = null;
+                throw new Error('Failed to initialize SQL.js: ' + error.message);
+            }
+        })();
+        
+        return SharedDatabase._initPromise;
+    }
 }
 
 class Docmem {
@@ -166,7 +167,7 @@ class Docmem {
     }
 
     async _init() {
-        this.db = await initSharedDatabase();
+        this.db = await SharedDatabase.getInstance();
         // Check if root already exists, if not create it
         const existingRoot = this._getRootById(this.docmemId);
         if (!existingRoot) {
@@ -320,10 +321,10 @@ class Docmem {
     }
 
     static getAllRoots() {
-        if (!sharedDatabase) {
+        if (!SharedDatabase._instance) {
             return [];
         }
-        const stmt = sharedDatabase.prepare('SELECT * FROM nodes WHERE parent_id IS NULL ORDER BY created_at');
+        const stmt = SharedDatabase._instance.prepare('SELECT * FROM nodes WHERE parent_id IS NULL ORDER BY created_at');
         const roots = [];
         while (stmt.step()) {
             const row = stmt.getAsObject();
