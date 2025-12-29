@@ -309,46 +309,22 @@ async function executeDocmemCommand(args, docmem) {
                 return await commands.create(rootId);
             }
             
-            case 'docmem-append-child': {
-                if (restArgs.length < 4) {
-                    throw new Error('docmem-append-child requires <node_id> <context_type> <context_name> <context_value> [<content>]');
+            case 'docmem-create-node': {
+                if (restArgs.length < 5) {
+                    throw new Error('docmem-create-node requires <--append-child|--before|--after> <node_id> <context_type> <context_name> <context_value> [<content>]');
                 }
-                const nodeId = restArgs[0];
-                const contextType = restArgs[1];
-                const contextName = restArgs[2];
-                const contextValue = restArgs[3];
-                // Content can be empty - join remaining args (if any) and trim leading/trailing newlines
-                // Note: Empty strings are filtered out by the parser, so if content was "", restArgs.length will be 4
-                const content = restArgs.length > 4 ? restArgs.slice(4).join(' ').replace(/^\n+|\n+$/g, '') : '';
-                return commands.appendChild(nodeId, contextType, contextName, contextValue, content);
-            }
-            
-            case 'docmem-insert-before': {
-                if (restArgs.length < 4) {
-                    throw new Error('docmem-insert-before requires <node_id> <context_type> <context_name> <context_value> [<content>]');
+                const mode = restArgs[0];
+                if (mode !== '--append-child' && mode !== '--before' && mode !== '--after') {
+                    throw new Error('docmem-create-node requires mode to be --append-child, --before, or --after');
                 }
-                const nodeId = restArgs[0];
-                const contextType = restArgs[1];
-                const contextName = restArgs[2];
-                const contextValue = restArgs[3];
+                const nodeId = restArgs[1];
+                const contextType = restArgs[2];
+                const contextName = restArgs[3];
+                const contextValue = restArgs[4];
                 // Content can be empty - join remaining args (if any) and trim leading/trailing newlines
-                // Note: Empty strings are filtered out by the parser, so if content was "", restArgs.length will be 4
-                const content = restArgs.length > 4 ? restArgs.slice(4).join(' ').replace(/^\n+|\n+$/g, '') : '';
-                return commands.insertBefore(nodeId, contextType, contextName, contextValue, content);
-            }
-            
-            case 'docmem-insert-after': {
-                if (restArgs.length < 4) {
-                    throw new Error('docmem-insert-after requires <node_id> <context_type> <context_name> <context_value> [<content>]');
-                }
-                const nodeId = restArgs[0];
-                const contextType = restArgs[1];
-                const contextName = restArgs[2];
-                const contextValue = restArgs[3];
-                // Content can be empty - join remaining args (if any) and trim leading/trailing newlines
-                // Note: Empty strings are filtered out by the parser, so if content was "", restArgs.length will be 4
-                const content = restArgs.length > 4 ? restArgs.slice(4).join(' ').replace(/^\n+|\n+$/g, '') : '';
-                return commands.insertAfter(nodeId, contextType, contextName, contextValue, content);
+                // Note: Empty strings are filtered out by the parser, so if content was "", restArgs.length will be 5
+                const content = restArgs.length > 5 ? restArgs.slice(5).join(' ').replace(/^\n+|\n+$/g, '') : '';
+                return commands.createNode(mode, nodeId, contextType, contextName, contextValue, content);
             }
             
             case 'docmem-update-content': {
@@ -428,31 +404,30 @@ async function executeDocmemCommand(args, docmem) {
                 return commands.addSummary(contextType, contextName, contextValue, content, startNodeId, endNodeId);
             }
             
-            case 'docmem-move-append-child': {
-                if (restArgs.length < 2) {
-                    throw new Error('docmem-move-append-child requires <node_id> <target_parent_id>');
+            case 'docmem-move-node': {
+                if (restArgs.length < 3) {
+                    throw new Error('docmem-move-node requires <--append-child|--before|--after> <node_id> <target_id>');
                 }
-                const nodeId = restArgs[0];
-                const targetParentId = restArgs[1];
-                return commands.moveAppendChild(nodeId, targetParentId);
+                const mode = restArgs[0];
+                if (mode !== '--append-child' && mode !== '--before' && mode !== '--after') {
+                    throw new Error('docmem-move-node requires mode to be --append-child, --before, or --after');
+                }
+                const nodeId = restArgs[1];
+                const targetId = restArgs[2];
+                return commands.moveNode(mode, nodeId, targetId);
             }
             
-            case 'docmem-move-before': {
-                if (restArgs.length < 2) {
-                    throw new Error('docmem-move-before requires <node_id> <target_node_id>');
+            case 'docmem-copy-node': {
+                if (restArgs.length < 3) {
+                    throw new Error('docmem-copy-node requires <--append-child|--before|--after> <node_id> <target_id>');
                 }
-                const nodeId = restArgs[0];
-                const targetNodeId = restArgs[1];
-                return commands.moveBefore(nodeId, targetNodeId);
-            }
-            
-            case 'docmem-move-after': {
-                if (restArgs.length < 2) {
-                    throw new Error('docmem-move-after requires <node_id> <target_node_id>');
+                const mode = restArgs[0];
+                if (mode !== '--append-child' && mode !== '--before' && mode !== '--after') {
+                    throw new Error('docmem-copy-node requires mode to be --append-child, --before, or --after');
                 }
-                const nodeId = restArgs[0];
-                const targetNodeId = restArgs[1];
-                return commands.moveAfter(nodeId, targetNodeId);
+                const nodeId = restArgs[1];
+                const targetId = restArgs[2];
+                return commands.copyNode(mode, nodeId, targetId);
             }
             
             case 'docmem-get-all-roots': {

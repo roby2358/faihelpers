@@ -353,6 +353,14 @@ class Docmem {
         return node;
     }
 
+    _getRootOfNode(nodeId) {
+        let node = this._requireNode(nodeId);
+        while (node.parentId !== null) {
+            node = this._requireNode(node.parentId);
+        }
+        return node;
+    }
+
     _getSortedChildren(parentId) {
         const children = this._getChildren(parentId);
         return [...children].sort((a, b) => a.order - b.order);
@@ -585,6 +593,74 @@ class Docmem {
         const newOrder = this._calculateOrderForAfter(targetNode, sortedChildren, targetIdx);
 
         return this._updateNodeParentAndOrder(node_id, targetParentId, newOrder);
+    }
+
+    _copyNodeRecursive(sourceNodeId, newParentId, newOrder) {
+        const sourceNode = this._requireNode(sourceNodeId);
+        const newNodeId = randomString(8);
+        const newNode = new Node(
+            newNodeId,
+            newParentId,
+            sourceNode.text,
+            newOrder,
+            sourceNode.tokenCount,
+            new Date().toISOString(),
+            new Date().toISOString(),
+            sourceNode.contextType,
+            sourceNode.contextName,
+            sourceNode.contextValue
+        );
+        this._insertNode(newNode);
+        
+        // Recursively copy all children
+        const children = this._getChildren(sourceNodeId);
+        let childOrder = this._calculateOrderForAppend(newNodeId);
+        for (const child of children) {
+            this._copyNodeRecursive(child.id, newNodeId, childOrder);
+            childOrder += 1.0;
+        }
+        
+        return newNode;
+    }
+
+    copy_append_child(node_id, target_parent_id) {
+        this._requireNode(node_id);
+        this._requireNode(target_parent_id);
+        
+        const newOrder = this._calculateOrderForAppend(target_parent_id);
+        return this._copyNodeRecursive(node_id, target_parent_id, newOrder);
+    }
+
+    copy_before(node_id, target_node_id) {
+        this._requireNode(node_id);
+        const targetNode = this._requireNode(target_node_id);
+        
+        const targetParentId = targetNode.parentId;
+        if (!targetParentId) {
+            throw new Error('Cannot copy a node to be before root node');
+        }
+        
+        const sortedChildren = this._getSortedChildren(targetParentId);
+        const targetIdx = this._findTargetIndexInSorted(sortedChildren, target_node_id);
+        const newOrder = this._calculateOrderForBefore(targetNode, sortedChildren, targetIdx);
+        
+        return this._copyNodeRecursive(node_id, targetParentId, newOrder);
+    }
+
+    copy_after(node_id, target_node_id) {
+        this._requireNode(node_id);
+        const targetNode = this._requireNode(target_node_id);
+        
+        const targetParentId = targetNode.parentId;
+        if (!targetParentId) {
+            throw new Error('Cannot copy a node to be after root node');
+        }
+        
+        const sortedChildren = this._getSortedChildren(targetParentId);
+        const targetIdx = this._findTargetIndexInSorted(sortedChildren, target_node_id);
+        const newOrder = this._calculateOrderForAfter(targetNode, sortedChildren, targetIdx);
+        
+        return this._copyNodeRecursive(node_id, targetParentId, newOrder);
     }
 
     _getAllDescendants(nodeId, result) {

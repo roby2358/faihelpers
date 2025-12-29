@@ -55,6 +55,28 @@ export class DocmemCommands {
         return { success: true, result: `docmem-insert-after inserted node: ${node.id}` };
     }
 
+    createNode(mode, nodeId, contextType, contextName, contextValue, content) {
+        const validatedContextType = this._validateFieldLength(contextType, 'context_type', 'docmem-create-node');
+        const validatedContextName = this._validateFieldLength(contextName, 'context_name', 'docmem-create-node');
+        const validatedContextValue = this._validateFieldLength(contextValue, 'context_value', 'docmem-create-node');
+
+        let node;
+        let action;
+        if (mode === '--append-child') {
+            node = this.docmem.append_child(nodeId, validatedContextType, validatedContextName, validatedContextValue, content);
+            action = 'appended child node';
+        } else if (mode === '--before') {
+            node = this.docmem.insert_before(nodeId, validatedContextType, validatedContextName, validatedContextValue, content);
+            action = 'inserted node before';
+        } else if (mode === '--after') {
+            node = this.docmem.insert_after(nodeId, validatedContextType, validatedContextName, validatedContextValue, content);
+            action = 'inserted node after';
+        } else {
+            throw new Error(`docmem-create-node requires mode to be --append-child, --before, or --after, got: ${mode}`);
+        }
+        return { success: true, result: `docmem-create-node ${action}: ${node.id}` };
+    }
+
     updateContent(nodeId, content) {
         const node = this.docmem.update_content(nodeId, content);
         return { success: true, result: `docmem-update-content updated node: ${node.id}` };
@@ -127,6 +149,56 @@ export class DocmemCommands {
     moveAfter(nodeId, targetNodeId) {
         const node = this.docmem.move_after(nodeId, targetNodeId);
         return { success: true, result: `docmem-move-after moved node ${nodeId} after node ${targetNodeId}` };
+    }
+
+    moveNode(mode, nodeId, targetId) {
+        // Validate that both nodes belong to the same root
+        const nodeRoot = this.docmem._getRootOfNode(nodeId);
+        const targetRoot = this.docmem._getRootOfNode(targetId);
+        if (nodeRoot.id !== targetRoot.id) {
+            throw new Error(`docmem-move-node requires node-id and target-id to have the same root node. Node root: ${nodeRoot.id}, Target root: ${targetRoot.id}`);
+        }
+
+        let node;
+        let action;
+        if (mode === '--append-child') {
+            node = this.docmem.move_append_child(nodeId, targetId);
+            action = `moved node ${nodeId} to parent ${targetId}`;
+        } else if (mode === '--before') {
+            node = this.docmem.move_before(nodeId, targetId);
+            action = `moved node ${nodeId} before node ${targetId}`;
+        } else if (mode === '--after') {
+            node = this.docmem.move_after(nodeId, targetId);
+            action = `moved node ${nodeId} after node ${targetId}`;
+        } else {
+            throw new Error(`docmem-move-node requires mode to be --append-child, --before, or --after, got: ${mode}`);
+        }
+        return { success: true, result: `docmem-move-node ${action}` };
+    }
+
+    copyNode(mode, nodeId, targetId) {
+        // Validate that both nodes belong to the same root
+        const nodeRoot = this.docmem._getRootOfNode(nodeId);
+        const targetRoot = this.docmem._getRootOfNode(targetId);
+        if (nodeRoot.id !== targetRoot.id) {
+            throw new Error(`docmem-copy-node requires node-id and target-id to have the same root node. Node root: ${nodeRoot.id}, Target root: ${targetRoot.id}`);
+        }
+
+        let node;
+        let action;
+        if (mode === '--append-child') {
+            node = this.docmem.copy_append_child(nodeId, targetId);
+            action = `copied node ${nodeId} to parent ${targetId}`;
+        } else if (mode === '--before') {
+            node = this.docmem.copy_before(nodeId, targetId);
+            action = `copied node ${nodeId} before node ${targetId}`;
+        } else if (mode === '--after') {
+            node = this.docmem.copy_after(nodeId, targetId);
+            action = `copied node ${nodeId} after node ${targetId}`;
+        } else {
+            throw new Error(`docmem-copy-node requires mode to be --append-child, --before, or --after, got: ${mode}`);
+        }
+        return { success: true, result: `docmem-copy-node ${action}: ${node.id}` };
     }
 
     getAllRoots() {
