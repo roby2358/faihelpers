@@ -415,19 +415,17 @@ async function executeDocmemCommand(args, docmem) {
             }
             
             case 'docmem-add-summary': {
-                if (restArgs.length < 5) {
-                    throw new Error('docmem-add-summary requires <context_type> <context_name> <context_value> <content> [<node_ids>...]');
+                if (restArgs.length < 6) {
+                    throw new Error('docmem-add-summary requires <context_type> <context_name> <context_value> <content> <start-node-id> <end-node-id>');
                 }
-                // Format: context_type context_name context_value content node_id1 node_id2 ...
+                // Format: context_type context_name context_value content start_node_id end_node_id
                 const contextType = restArgs[0];
                 const contextName = restArgs[1];
                 const contextValue = restArgs[2];
-                // Content is everything until we hit what looks like a node_id (typically 8 chars, but can vary)
-                // Node IDs come after content. We'll take first 3 as context, rest split between content and node_ids
-                // Simplest: content is arg[3], node_ids are the rest
                 const content = restArgs[3];
-                const nodeIds = restArgs.slice(4);
-                return commands.addSummary(contextType, contextName, contextValue, content, nodeIds);
+                const startNodeId = restArgs[4];
+                const endNodeId = restArgs[5];
+                return commands.addSummary(contextType, contextName, contextValue, content, startNodeId, endNodeId);
             }
             
             case 'docmem-move-append-child': {

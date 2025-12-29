@@ -705,49 +705,52 @@ class Docmem {
         return result;
     }
 
-    add_summary(node_ids, content, context_type, context_name, context_value) {
-        if (!node_ids || node_ids.length === 0) {
-            throw new Error('Must provide at least one memory node to summarize');
+    add_summary(startNodeId, endNodeId, content, context_type, context_name, context_value) {
+        if (!startNodeId || !endNodeId) {
+            throw new Error('Must provide both start-node-id and end-node-id');
         }
 
-        const memoryNodes = node_ids.map(id => this._requireNode(id));
-        
-        // Check that all nodes are leaf nodes (have no children) - these are the "memories"
-        const nodesWithChildren = memoryNodes.filter(n => this._getChildren(n.id).length > 0);
-        if (nodesWithChildren.length > 0) {
-            throw new Error(`All nodes to summarize must be leaf nodes (have no children). Nodes with children: ${nodesWithChildren.map(n => n.id).join(', ')}`);
+        const startNode = this._requireNode(startNodeId);
+        const endNode = this._requireNode(endNodeId);
+
+        // Check that both nodes have the same parent
+        if (startNode.parentId !== endNode.parentId) {
+            throw new Error(`Start node and end node must have the same parent. Start node parent: ${startNode.parentId}, End node parent: ${endNode.parentId}`);
         }
 
-        let parentId;
-        if (memoryNodes.length === 1) {
-            parentId = memoryNodes[0].parentId;
-        } else {
-            const parentIds = new Set(memoryNodes.map(n => n.parentId));
-            if (parentIds.size !== 1) {
-                const parentInfo = Array.from(parentIds).map(pid => {
-                    const nodesWithThisParent = memoryNodes.filter(n => n.parentId === pid).map(n => n.id);
-                    return `parent ${pid}: nodes ${nodesWithThisParent.join(', ')}`;
-                }).join('; ');
-                throw new Error(`All memory nodes must have the same parent. Found: ${parentInfo}`);
-            }
-            parentId = memoryNodes[0].parentId;
+        const parentId = startNode.parentId;
+        if (!parentId) {
+            throw new Error('Cannot summarize root nodes');
         }
 
         this._requireNode(parentId);
 
-        const children = this._getChildren(parentId);
-        const childrenIds = new Set(children.map(c => c.id));
-        const nodeIdsSet = new Set(node_ids);
+        // Get all siblings sorted by order
+        const sortedSiblings = this._getSortedChildren(parentId);
         
-        // Check which nodes are missing from parent's children
-        const missingFromParent = node_ids.filter(id => !childrenIds.has(id));
-        
-        if (missingFromParent.length > 0) {
-            throw new Error(`Not all memory nodes found as children of parent. Missing: ${missingFromParent.join(', ')}. Parent has ${children.length} children.`);
+        // Find indices of start and end nodes
+        const startIndex = sortedSiblings.findIndex(n => n.id === startNodeId);
+        const endIndex = sortedSiblings.findIndex(n => n.id === endNodeId);
+
+        if (startIndex === -1) {
+            throw new Error(`Start node ${startNodeId} not found as a child of parent ${parentId}`);
         }
-        
-        const memoryNodesSorted = this._getSortedChildren(parentId)
-            .filter(n => nodeIdsSet.has(n.id));
+        if (endIndex === -1) {
+            throw new Error(`End node ${endNodeId} not found as a child of parent ${parentId}`);
+        }
+
+        if (startIndex > endIndex) {
+            throw new Error(`Start node must come before or equal to end node in sibling order. Start index: ${startIndex}, End index: ${endIndex}`);
+        }
+
+        // Get all nodes between start and end (inclusive)
+        const memoryNodesSorted = sortedSiblings.slice(startIndex, endIndex + 1);
+
+        // Check that all nodes are leaf nodes (have no children) - these are the "memories"
+        const nodesWithChildren = memoryNodesSorted.filter(n => this._getChildren(n.id).length > 0);
+        if (nodesWithChildren.length > 0) {
+            throw new Error(`All nodes to summarize must be leaf nodes (have no children). Nodes with children: ${nodesWithChildren.map(n => n.id).join(', ')}`);
+        }
 
         const minOrder = memoryNodesSorted[0].order;
         const maxOrder = memoryNodesSorted[memoryNodesSorted.length - 1].order;

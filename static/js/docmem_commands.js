@@ -102,15 +102,15 @@ export class DocmemCommands {
         return { success: true, result: `docmem-expand-to-length:\n${JSON.stringify(nodes.map(n => n.toDict()), null, 2)}` };
     }
 
-    addSummary(contextType, contextName, contextValue, content, nodeIds) {
-        if (nodeIds.length === 0) {
-            throw new Error('docmem-add-summary requires at least one node_id');
+    addSummary(contextType, contextName, contextValue, content, startNodeId, endNodeId) {
+        if (!startNodeId || !endNodeId) {
+            throw new Error('docmem-add-summary requires both start-node-id and end-node-id');
         }
         const validatedContextType = this._validateFieldLength(contextType, 'context_type', 'docmem-add-summary');
         const validatedContextName = this._validateFieldLength(contextName, 'context_name', 'docmem-add-summary');
         const validatedContextValue = this._validateFieldLength(contextValue, 'context_value', 'docmem-add-summary');
 
-        const node = this.docmem.add_summary(nodeIds, content, validatedContextType, validatedContextName, validatedContextValue);
+        const node = this.docmem.add_summary(startNodeId, endNodeId, content, validatedContextType, validatedContextName, validatedContextValue);
         return { success: true, result: `docmem-add-summary added summary node: ${node.id}` };
     }
 

@@ -168,7 +168,8 @@ function renderDocmem() {
             <div class="operation-section">
                 <h4>Add Summary</h4>
                 <div class="input-row">
-                    <input type="text" id="summary-node-ids" placeholder="Node IDs (space-separated)" />
+                    <input type="text" id="summary-start-node-id" placeholder="Start Node ID" />
+                    <input type="text" id="summary-end-node-id" placeholder="End Node ID" />
                 </div>
                 <div class="input-row">
                     <input type="text" id="summary-context-type" placeholder="Context Type" />
@@ -293,26 +294,20 @@ function renderDocmem() {
 
     const summaryBtn = document.getElementById('summary-btn');
     summaryBtn.addEventListener('click', () => {
-        const nodeIdsStr = document.getElementById('summary-node-ids').value.trim();
+        const startNodeId = document.getElementById('summary-start-node-id').value.trim();
+        const endNodeId = document.getElementById('summary-end-node-id').value.trim();
         const content = document.getElementById('summary-content').value.trim();
         const contextType = document.getElementById('summary-context-type').value.trim();
         const contextName = document.getElementById('summary-context-name').value.trim();
         const contextValue = document.getElementById('summary-context-value').value.trim();
         
-        if (!nodeIdsStr || !content || !contextType || !contextName || !contextValue) {
-            showMessage('Node IDs, summary content, and all context fields are required', 'error');
-            return;
-        }
-        
-        // Split by whitespace, trim each, and filter out empty strings
-        const nodeIds = nodeIdsStr.split(/\s+/).map(id => id.trim()).filter(id => id);
-        if (nodeIds.length === 0) {
-            showMessage('At least one node ID is required', 'error');
+        if (!startNodeId || !endNodeId || !content || !contextType || !contextName || !contextValue) {
+            showMessage('Start node ID, end node ID, summary content, and all context fields are required', 'error');
             return;
         }
         
         try {
-            const node = currentDocmem.add_summary(nodeIds, content, contextType, contextName, contextValue);
+            const node = currentDocmem.add_summary(startNodeId, endNodeId, content, contextType, contextName, contextValue);
             showMessage(`Summary created: ${node.id}`, 'success');
             renderDocmem();
         } catch (error) {

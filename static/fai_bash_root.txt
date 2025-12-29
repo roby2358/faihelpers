@@ -131,8 +131,9 @@ docmem-expand-to-length <node-id> <maxTokens>
 - BFS expansion of the existing node up to a length of maxTokens
 
 ## Summary Operations
-docmem-add-summary <context-type> <context-name> <context-value> <content> [<node-ids>...]
-- create a parent node for the listed nodes with the summary content
+docmem-add-summary <context-type> <context-name> <context-value> <content> <start-node-id> <end-node-id>
+- create a parent node for contiguous nodes from start-node-id to end-node-id (inclusive) with the summary content
+- both start-node-id and end-node-id must have the same parent node
 - you MUST use the actual node IDs returned by the system
 
 ## Static Operations
