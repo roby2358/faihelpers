@@ -8,6 +8,11 @@ Status: ToDo
 ID: prompt-cache-7kad
 Configure provider calls for prompt caching. Set up caching mechanisms for LLM API calls to reduce costs and improve response times by caching prompt prefixes and reusing them across requests. This includes configuring cache settings in the OpenRouter API integration and managing cache invalidation strategies.
 ---
+Priority:   70
+Status: ToDo
+ID: copy-rule-z59k
+Remove the "same parent" rule for copying nodes
+---
 Priority:   60
 Status: ToDo
 ID: checksum-5wv6

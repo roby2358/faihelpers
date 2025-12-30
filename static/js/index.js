@@ -685,13 +685,7 @@ function initPersist() {
             }
 
             try {
-                const roots = Docmem.getAllRoots();
-                if (roots.length === 0) {
-                    showMessage('No docmem roots found. Please create a docmem first.', 'error');
-                    return;
-                }
-
-                const selectedRootId = tomlSerializer.currentRootId || roots[0].id;
+                const selectedRootId = `docmem_${Date.now()}`;
                 const docmem = new Docmem(selectedRootId);
                 await docmem.ready();
 
