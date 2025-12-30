@@ -604,6 +604,8 @@ function initPersist() {
     const saveBtn = document.getElementById('persist-save-btn');
     const loadBtn = document.getElementById('persist-load-btn');
     const fileInput = document.getElementById('persist-file-input');
+    const uploadTextBtn = document.getElementById('persist-upload-text-btn');
+    const textFileInput = document.getElementById('persist-text-file-input');
 
     if (saveBtn) {
         saveBtn.addEventListener('click', async () => {
@@ -663,6 +665,71 @@ function initPersist() {
                 showMessage('Error loading TOML: ' + error.message, 'error');
             } finally {
                 fileInput.value = '';
+            }
+        });
+    }
+
+    if (uploadTextBtn) {
+        uploadTextBtn.addEventListener('click', () => {
+            if (textFileInput) {
+                textFileInput.click();
+            }
+        });
+    }
+
+    if (textFileInput) {
+        textFileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) {
+                return;
+            }
+
+            try {
+                const roots = Docmem.getAllRoots();
+                if (roots.length === 0) {
+                    showMessage('No docmem roots found. Please create a docmem first.', 'error');
+                    return;
+                }
+
+                const selectedRootId = tomlSerializer.currentRootId || roots[0].id;
+                const docmem = new Docmem(selectedRootId);
+                await docmem.ready();
+
+                const text = await file.text();
+                
+                const lines = text.split('\n');
+                const trimmedLines = [];
+                
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (trimmed.length > 0) {
+                        trimmedLines.push(trimmed);
+                    }
+                }
+
+                if (trimmedLines.length === 0) {
+                    showMessage('No non-empty lines found in file', 'error');
+                    return;
+                }
+
+                const rootNode = docmem._getRoot();
+                let createdCount = 0;
+
+                for (const line of trimmedLines) {
+                    docmem.append_child(rootNode.id, 'line', 'source', 'upload', line);
+                    createdCount++;
+                }
+
+                showMessage(`Created ${createdCount} nodes from ${file.name}`, 'success');
+                renderPersist();
+                if (currentDocmem && currentDocmem.docmemId === selectedRootId) {
+                    renderDocmem();
+                }
+            } catch (error) {
+                console.error('Error uploading text file:', error);
+                showMessage('Error uploading text file: ' + error.message, 'error');
+            } finally {
+                textFileInput.value = '';
             }
         });
     }
