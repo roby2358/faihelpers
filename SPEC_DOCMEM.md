@@ -51,6 +51,7 @@ A node MUST contain the following fields:
 - `context_type`: Node role type (TEXT, NOT NULL)
 - `context_name`: Context metadata name (TEXT, NOT NULL)
 - `context_value`: Context metadata value (TEXT, NOT NULL)
+- `hash`: SHA-512 hash of node state for optimistic locking (TEXT, NULLABLE, Base64-encoded)
 
 ### Node Differentiation
 - Nodes MUST be differentiated by their context metadata rather than an explicit node type field.
@@ -91,6 +92,7 @@ The database schema MUST include a `nodes` table with the following columns:
 - `context_type TEXT NOT NULL`
 - `context_name TEXT NOT NULL`
 - `context_value TEXT NOT NULL`
+- `hash TEXT`
 - `FOREIGN KEY (parent_id) REFERENCES nodes(id) ON DELETE CASCADE`
 
 ### Database Constraints
@@ -101,6 +103,17 @@ The database schema MUST include a `nodes` table with the following columns:
 ### Database Updates
 - The database MUST allow updates (not append-only) to support summary regeneration and content updates.
 - When a node is updated, the `updated_at` timestamp MUST be set to the current time.
+- All update operations MUST use optimistic locking with hash-based versioning (see Optimistic Locking section).
+
+### Optimistic Locking
+- All update operations MUST implement optimistic locking using SHA-512 hash-based versioning.
+- Each node MUST have a `hash` field containing a Base64-encoded SHA-512 hash of the node's state.
+- The hash MUST be computed from the concatenation of: `parent_id|context_type|context_name|context_value|text|order` (using `|` as delimiter).
+- NULL/undefined values MUST be normalized to empty strings for deterministic hashing.
+- The hash MUST be recalculated whenever any hashed field changes (parent_id, context_type, context_name, context_value, text, order).
+- Update operations MUST include an expected hash value and MUST only succeed if the node's current hash matches the expected hash.
+- If the hash does not match, the operation MUST throw an `OptimisticLockError` indicating concurrent modification.
+- This prevents lost updates when multiple operations attempt to modify the same node concurrently.
 
 ### Persistence (Planned)
 - Database persistence to IndexedDB SHOULD be implemented to survive page reloads.
@@ -142,60 +155,89 @@ The database schema MUST include a `nodes` table with the following columns:
 - Semantic prioritization and relevance-based expansion SHOULD be implemented in the future.
 
 ### Summarization
-- `add_summary(startNodeId, endNodeId)` MUST compress a list of contiguous memory nodes.
-- Summary text MAY be provided manually (current implementation).
+- `add_summary(startNodeId, endNodeId, content, context_type, context_name, context_value)` MUST compress a list of contiguous memory nodes.
+- Summary text content MUST be provided as a parameter (current implementation requires manual content).
 - Summary text SHOULD be LLM-generated when automatic summarization is implemented.
-- A summary node MUST be created as the new parent of the memory nodes.
-- All nodes to be summarized MUST have the same parent.
+- A summary node MUST be created as the new parent of the memory nodes with the provided content and context metadata.
+- All nodes to be summarized MUST have the same parent and MUST be leaf nodes (have no children).
+- The summary node's order MUST be placed at the midpoint between the start and end nodes' orders.
+- Memory nodes MUST be reparented to the summary node (they become children of the summary).
 - When vector DB is implemented, embeddings MUST be updated when summaries are created or regenerated.
 - Summaries SHOULD be regenerated when their children change.
-- The operation MUST return the new node id.
+- The operation MUST return the new summary node.
 
 ### Append
-- `append_child(nodeId)` MUST add a new node as a child of the specified parent node.
+- `append_child(nodeId, context_type, context_name, context_value, content)` MUST add a new node as a child of the specified parent node.
 - The new node's `order_value` MUST be set to `max(sibling orders) + 1.0`.
-- All context metadata fields (`context_type`, `context_name`, `context_value`) MUST be provided.
-- The operation MUST return the new node id.
+- All context metadata fields (`context_type`, `context_name`, `context_value`) and `content` MUST be provided.
+- The operation MUST return the new node.
 
 ### Insert
-- `insert_between(firstNodeId, secondNodeId)` MUST add a new node between two existing contiguous sibling nodes.
-- Both nodes MUST have the same parent.
+- `insert_before(nodeId, context_type, context_name, context_value, content)` MUST add a new node before the specified target node.
+- `insert_after(nodeId, context_type, context_name, context_value, content)` MUST add a new node after the specified target node.
+- The target node MUST have a parent (cannot insert before/after root node).
+- The new node MUST be inserted as a sibling of the target node (same parent).
 - The new node's `order_value` MUST use decimal interpolation to avoid reindexing.
-- Current implementation MUST use 20% interpolation: `(a * 4 + b * 1) / 5`.
+- Current implementation MUST use 20% interpolation: `(a * 4 + b * 1) / 5` where `a` is the adjacent sibling's order and `b` is the target node's order.
+- For `insert_before`: if a sibling exists before the target, use `(siblingOrder * 4 + targetOrder * 1) / 5`; otherwise use `targetOrder - 1.0`.
+- For `insert_after`: if a sibling exists after the target, use `(targetOrder * 4 + siblingOrder * 1) / 5`; otherwise use `targetOrder + 1.0`.
 - This biases new nodes toward the left sibling, preserving more space to the right.
 - The asymmetry optimizes for forward insertion patterns (repeated `insert_after` 
   on newly created nodes), allowing ~3x more sequential insertions before 
   hitting floating-point precision limits compared to midpoint interpolation.
-- All context metadata fields MUST be provided.
-- The operation MUST return the new node id.
+- All context metadata fields (`context_type`, `context_name`, `context_value`) and `content` MUST be provided.
+- The operation MUST return the new node.
 
 ### Delete
-- `delete()` MUST remove a node and all its descendants.
-- The operation MUST use SQL CASCADE delete for referential integrity.
+- `delete(nodeId)` MUST remove a node and all its descendants.
+- The operation MUST collect all descendants first, then delete them in post-order (children before parents) to ensure safe deletion.
+- The operation MUST use SQL CASCADE delete for referential integrity (though explicit deletion is performed for safety).
 - When vector DB is implemented, embeddings MUST be removed for deleted nodes.
 
 ### Update Content
-- `update_content(nodeId)` MUST update the text content of an existing node.
+- `update_content(nodeId, content)` MUST update the text content of an existing node.
 - Token count MUST be recalculated automatically when content is updated.
 - The `updated_at` timestamp MUST be set to the current time.
-- The operation MUST return the node id.
+- The hash MUST be recalculated after content changes.
+- The operation MUST use optimistic locking (expected hash must match current hash).
+- The operation MUST return the updated node.
 
 ### Update Context
-- `update_context(nodeId)` MUST update the context metadata (`context_type`, `context_name`, `context_value`) of an existing node.
+- `update_context(nodeId, context_type, context_name, context_value)` MUST update the context metadata of an existing node.
 - The `updated_at` timestamp MUST be set to the current time.
 - All context metadata fields MUST be provided.
-- The operation MUST return the node id.
+- The hash MUST be recalculated after context changes.
+- The operation MUST use optimistic locking (expected hash must match current hash).
+- The operation MUST return the updated node.
+
+### Copy
+- `copy_append_child(nodeId, targetParentId)` MUST create a copy of a node and all its descendants as a child of the target parent.
+- `copy_before(nodeId, targetNodeId)` MUST create a copy of a node and all its descendants as a sibling before the target node.
+- `copy_after(nodeId, targetNodeId)` MUST create a copy of a node and all its descendants as a sibling after the target node.
+- The target node for `copy_before`/`copy_after` MUST have a parent (cannot copy before/after root node).
+- Copy operations MUST recursively copy all descendants, creating new node IDs for each copied node.
+- The copied nodes MUST maintain the same tree structure and order relationships as the original.
+- The copied nodes' `order_value` fields MUST be recalculated for their new positions using the same rules as insert operations.
+- The copied nodes' `created_at` and `updated_at` timestamps MUST be set to the current time.
+- The operation MUST return the new root node of the copied subtree.
 
 ### Move
-- `move_append_child(nodeId, targetNodeId)` MUST move a node to become a child of a different parent node.
-- The moved node MUST be appended to the new parent's children (positioned after all existing children).
-- The operation MUST prevent cycles (cannot move a node to be a child of itself or its descendants).
+- `move_append_child(nodeId, targetParentId)` MUST move a node to become a child of a different parent node.
+- `move_before(nodeId, targetNodeId)` MUST move a node to become a sibling before the target node.
+- `move_after(nodeId, targetNodeId)` MUST move a node to become a sibling after the target node.
+- For `move_append_child`, the moved node MUST be appended to the new parent's children (positioned after all existing children).
+- For `move_before` and `move_after`, the moved node MUST be repositioned as a sibling of the target node (same parent as target).
+- The target node for `move_before`/`move_after` MUST have a parent (cannot move before/after root node).
+- All move operations MUST prevent cycles (cannot move a node to be a child of itself, its descendants, or a descendant's parent).
+- The moved node's `order_value` MUST be recalculated using the same interpolation rules as insert operations.
 - The `updated_at` timestamp MUST be set to the current time.
-- The operation MUST return the node id.
+- The operation MUST use optimistic locking (expected hash must match current hash).
+- The operation MUST return the updated node.
 
 ### Structure
 - `structure(nodeId)` MUST return the tree structure starting from the specified node without text content.
-- The result MUST be a flat array of node objects containing all fields except `text` (including the starting node and all descendants).
+- The result MUST be a flat array of node objects containing the following fields: `id`, `parentId`, `order`, `tokenCount`, `createdAt`, `updatedAt`, `contextType`, `contextName`, `contextValue` (excluding `text` and `hash`).
+- The result MUST include the starting node and all descendants.
 - Traversal MUST use preorder traversal ordered by `order_value`.
 - This operation is useful for inspecting tree structure without loading full text content.
 
