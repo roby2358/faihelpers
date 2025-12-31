@@ -107,7 +107,7 @@ class TomlSerializer {
         );
     }
 
-    buildNodeGraph(docmem, nodeMap, rootData) {
+    async buildNodeGraph(docmem, nodeMap, rootData) {
         const processed = new Set();
         const toProcess = Array.from(nodeMap.values());
 
@@ -118,7 +118,8 @@ class TomlSerializer {
                 
                 if (!data.parentId) {
                     const rootNode = this.createNodeFromData(data, null, 0.0);
-                    docmem._insertNode(rootNode);
+                    await NodeHasher.hash(rootNode);
+                    await docmem._insertNode(rootNode);
                     processed.add(data.id);
                     toProcess.splice(i, 1);
                     progress = true;
@@ -138,7 +139,8 @@ class TomlSerializer {
                     const newOrder = maxOrder + 1.0;
                     
                     const newNode = this.createNodeFromData(data, data.parentId, newOrder);
-                    docmem._insertNode(newNode);
+                    await NodeHasher.hash(newNode);
+                    await docmem._insertNode(newNode);
                     
                     processed.add(data.id);
                     toProcess.splice(i, 1);
@@ -170,7 +172,7 @@ class TomlSerializer {
             docmem.delete(docmemId);
         }
 
-        this.buildNodeGraph(docmem, nodeMap, rootData);
+        await this.buildNodeGraph(docmem, nodeMap, rootData);
         return docmem;
     }
 

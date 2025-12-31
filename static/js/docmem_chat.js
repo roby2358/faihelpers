@@ -38,18 +38,19 @@ class DocmemChat {
             'date',
             timestamp
         );
-        this.docmem._insertNode(rootNode);
+        await NodeHasher.hash(rootNode);
+        await this.docmem._insertNode(rootNode);
     }
 
     /**
      * Append a user message to the chat session
      */
-    appendUserMessage(content) {
+    async appendUserMessage(content) {
         const root = this.getRoot();
         if (!root) {
             throw new Error('Chat session root not found. Call createChatSession() first.');
         }
-        return this.docmem.append_child(
+        return await this.docmem.append_child(
             root.id,
             'message',
             'role',
@@ -61,7 +62,7 @@ class DocmemChat {
     /**
      * Append an assistant message to the chat session
      */
-    appendAssistantMessage(content) {
+    async appendAssistantMessage(content) {
         const root = this.getRoot();
         if (!root) {
             throw new Error('Chat session root not found. Call createChatSession() first.');
@@ -72,7 +73,7 @@ class DocmemChat {
         console.log(content);
         console.log('==========================');
         
-        return this.docmem.append_child(
+        return await this.docmem.append_child(
             root.id,
             'message',
             'role',
@@ -320,8 +321,8 @@ class DocmemChat {
         return this.docmem.find(nodeId);
     }
 
-    update_content(nodeId, content) {
-        return this.docmem.update_content(nodeId, content);
+    async update_content(nodeId, content) {
+        return await this.docmem.update_content(nodeId, content);
     }
 }
 

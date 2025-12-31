@@ -710,7 +710,7 @@ function initPersist() {
                 let createdCount = 0;
 
                 for (const line of trimmedLines) {
-                    docmem.append_child(rootNode.id, 'line', 'source', 'upload', line);
+                    await docmem.append_child(rootNode.id, 'line', 'source', 'upload', line);
                     createdCount++;
                 }
 

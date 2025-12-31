@@ -174,7 +174,7 @@ async function sendMessage() {
 
     try {
         // Append user message to chat session
-        chatSession.appendUserMessage(message);
+        await chatSession.appendUserMessage(message);
         appendToChatDisplay(`user> ${message}`);
 
         // Clear input
@@ -187,7 +187,7 @@ async function sendMessage() {
         const response = await api.chat(messages);
 
         // Append assistant response to chat session
-        chatSession.appendAssistantMessage(response);
+        await chatSession.appendAssistantMessage(response);
         appendToChatDisplay(`assistant> ${response}`);
 
         // Process any # Run commands in the response
@@ -231,7 +231,7 @@ async function sendContinueMessage() {
 
     try {
         // Append user message to chat session
-        chatSession.appendUserMessage(message);
+        await chatSession.appendUserMessage(message);
         appendToChatDisplay(`user> ${message}`);
 
         // Build message list for LLM
@@ -241,7 +241,7 @@ async function sendContinueMessage() {
         const response = await api.chat(messages);
 
         // Append assistant response to chat session
-        chatSession.appendAssistantMessage(response);
+        await chatSession.appendAssistantMessage(response);
         appendToChatDisplay(`assistant> ${response}`);
 
         // Process any # Run commands in the response
@@ -324,7 +324,7 @@ async function executeDocmemCommand(args, docmem) {
                 // Content can be empty - join remaining args (if any) and trim leading/trailing newlines
                 // Note: Empty strings are filtered out by the parser, so if content was "", restArgs.length will be 5
                 const content = restArgs.length > 5 ? restArgs.slice(5).join(' ').replace(/^\n+|\n+$/g, '') : '';
-                return commands.createNode(mode, nodeId, contextType, contextName, contextValue, content);
+                return await commands.createNode(mode, nodeId, contextType, contextName, contextValue, content);
             }
             
             case 'docmem-update-content': {
@@ -335,7 +335,7 @@ async function executeDocmemCommand(args, docmem) {
                 // Content can be empty - join remaining args (if any) and trim leading/trailing newlines
                 // Note: Empty strings are filtered out by the parser, so if content was "", restArgs.length will be 1
                 const content = restArgs.length > 1 ? restArgs.slice(1).join(' ').replace(/^\n+|\n+$/g, '') : '';
-                return commands.updateContent(nodeId, content);
+                return await commands.updateContent(nodeId, content);
             }
             
             case 'docmem-update-context': {
@@ -346,7 +346,7 @@ async function executeDocmemCommand(args, docmem) {
                 const contextType = restArgs[1];
                 const contextName = restArgs[2];
                 const contextValue = restArgs[3];
-                return commands.updateContext(nodeId, contextType, contextName, contextValue);
+                return await commands.updateContext(nodeId, contextType, contextName, contextValue);
             }
             
             case 'docmem-find': {
@@ -401,7 +401,7 @@ async function executeDocmemCommand(args, docmem) {
                 const content = restArgs[3];
                 const startNodeId = restArgs[4];
                 const endNodeId = restArgs[5];
-                return commands.addSummary(contextType, contextName, contextValue, content, startNodeId, endNodeId);
+                return await commands.addSummary(contextType, contextName, contextValue, content, startNodeId, endNodeId);
             }
             
             case 'docmem-move-node': {
@@ -414,7 +414,7 @@ async function executeDocmemCommand(args, docmem) {
                 }
                 const nodeId = restArgs[1];
                 const targetId = restArgs[2];
-                return commands.moveNode(mode, nodeId, targetId);
+                return await commands.moveNode(mode, nodeId, targetId);
             }
             
             case 'docmem-copy-node': {
@@ -427,7 +427,7 @@ async function executeDocmemCommand(args, docmem) {
                 }
                 const nodeId = restArgs[1];
                 const targetId = restArgs[2];
-                return commands.copyNode(mode, nodeId, targetId);
+                return await commands.copyNode(mode, nodeId, targetId);
             }
             
             case 'docmem-get-all-roots': {
@@ -551,7 +551,7 @@ async function processCommands(responseText, depth = 0) {
     // If we have command output, append it as a user message
     if (commandOutputText) {
         // Append command output as user message
-        chatSession.appendUserMessage(commandOutputText);
+        await chatSession.appendUserMessage(commandOutputText);
         appendToChatDisplay(`user> ${commandOutputText}`);
         
         // Only invoke the model again if we haven't exceeded the depth limit (max 3 rounds)

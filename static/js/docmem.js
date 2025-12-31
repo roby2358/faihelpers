@@ -13,6 +13,7 @@ class Node {
         this.contextType = contextType;
         this.contextName = contextName;
         this.contextValue = contextValue;
+        this.hash = null;
     }
 
     _countTokens(text) {
@@ -70,7 +71,8 @@ class Node {
             updatedAt: this.updatedAt,
             contextType: this.contextType,
             contextName: this.contextName,
-            contextValue: this.contextValue
+            contextValue: this.contextValue,
+            hash: this.hash
         };
     }
 
@@ -85,93 +87,73 @@ class Node {
             data.updatedAt,
             data.contextType,
             data.contextName,
-            data.contextValue
+            data.contextValue,
+            data.hash
         );
     }
 }
 
-class SharedDatabase {
-    static _instance = null;
-    static _initPromise = null;
+/**
+ * NodeHasher - Computes SHA-512 hash of node state for optimistic locking
+ */
+class NodeHasher {
+    /**
+     * Compute hash for node state, set it on the node, and return the node
+     * Hashes: parent_id, context_type, context_name, context_value, text, order
+     * @param {Node} node - The node to hash
+     * @returns {Promise<Node>} The node with hash property set (Base64-encoded SHA-512 hash, 88 characters)
+     */
+    static async hash(node) {
+        // Create deterministic serialization: parent_id|context_type|context_name|context_value|text|order
+        // Using | as delimiter (simple and unlikely to conflict)
+        // Normalize NULL/undefined to empty string for deterministic hashing
+        // Convert order to string for consistent serialization
+        const data = [
+            node.parentId || '',
+            node.contextType || '',
+            node.contextName || '',
+            node.contextValue || '',
+            node.text || '',
+            String(node.order ?? '')
+        ].join('|');
+        
+        // Compute SHA-512 hash
+        const msgBuffer = new TextEncoder().encode(data);
+        const hashBuffer = await crypto.subtle.digest('SHA-512', msgBuffer);
+        
+        // Convert to base64
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const binaryString = String.fromCharCode(...hashArray);
+        node.hash = btoa(binaryString);
+        return node;
+    }
+}
 
-    static async getInstance() {
-        if (SharedDatabase._instance) {
-            return SharedDatabase._instance;
-        }
-        
-        if (SharedDatabase._initPromise) {
-            return SharedDatabase._initPromise;
-        }
-        
-        SharedDatabase._initPromise = (async () => {
-            // Wait for initSqlJs to be available (sql.js script should be loaded first)
-            let attempts = 0;
-            while (typeof initSqlJs === 'undefined' && attempts < 100) {
-                await new Promise(resolve => setTimeout(resolve, 50));
-                attempts++;
-            }
-            
-            if (typeof initSqlJs === 'undefined') {
-                throw new Error('sql.js not loaded. Please include sql.js script before docmem.js');
-            }
-            
-            try {
-                const SQL = await initSqlJs({
-                    locateFile: file => {
-                        // Use jsdelivr CDN for WASM files - same version as script
-                        return `https://cdn.jsdelivr.net/npm/sql.js@1.8.0/dist/${file}`;
-                    }
-                });
-                SharedDatabase._instance = new SQL.Database();
-                
-                // Enable foreign key constraints (required for CASCADE delete to work)
-                SharedDatabase._instance.run('PRAGMA foreign_keys = ON');
-                
-                // Initialize database schema (CREATE TABLE IF NOT EXISTS)
-                SharedDatabase._instance.run(`
-                    CREATE TABLE IF NOT EXISTS nodes (
-                        id TEXT PRIMARY KEY,
-                        parent_id TEXT,
-                        text TEXT NOT NULL,
-                        order_value REAL NOT NULL,
-                        token_count INTEGER NOT NULL,
-                        created_at TEXT NOT NULL,
-                        updated_at TEXT NOT NULL,
-                        context_type TEXT NOT NULL,
-                        context_name TEXT NOT NULL,
-                        context_value TEXT NOT NULL,
-                        FOREIGN KEY (parent_id) REFERENCES nodes(id) ON DELETE CASCADE
-                    )
-                `);
-                SharedDatabase._instance.run('CREATE INDEX IF NOT EXISTS idx_parent_id ON nodes(parent_id)');
-                SharedDatabase._instance.run('CREATE INDEX IF NOT EXISTS idx_order ON nodes(parent_id, order_value)');
-                
-                return SharedDatabase._instance;
-            } catch (error) {
-                console.error('Error initializing SQL.js:', error);
-                console.error('Error details:', error.stack);
-                SharedDatabase._initPromise = null;
-                throw new Error('Failed to initialize SQL.js: ' + error.message);
-            }
-        })();
-        
-        return SharedDatabase._initPromise;
+/**
+ * OptimisticLockError - Error thrown when optimistic locking fails due to concurrent modification
+ */
+class OptimisticLockError extends Error {
+    constructor(nodeId, message = 'Concurrent modification detected') {
+        super(message);
+        this.name = 'OptimisticLockError';
+        this.nodeId = nodeId;
+        this.message = `Optimistic lock failed for node ${nodeId}: ${message}. The node was modified by another operation. Please read the current state and retry your update.`;
     }
 }
 
 class Docmem {
     constructor(docmemId) {
         this.docmemId = docmemId;
-        this.db = null;
+        this.sqlite = new DocmemSQLite();
         this._initPromise = this._init();
     }
 
     async _init() {
-        this.db = await SharedDatabase.getInstance();
+        await this.sqlite.ready();
         // Check if root already exists, if not create it
         const existingRoot = this._getRootById(this.docmemId);
         if (!existingRoot) {
-            this._createRoot();
+            await this._createRoot();
         }
     }
 
@@ -180,14 +162,10 @@ class Docmem {
     }
 
     _getRootById(rootId) {
-        const stmt = this.db.prepare('SELECT * FROM nodes WHERE id = ? AND parent_id IS NULL');
-        stmt.bind([rootId]);
-        const result = stmt.step() ? this._rowToNode(stmt.getAsObject()) : null;
-        stmt.free();
-        return result;
+        return this.sqlite.getRootById(rootId);
     }
 
-    _createRoot(contextType = 'root', contextName = 'purpose', contextValue = 'document') {
+    async _createRoot(contextType = 'root', contextName = 'purpose', contextValue = 'document') {
         // Check if root already exists
         const existingRoot = this._getRootById(this.docmemId);
         if (existingRoot) {
@@ -206,100 +184,42 @@ class Docmem {
             contextName,
             contextValue
         );
-        this._insertNode(root);
+        await NodeHasher.hash(root);
+        await this.sqlite.insertNode(root);
         return root;
     }
 
-    _insertNode(node) {
-        const stmt = this.db.prepare(`
-            INSERT INTO nodes (id, parent_id, text, order_value, token_count, created_at, updated_at, context_type, context_name, context_value)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-        stmt.bind([
-            node.id,
-            node.parentId,
-            node.text,
-            node.order,
-            node.tokenCount,
-            node.createdAt,
-            node.updatedAt,
-            node.contextType,
-            node.contextName,
-            node.contextValue
-        ]);
-        stmt.step();
-        stmt.free();
+    _updateTimestamp(node) {
+        node.updatedAt = new Date().toISOString();
     }
 
-    _updateNode(node) {
-        const stmt = this.db.prepare(`
-            UPDATE nodes
-            SET text = ?, token_count = ?, updated_at = ?
-            WHERE id = ?
-        `);
-        stmt.bind([
-            node.text,
-            node.tokenCount,
-            new Date().toISOString(),
-            node.id
-        ]);
-        stmt.step();
-        stmt.free();
+    async _createAndInsertNode(parentId, content, order, contextType, contextName, contextValue) {
+        const node = this._createNodeWithContext(parentId, content, order, contextType, contextName, contextValue);
+        await NodeHasher.hash(node);
+        await this.sqlite.insertNode(node);
+        return node;
     }
 
-    _updateNodeContext(node) {
-        const stmt = this.db.prepare(`
-            UPDATE nodes
-            SET context_type = ?, context_name = ?, context_value = ?, updated_at = ?
-            WHERE id = ?
-        `);
-        stmt.bind([
-            node.contextType,
-            node.contextName,
-            node.contextValue,
-            new Date().toISOString(),
-            node.id
-        ]);
-        stmt.step();
-        stmt.free();
+    async _updateNode(node, expectedHash) {
+        this._updateTimestamp(node);
+        this.sqlite.updateNodeContent(node, expectedHash);
+    }
+
+    async _updateNodeContext(node, expectedHash) {
+        this._updateTimestamp(node);
+        this.sqlite.updateNodeContext(node, expectedHash);
     }
 
     _getNode(nodeId) {
-        const stmt = this.db.prepare('SELECT * FROM nodes WHERE id = ?');
-        stmt.bind([nodeId]);
-        const result = stmt.step() ? this._rowToNode(stmt.getAsObject()) : null;
-        stmt.free();
-        return result;
-    }
-
-    _rowToNode(row) {
-        return new Node(
-            row.id,
-            row.parent_id,
-            row.text,
-            row.order_value,
-            row.token_count,
-            row.created_at,
-            row.updated_at,
-            row.context_type,
-            row.context_name,
-            row.context_value
-        );
+        return this.sqlite.getNode(nodeId);
     }
 
     _getChildren(parentId) {
-        const stmt = this.db.prepare(`
-            SELECT * FROM nodes
-            WHERE parent_id = ?
-            ORDER BY order_value
-        `);
-        stmt.bind([parentId]);
-        const children = [];
-        while (stmt.step()) {
-            children.push(this._rowToNode(stmt.getAsObject()));
-        }
-        stmt.free();
-        return children;
+        return this.sqlite.getChildren(parentId);
+    }
+
+    async _insertNode(node) {
+        await this.sqlite.insertNode(node);
     }
 
     _getRoot() {
@@ -311,38 +231,11 @@ class Docmem {
     }
 
     _getAllRoots() {
-        const stmt = this.db.prepare('SELECT * FROM nodes WHERE parent_id IS NULL ORDER BY created_at');
-        const roots = [];
-        while (stmt.step()) {
-            roots.push(this._rowToNode(stmt.getAsObject()));
-        }
-        stmt.free();
-        return roots;
+        return this.sqlite.getAllRoots();
     }
 
     static getAllRoots() {
-        if (!SharedDatabase._instance) {
-            return [];
-        }
-        const stmt = SharedDatabase._instance.prepare('SELECT * FROM nodes WHERE parent_id IS NULL ORDER BY created_at');
-        const roots = [];
-        while (stmt.step()) {
-            const row = stmt.getAsObject();
-            roots.push({
-                id: row.id,
-                parentId: row.parent_id,
-                text: row.text,
-                order: row.order_value,
-                tokenCount: row.token_count,
-                createdAt: row.created_at,
-                updatedAt: row.updated_at,
-                contextType: row.context_type,
-                contextName: row.context_name,
-                contextValue: row.context_value
-            });
-        }
-        stmt.free();
-        return roots;
+        return DocmemSQLite.getAllRoots();
     }
 
     _requireNode(nodeId) {
@@ -436,17 +329,10 @@ class Docmem {
         }
     }
 
-    _updateNodeParentAndOrder(nodeId, newParentId, newOrder) {
-        const stmt = this.db.prepare(`
-            UPDATE nodes
-            SET parent_id = ?, order_value = ?, updated_at = ?
-            WHERE id = ?
-        `);
-        const updatedAt = new Date().toISOString();
-        stmt.bind([newParentId, newOrder, updatedAt, nodeId]);
-        stmt.step();
-        stmt.free();
-        return this._getNode(nodeId);
+    async _updateNodeParentAndOrder(node, expectedHash) {
+        this._updateTimestamp(node);
+        this.sqlite.updateNodeParentAndOrder(node, expectedHash);
+        return this._getNode(node.id);
     }
 
     _createNodeWithContext(parentId, content, order, contextType, contextName, contextValue) {
@@ -465,15 +351,13 @@ class Docmem {
         );
     }
 
-    append_child(node_id, context_type, context_name, context_value, content) {
+    async append_child(node_id, context_type, context_name, context_value, content) {
         this._requireNode(node_id);
         const newOrder = this._calculateOrderForAppend(node_id);
-        const node = this._createNodeWithContext(node_id, content, newOrder, context_type, context_name, context_value);
-        this._insertNode(node);
-        return node;
+        return await this._createAndInsertNode(node_id, content, newOrder, context_type, context_name, context_value);
     }
 
-    insert_before(node_id, context_type, context_name, context_value, content) {
+    async insert_before(node_id, context_type, context_name, context_value, content) {
         const targetNode = this._requireNode(node_id);
         
         const parentId = targetNode.parentId;
@@ -485,12 +369,10 @@ class Docmem {
         const targetIdx = this._findTargetIndexInSorted(sortedChildren, node_id);
         const newOrder = this._calculateOrderForBefore(targetNode, sortedChildren, targetIdx);
         
-        const node = this._createNodeWithContext(parentId, content, newOrder, context_type, context_name, context_value);
-        this._insertNode(node);
-        return node;
+        return await this._createAndInsertNode(parentId, content, newOrder, context_type, context_name, context_value);
     }
 
-    insert_after(node_id, context_type, context_name, context_value, content) {
+    async insert_after(node_id, context_type, context_name, context_value, content) {
         const targetNode = this._requireNode(node_id);
         
         const parentId = targetNode.parentId;
@@ -502,9 +384,7 @@ class Docmem {
         const targetIdx = this._findTargetIndexInSorted(sortedChildren, node_id);
         const newOrder = this._calculateOrderForAfter(targetNode, sortedChildren, targetIdx);
         
-        const node = this._createNodeWithContext(parentId, content, newOrder, context_type, context_name, context_value);
-        this._insertNode(node);
-        return node;
+        return await this._createAndInsertNode(parentId, content, newOrder, context_type, context_name, context_value);
     }
 
     delete(node_id) {
@@ -520,39 +400,35 @@ class Docmem {
         // Reversing gives us post-order (children before parents) for safe deletion
         const descendantIds = descendants.map(n => n.id).reverse();
         for (const descendantId of descendantIds) {
-            const stmt = this.db.prepare('DELETE FROM nodes WHERE id = ?');
-            stmt.bind([descendantId]);
-            stmt.step();
-            stmt.free();
+            this.sqlite.deleteNodeById(descendantId);
         }
         
         // Finally delete the target node itself
-        const stmt = this.db.prepare('DELETE FROM nodes WHERE id = ?');
-        stmt.bind([node_id]);
-        stmt.step();
-        stmt.free();
+        this.sqlite.deleteNodeById(node_id);
     }
 
-    update_content(node_id, content) {
+    async update_content(node_id, content) {
         const node = this._requireNode(node_id);
+        const expectedHash = node.hash;
         
         // Create a temporary node to calculate token count
         const tempNode = new Node(node_id, node.parentId, content, node.order, null, null, null, node.contextType, node.contextName, node.contextValue);
         node.text = content;
         node.tokenCount = tempNode.tokenCount;
-        node.updatedAt = new Date().toISOString();
-        this._updateNode(node);
+        await NodeHasher.hash(node);
+        await this._updateNode(node, expectedHash);
         return node;
     }
 
-    update_context(node_id, context_type, context_name, context_value) {
+    async update_context(node_id, context_type, context_name, context_value) {
         const node = this._requireNode(node_id);
+        const expectedHash = node.hash;
         
         node.contextType = context_type;
         node.contextName = context_name;
         node.contextValue = context_value;
-        node.updatedAt = new Date().toISOString();
-        this._updateNodeContext(node);
+        await NodeHasher.hash(node);
+        await this._updateNodeContext(node, expectedHash);
         return node;
     }
 
@@ -560,17 +436,22 @@ class Docmem {
         return this._getNode(node_id);
     }
 
-    move_append_child(node_id, target_parent_id) {
-        this._requireNode(node_id);
+    async move_append_child(node_id, target_parent_id) {
+        const node = this._requireNode(node_id);
+        const expectedHash = node.hash;
         this._requireNode(target_parent_id);
         this._validateCycleBeforeMove(node_id, target_parent_id);
 
         const newOrder = this._calculateOrderForAppend(target_parent_id);
-        return this._updateNodeParentAndOrder(node_id, target_parent_id, newOrder);
+        node.parentId = target_parent_id;
+        node.order = newOrder;
+        await NodeHasher.hash(node);
+        return await this._updateNodeParentAndOrder(node, expectedHash);
     }
 
-    move_before(node_id, target_node_id) {
-        this._requireNode(node_id);
+    async move_before(node_id, target_node_id) {
+        const node = this._requireNode(node_id);
+        const expectedHash = node.hash;
         const targetNode = this._requireNode(target_node_id);
         this._validateCycleBeforeMoveSibling(node_id, targetNode, 'before');
 
@@ -579,11 +460,15 @@ class Docmem {
         const targetIdx = this._findTargetIndexInSorted(sortedChildren, target_node_id);
         const newOrder = this._calculateOrderForBefore(targetNode, sortedChildren, targetIdx);
 
-        return this._updateNodeParentAndOrder(node_id, targetParentId, newOrder);
+        node.parentId = targetParentId;
+        node.order = newOrder;
+        await NodeHasher.hash(node);
+        return await this._updateNodeParentAndOrder(node, expectedHash);
     }
 
-    move_after(node_id, target_node_id) {
-        this._requireNode(node_id);
+    async move_after(node_id, target_node_id) {
+        const node = this._requireNode(node_id);
+        const expectedHash = node.hash;
         const targetNode = this._requireNode(target_node_id);
         this._validateCycleBeforeMoveSibling(node_id, targetNode, 'after');
 
@@ -592,10 +477,13 @@ class Docmem {
         const targetIdx = this._findTargetIndexInSorted(sortedChildren, target_node_id);
         const newOrder = this._calculateOrderForAfter(targetNode, sortedChildren, targetIdx);
 
-        return this._updateNodeParentAndOrder(node_id, targetParentId, newOrder);
+        node.parentId = targetParentId;
+        node.order = newOrder;
+        await NodeHasher.hash(node);
+        return await this._updateNodeParentAndOrder(node, expectedHash);
     }
 
-    _copyNodeRecursive(sourceNodeId, newParentId, newOrder) {
+    async _copyNodeRecursive(sourceNodeId, newParentId, newOrder) {
         const sourceNode = this._requireNode(sourceNodeId);
         const newNodeId = randomString(8);
         const newNode = new Node(
@@ -610,28 +498,29 @@ class Docmem {
             sourceNode.contextName,
             sourceNode.contextValue
         );
-        this._insertNode(newNode);
+        await NodeHasher.hash(newNode);
+        await this.sqlite.insertNode(newNode);
         
         // Recursively copy all children
         const children = this._getChildren(sourceNodeId);
         let childOrder = this._calculateOrderForAppend(newNodeId);
         for (const child of children) {
-            this._copyNodeRecursive(child.id, newNodeId, childOrder);
+            await this._copyNodeRecursive(child.id, newNodeId, childOrder);
             childOrder += 1.0;
         }
         
         return newNode;
     }
 
-    copy_append_child(node_id, target_parent_id) {
+    async copy_append_child(node_id, target_parent_id) {
         this._requireNode(node_id);
         this._requireNode(target_parent_id);
         
         const newOrder = this._calculateOrderForAppend(target_parent_id);
-        return this._copyNodeRecursive(node_id, target_parent_id, newOrder);
+        return await this._copyNodeRecursive(node_id, target_parent_id, newOrder);
     }
 
-    copy_before(node_id, target_node_id) {
+    async copy_before(node_id, target_node_id) {
         this._requireNode(node_id);
         const targetNode = this._requireNode(target_node_id);
         
@@ -644,10 +533,10 @@ class Docmem {
         const targetIdx = this._findTargetIndexInSorted(sortedChildren, target_node_id);
         const newOrder = this._calculateOrderForBefore(targetNode, sortedChildren, targetIdx);
         
-        return this._copyNodeRecursive(node_id, targetParentId, newOrder);
+        return await this._copyNodeRecursive(node_id, targetParentId, newOrder);
     }
 
-    copy_after(node_id, target_node_id) {
+    async copy_after(node_id, target_node_id) {
         this._requireNode(node_id);
         const targetNode = this._requireNode(target_node_id);
         
@@ -660,7 +549,7 @@ class Docmem {
         const targetIdx = this._findTargetIndexInSorted(sortedChildren, target_node_id);
         const newOrder = this._calculateOrderForAfter(targetNode, sortedChildren, targetIdx);
         
-        return this._copyNodeRecursive(node_id, targetParentId, newOrder);
+        return await this._copyNodeRecursive(node_id, targetParentId, newOrder);
     }
 
     _getAllDescendants(nodeId, result) {
@@ -781,7 +670,7 @@ class Docmem {
         return result;
     }
 
-    add_summary(startNodeId, endNodeId, content, context_type, context_name, context_value) {
+    async add_summary(startNodeId, endNodeId, content, context_type, context_name, context_value) {
         if (!startNodeId || !endNodeId) {
             throw new Error('Must provide both start-node-id and end-node-id');
         }
@@ -832,20 +721,33 @@ class Docmem {
         const maxOrder = memoryNodesSorted[memoryNodesSorted.length - 1].order;
         const summaryOrder = (minOrder + maxOrder) / 2;
 
-        const summaryNode = this._createNodeWithContext(parentId, content, summaryOrder, context_type, context_name, context_value);
-        this._insertNode(summaryNode);
+        const summaryNode = await this._createAndInsertNode(parentId, content, summaryOrder, context_type, context_name, context_value);
 
+        // Update parent_id for memory nodes and recompute their hashes
         for (const memoryNode of memoryNodesSorted) {
-            const stmt = this.db.prepare('UPDATE nodes SET parent_id = ? WHERE id = ?');
-            stmt.bind([summaryNode.id, memoryNode.id]);
-            stmt.step();
-            stmt.free();
+            if (!memoryNode.hash) {
+                throw new Error(`Node ${memoryNode.id} does not have a hash. Cannot perform optimistic locking check.`);
+            }
+            const expectedHash = memoryNode.hash;
+            
+            const oldParentId = memoryNode.parentId;
+            memoryNode.parentId = summaryNode.id;
+            await NodeHasher.hash(memoryNode);
+            this._updateTimestamp(memoryNode);
+            
+            try {
+                this.sqlite.updateNodeParent(memoryNode.id, memoryNode.parentId, memoryNode.hash, memoryNode.updatedAt, expectedHash);
+            } catch (error) {
+                // Restore original parent on failure
+                memoryNode.parentId = oldParentId;
+                throw error;
+            }
         }
 
         return summaryNode;
     }
 
     close() {
-        this.db.close();
+        this.sqlite.close();
     }
 }
