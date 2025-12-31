@@ -17,7 +17,7 @@ Docmem transactions MUST guarantee ACID properties (Atomicity, Consistency, Isol
 - Transactions provide atomicity guarantees: either all changes commit, or all changes are rolled back.
 - With optimistic locking, transactions do not block concurrent operations; they ensure atomicity and detect conflicts at commit time.
 - Partial failures MUST NOT leave the database in an inconsistent state.
-- SQLite's WAL (Write-Ahead Logging) ensures atomicity even if the process crashes mid-transaction.
+- Write-Ahead Logging (WAL) ensures atomicity even if the process crashes mid-transaction.
 
 ### Consistency
 - The database MUST remain in a consistent state before and after every transaction.
@@ -40,7 +40,7 @@ Docmem transactions MUST guarantee ACID properties (Atomicity, Consistency, Isol
 
 ### Durability
 - Once a transaction commits, its changes MUST persist and survive system crashes.
-- SQLite's WAL mode MUST be used to ensure durability.
+- WAL mode MUST be used to ensure durability.
 - All committed changes MUST be written to persistent storage before the commit completes.
 - When IndexedDB persistence is implemented, durability guarantees MUST apply to persistent storage as well.
 - Durability is independent of optimistic locking; committed transactions are durable regardless of concurrency model.
@@ -90,12 +90,13 @@ Docmem transactions MUST guarantee ACID properties (Atomicity, Consistency, Isol
 ## Journaling and Recovery (Durability Implementation)
 
 ### Write-Ahead Logging
-- SQLite provides WAL mode by default, which docmem MUST utilize for durability.
+- Write-Ahead Logging (WAL) MUST be used to ensure atomicity and durability.
 - The WAL ensures atomicity and durability: all changes MUST be logged before being applied to the database.
 - Committed transactions are durable; uncommitted transactions are automatically rolled back on crash.
+- See SQLite section for SQLite-specific WAL details.
 
 ### Crash Recovery
-- After a crash or unexpected termination, SQLite MUST automatically recover to the last consistent state.
+- After a crash or unexpected termination, the system MUST automatically recover to the last consistent state.
 - Partial transactions MUST be rolled back automatically (atomicity guarantee).
 - No manual recovery procedures SHOULD be required.
 - Recovery is transparent and does not affect optimistic locking semantics.
@@ -108,15 +109,8 @@ Docmem transactions MUST guarantee ACID properties (Atomicity, Consistency, Isol
 
 ## Implementation Notes
 
-### SQLite Transactions
-- SQLite transactions MUST be used for all write operations.
-- With optimistic locking, standard `BEGIN` transactions are sufficient (no need for IMMEDIATE/EXCLUSIVE).
-- Conflicts will be detected at commit time via constraint violations or version checks.
-- Commit MUST be explicit; auto-commit mode SHOULD NOT be used for multi-statement operations.
-
 ### Conflict Detection Granularity
 - Conflict detection operates at the node level (row level).
-- SQLite's transaction mechanism detects conflicts when commits occur.
 - Optimistic locking means no locks are held during operations; conflicts are only detected at commit time.
 
 ### Deadlock Prevention
@@ -131,15 +125,30 @@ Docmem transactions MUST guarantee ACID properties (Atomicity, Consistency, Isol
 - Current specification assumes a single SQLite instance.
 - Future distributed scenarios (multiple docmem instances, network synchronization) WILL require additional coordination mechanisms (not yet specified).
 
-### Conflict-free Replicated Data Types (CRDTs)
-- For future multi-instance scenarios, CRDT-style conflict resolution MAY be considered.
-- Current specification uses last-write-wins for simplicity.
-
 ### Optimistic Locking Implementation
 - Optimistic locking will require version fields or timestamps on nodes to detect conflicts.
 - Each node SHOULD have a version field (or use `updated_at` timestamp) that is checked before updates.
 - On update: read version, modify, check version hasn't changed, commit or fail with conflict.
 - Version fields or `updated_at` timestamps will need to be added to the node schema.
+
+## SQLite
+
+### Transaction Usage
+- SQLite transactions MUST be used for all write operations.
+- With optimistic locking, standard `BEGIN` transactions are sufficient (no need for IMMEDIATE/EXCLUSIVE).
+- Conflicts will be detected at commit time via constraint violations or version checks.
+- Commit MUST be explicit; auto-commit mode SHOULD NOT be used for multi-statement operations.
+- SQLite's transaction mechanism detects conflicts when commits occur.
+
+### WAL Mode
+- SQLite provides WAL mode by default, which docmem MUST utilize for durability.
+- WAL mode enables concurrent reads and writes without blocking.
+- The WAL ensures atomicity and durability: all changes MUST be logged before being applied to the database.
+
+### Recovery
+- After a crash or unexpected termination, SQLite MUST automatically recover to the last consistent state.
+- Partial transactions MUST be rolled back automatically (atomicity guarantee).
+- No manual recovery procedures SHOULD be required.
 
 ## Open Questions
 
