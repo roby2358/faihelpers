@@ -31,22 +31,27 @@ Arguments are space separated, and can be enclosed in quotes (" "), single
 
 **Example of WRONG approach:**
 # Run
-docmem-create-node --append-child "shared-project" "section" "summer" "season" ""
+docmem-create-node --append-child "shared-project" "weather" "season" "summer" ""
 # Run
-docmem-create-node --append-child "summer-season" "feature" "sunshine" "benefit" "..."
+docmem-create-node --append-child "season-summer" "feature" "benefit" "sunshine" "..."
+# Run
+docmem-create-node --append-child "season-summer" "feature" "benefit" "long_days" "..."
 (reply)
 ❌ This fails because you assumed the node-id before receiving it
 
 **Example of CORRECT approach:**
 # Run
-docmem-create-node --append-child "shared-project" "section" "summer" "season" ""
+docmem-create-node --append-child "shared-project" "weather" "season" "summer" ""
 Waiting for result.
 (reply)
 ✅ Wait for the result to get the actual node-id, then send the next command in the NEXT reply
 result> docmem-create-node appended child node: qjjp9a36
-docmem-create-node --append-child "qjjp9a36" "feature" "sunshine" "benefit" "..."
+docmem-create-node --append-child "qjjp9a36" "feature" "benefit" "sunshine" "..."
 # Run
-docmem-create-node --append-child "qjjp9a36" "feature" "sunshine" "benefit" "..."
+docmem-create-node --append-child "qjjp9a36" "feature" "benefit" "long_days" "..."
+(reply)
+
+***Note that you can include multiple Run blocks once you know the node-id***
 
 # Docmem Operations (JavaScript API - formatted as bash-style commands)
 
