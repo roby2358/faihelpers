@@ -51,6 +51,7 @@ A node MUST contain the following fields:
 - `context_type`: Node role type (TEXT, NOT NULL)
 - `context_name`: Context metadata name (TEXT, NOT NULL)
 - `context_value`: Context metadata value (TEXT, NOT NULL)
+- `readonly`: Readonly metadata flag (INTEGER, NOT NULL, 0 or 1)
 - `hash`: SHA-512 hash of node state for optimistic locking (TEXT, NULLABLE, Base64-encoded)
 
 ### Node Differentiation
@@ -63,6 +64,8 @@ A node MUST contain the following fields:
 - Memory nodes MUST preserve ground truth text.
 - Summary nodes MUST represent interpretations of their children.
 - Summary nodes MUST retain references to the nodes they summarize via parent-child relationships.
+- Note nodes MUST be a system node type (distinguished by `context_type`) that allows agents to add annotations or updates to docmem without modifying readonly nodes.
+- Note nodes MUST be created as siblings after readonly nodes to enable agent updates while preserving the original readonly content.
 
 ### Node Ordering
 - Node ordering within a parent MUST use decimal values to allow insertion without reindexing.
@@ -73,6 +76,14 @@ A node MUST contain the following fields:
 - Token count MUST be calculated for each node.
 - Token counting SHOULD use a tokenizer when available.
 - Token counting MAY use approximation (characters / 4) when tokenizers are unavailable.
+
+### Readonly Metadata
+- The `readonly` field MUST be an INTEGER value of 0 or 1.
+- Nodes with `readonly = 1` MUST NOT be modified by update operations (content or context updates).
+- Nodes with `readonly = 0` MAY be modified by update operations.
+- Documents imported through file upload (non-TOML files) MUST have all their nodes marked with `readonly = 1`.
+- Nodes from TOML files MUST default to `readonly = 0`.
+- When an agent needs to update docmem content that includes readonly nodes, it MUST create note nodes as siblings after the readonly nodes rather than modifying the readonly nodes directly.
 
 ## Database
 
@@ -92,6 +103,7 @@ The database schema MUST include a `nodes` table with the following columns:
 - `context_type TEXT NOT NULL`
 - `context_name TEXT NOT NULL`
 - `context_value TEXT NOT NULL`
+- `readonly INTEGER NOT NULL`
 - `hash TEXT`
 - `FOREIGN KEY (parent_id) REFERENCES nodes(id) ON DELETE CASCADE`
 
@@ -111,6 +123,7 @@ The database schema MUST include a `nodes` table with the following columns:
 - The hash MUST be computed from the concatenation of: `parent_id|context_type|context_name|context_value|text|order` (using `|` as delimiter).
 - NULL/undefined values MUST be normalized to empty strings for deterministic hashing.
 - The hash MUST be recalculated whenever any hashed field changes (parent_id, context_type, context_name, context_value, text, order).
+- The `readonly` field MUST NOT be included in the hash calculation.
 - Update operations MUST include an expected hash value and MUST only succeed if the node's current hash matches the expected hash.
 - If the hash does not match, the operation MUST throw an `OptimisticLockError` indicating concurrent modification.
 - This prevents lost updates when multiple operations attempt to modify the same node concurrently.
@@ -137,6 +150,11 @@ The database schema MUST include a `nodes` table with the following columns:
 - Trace-up operations MUST use parent pointers only (cheap operation after expensive vector search).
 
 ## Operations
+
+### Import
+- When importing documents through file upload (non-TOML files), all nodes created from the imported content MUST have `readonly = 1`.
+- When importing nodes from TOML files, all nodes MUST default to `readonly = 0`.
+- Import operations MUST preserve the hierarchical structure of the source document.
 
 ### Serialization
 - `serialize(nodeId)` MUST perform depth-first tree traversal starting from the specified node.
@@ -196,6 +214,7 @@ The database schema MUST include a `nodes` table with the following columns:
 
 ### Update Content
 - `update_content(nodeId, content)` MUST update the text content of an existing node.
+- The operation MUST fail if the target node has `readonly = 1`.
 - Token count MUST be recalculated automatically when content is updated.
 - The `updated_at` timestamp MUST be set to the current time.
 - The hash MUST be recalculated after content changes.
@@ -204,6 +223,7 @@ The database schema MUST include a `nodes` table with the following columns:
 
 ### Update Context
 - `update_context(nodeId, context_type, context_name, context_value)` MUST update the context metadata of an existing node.
+- The operation MUST fail if the target node has `readonly = 1`.
 - The `updated_at` timestamp MUST be set to the current time.
 - All context metadata fields MUST be provided.
 - The hash MUST be recalculated after context changes.
@@ -236,7 +256,7 @@ The database schema MUST include a `nodes` table with the following columns:
 
 ### Structure
 - `structure(nodeId)` MUST return the tree structure starting from the specified node without text content.
-- The result MUST be a flat array of node objects containing the following fields: `id`, `parentId`, `order`, `tokenCount`, `createdAt`, `updatedAt`, `contextType`, `contextName`, `contextValue` (excluding `text` and `hash`).
+- The result MUST be a flat array of node objects containing the following fields: `id`, `parentId`, `order`, `tokenCount`, `createdAt`, `updatedAt`, `contextType`, `contextName`, `contextValue`, `readonly` (excluding `text` and `hash`).
 - The result MUST include the starting node and all descendants.
 - Traversal MUST use preorder traversal ordered by `order_value`.
 - This operation is useful for inspecting tree structure without loading full text content.

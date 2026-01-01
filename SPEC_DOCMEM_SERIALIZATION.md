@@ -9,7 +9,11 @@ A plain‑text format for storing **docmem** node trees. Each record contains op
 
 Each record contains:
 
-1. **Headers** (optional): Zero or more `name=value` pairs, one per line
+1. **Headers** (optional): Zero or more `name=value` pairs, one per line. Common headers include:
+   - `id`: Unique node identifier
+   - `parent`: Parent node ID (empty string for root)
+   - `context`: Context metadata in format `type:name:value`
+   - `readonly`: Readonly flag (0 or 1, defaults to 0 if omitted)
 2. **Content section**, indicated by one of:
    - `""` → empty content
    - Blank line → multiline content (ends at `---`)
@@ -39,18 +43,20 @@ The 12-character delimiter must be exactly 12 alphanumeric characters (A-Z, a-z,
 
 ---
 
-### 4. Example — *ThreeStooges(root+1 child)*
+### 4. Example — *ThreeStooges(root+1 child)*
 
 ```
 id=three-stooges
 parent=
 context=root:purpose:document
+readonly=0
 ""
 ---
 
 id=cppzr9xv
 parent=three-stooges
 context=character:name:moe
+readonly=0
 
 Moe Howard was the leader of the Stooges.
 Born Moses Harry Horwitz, he reprised the role through decades of comedy.
@@ -63,6 +69,7 @@ or using a 12-character delimiter:
 id=pekx4ci2
 parent=cppzr9xv
 context=attribute:years_active:moe_years
+readonly=1
 a1b2c3d4e5f6
 "1920s–1970s" with quotes and --- delimiters
 a1b2c3d4e5f6
@@ -101,6 +108,10 @@ delimiter12::= 12*( ALPHA / DIGIT )
 2. Records are separated by one or more blank lines.
 
 3. The 12-character delimiter allows content to contain `---`, quotes, and any characters (since `---` appears after the delimiter).
+
+4. The `readonly` header field MUST be 0 or 1. If omitted, it defaults to 0. When deserializing:
+   - Nodes from TOML files default to `readonly=0` if not specified.
+   - Nodes from file uploads (non-TOML) MUST be marked as `readonly=1`.
 
 ---
 

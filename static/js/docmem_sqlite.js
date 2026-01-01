@@ -51,6 +51,7 @@ class SharedDatabase {
                         context_type TEXT NOT NULL,
                         context_name TEXT NOT NULL,
                         context_value TEXT NOT NULL,
+                        readonly INTEGER NOT NULL DEFAULT 0,
                         hash TEXT,
                         FOREIGN KEY (parent_id) REFERENCES nodes(id) ON DELETE CASCADE
                     )
@@ -100,7 +101,8 @@ class DocmemSQLite {
             row.updated_at,
             row.context_type,
             row.context_name,
-            row.context_value
+            row.context_value,
+            row.readonly !== undefined ? row.readonly : 0
         );
         node.hash = row.hash || null;
         return node;
@@ -108,8 +110,8 @@ class DocmemSQLite {
 
     async insertNode(node) {
         const stmt = this.db.prepare(`
-            INSERT INTO nodes (id, parent_id, text, order_value, token_count, created_at, updated_at, context_type, context_name, context_value, hash)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO nodes (id, parent_id, text, order_value, token_count, created_at, updated_at, context_type, context_name, context_value, readonly, hash)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         stmt.bind([
             node.id,
@@ -122,6 +124,7 @@ class DocmemSQLite {
             node.contextType,
             node.contextName,
             node.contextValue,
+            node.readonly !== undefined ? node.readonly : 0,
             node.hash
         ]);
         stmt.step();
@@ -187,7 +190,8 @@ class DocmemSQLite {
                 updatedAt: row.updated_at,
                 contextType: row.context_type,
                 contextName: row.context_name,
-                contextValue: row.context_value
+                contextValue: row.context_value,
+                readonly: row.readonly !== undefined ? row.readonly : 0
             });
         }
         stmt.free();

@@ -710,7 +710,8 @@ function initPersist() {
                 let createdCount = 0;
 
                 for (const line of trimmedLines) {
-                    await docmem.append_child(rootNode.id, 'line', 'source', 'upload', line);
+                    const order = docmem._calculateOrderForAppend(rootNode.id);
+                    await docmem._createAndInsertNode(rootNode.id, line, order, 'line', 'source', 'upload', 1);
                     createdCount++;
                 }
 

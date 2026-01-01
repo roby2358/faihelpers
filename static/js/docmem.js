@@ -1,5 +1,5 @@
 class Node {
-    constructor(nodeId, parentId, text, order, tokenCount = null, createdAt = null, updatedAt = null, contextType, contextName, contextValue) {
+    constructor(nodeId, parentId, text, order, tokenCount = null, createdAt = null, updatedAt = null, contextType, contextName, contextValue, readonly = 0) {
         if (!contextType || !contextName || !contextValue) {
             throw new Error('contextType, contextName, and contextValue are required');
         }
@@ -13,6 +13,7 @@ class Node {
         this.contextType = contextType;
         this.contextName = contextName;
         this.contextValue = contextValue;
+        this.readonly = readonly === undefined ? 0 : readonly;
         this.hash = null;
     }
 
@@ -72,12 +73,13 @@ class Node {
             contextType: this.contextType,
             contextName: this.contextName,
             contextValue: this.contextValue,
+            readonly: this.readonly,
             hash: this.hash
         };
     }
 
     static fromDict(data) {
-        return new Node(
+        const node = new Node(
             data.id,
             data.parentId,
             data.text,
@@ -88,8 +90,10 @@ class Node {
             data.contextType,
             data.contextName,
             data.contextValue,
-            data.hash
+            data.readonly !== undefined ? data.readonly : 0
         );
+        node.hash = data.hash || null;
+        return node;
     }
 }
 
@@ -193,8 +197,8 @@ class Docmem {
         node.updatedAt = new Date().toISOString();
     }
 
-    async _createAndInsertNode(parentId, content, order, contextType, contextName, contextValue) {
-        const node = this._createNodeWithContext(parentId, content, order, contextType, contextName, contextValue);
+    async _createAndInsertNode(parentId, content, order, contextType, contextName, contextValue, readonly = 0) {
+        const node = this._createNodeWithContext(parentId, content, order, contextType, contextName, contextValue, readonly);
         await NodeHasher.hash(node);
         await this.sqlite.insertNode(node);
         return node;
@@ -335,7 +339,7 @@ class Docmem {
         return this._getNode(node.id);
     }
 
-    _createNodeWithContext(parentId, content, order, contextType, contextName, contextValue) {
+    _createNodeWithContext(parentId, content, order, contextType, contextName, contextValue, readonly = 0) {
         const newNodeId = randomString(8);
         return new Node(
             newNodeId,
@@ -347,7 +351,8 @@ class Docmem {
             null,
             contextType,
             contextName,
-            contextValue
+            contextValue,
+            readonly
         );
     }
 
@@ -409,10 +414,13 @@ class Docmem {
 
     async update_content(node_id, content) {
         const node = this._requireNode(node_id);
+        if (node.readonly === 1) {
+            throw new Error(`Cannot update content of readonly node ${node_id}`);
+        }
         const expectedHash = node.hash;
         
         // Create a temporary node to calculate token count
-        const tempNode = new Node(node_id, node.parentId, content, node.order, null, null, null, node.contextType, node.contextName, node.contextValue);
+        const tempNode = new Node(node_id, node.parentId, content, node.order, null, null, null, node.contextType, node.contextName, node.contextValue, node.readonly);
         node.text = content;
         node.tokenCount = tempNode.tokenCount;
         await NodeHasher.hash(node);
@@ -422,6 +430,9 @@ class Docmem {
 
     async update_context(node_id, context_type, context_name, context_value) {
         const node = this._requireNode(node_id);
+        if (node.readonly === 1) {
+            throw new Error(`Cannot update context of readonly node ${node_id}`);
+        }
         const expectedHash = node.hash;
         
         node.contextType = context_type;
@@ -496,7 +507,8 @@ class Docmem {
             new Date().toISOString(),
             sourceNode.contextType,
             sourceNode.contextName,
-            sourceNode.contextValue
+            sourceNode.contextValue,
+            sourceNode.readonly
         );
         await NodeHasher.hash(newNode);
         await this.sqlite.insertNode(newNode);
@@ -599,7 +611,8 @@ class Docmem {
             updatedAt: node.updatedAt,
             contextType: node.contextType,
             contextName: node.contextName,
-            contextValue: node.contextValue
+            contextValue: node.contextValue,
+            readonly: node.readonly
         });
         const sortedChildren = this._getSortedChildren(node.id);
         for (const child of sortedChildren) {

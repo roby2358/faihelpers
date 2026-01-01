@@ -55,6 +55,10 @@ class TomlSerializer {
         
         lines.push(`content=${this.escapeValue(node.text)}`);
         
+        if (node.readonly !== undefined && node.readonly !== 0) {
+            lines.push(`readonly=${node.readonly}`);
+        }
+        
         return lines.join('\n');
     }
 
@@ -93,6 +97,7 @@ class TomlSerializer {
     }
 
     createNodeFromData(data, parentId, order) {
+        const readonly = data.readonly !== undefined ? data.readonly : 0;
         return new Node(
             data.id,
             parentId,
@@ -103,7 +108,8 @@ class TomlSerializer {
             null,
             data.contextType,
             data.contextName,
-            data.contextValue
+            data.contextValue,
+            readonly
         );
     }
 
@@ -223,7 +229,8 @@ class TomlSerializer {
             contextType: null,
             contextName: null,
             contextValue: null,
-            content: null
+            content: null,
+            readonly: 0
         };
     }
 
@@ -248,6 +255,8 @@ class TomlSerializer {
             } else {
                 state.currentContent = this.unescapeValue(value);
             }
+        } else if (key === 'readonly') {
+            section.readonly = parseInt(value, 10) || 0;
         }
     }
 
