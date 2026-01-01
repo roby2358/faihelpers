@@ -30,11 +30,13 @@ Arguments are space separated, and can be enclosed in quotes (" "), single quote
 
 **Example of WRONG approach:**
 # Run
-bash
+```bash
 docmem-create-node --append-child "shared-project" "weather" "season" "summer" ""
+```
 # Run
-bash
+```bash
 docmem-create-node --append-child "season-summer" "feature" "benefit" "sunshine" "..."
+```
 
 ❌ This fails because you assumed the node-id "season-summer" before receiving it. The system returns a random node-id like "qjjp9a36", not the node-id you expected.
 
@@ -42,17 +44,20 @@ docmem-create-node --append-child "season-summer" "feature" "benefit" "sunshine"
 
 First reply:
 # Run
-bash
+```bash
 docmem-create-node --append-child "shared-project" "weather" "season" "summer" ""
+```
 Waiting for result.
 
 Second reply (after receiving the node-id):
 # Run
-bash
+```bash
 docmem-create-node --append-child "qjjp9a36" "feature" "benefit" "sunshine" "..."
+```
 # Run
-bash
+```bash
 docmem-create-node --append-child "qjjp9a36" "feature" "benefit" "long_days" "..."
+```
 ✅ After receiving the actual node-id "qjjp9a36" from the first command, you can use it in multiple commands in the same reply.
 
 # Docmem Operations
