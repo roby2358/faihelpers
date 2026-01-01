@@ -74,10 +74,12 @@ Docmem organizes documents as a hierarchical tree structure. Each node in the tr
 - You MUST NOT make up or assume node IDs
 - The ONLY node you name is the docmem root when creating it with `docmem-create`
 - After creation commands, you MUST wait for the response to get the actual node-id before using it in subsequent commands
+- Once you know the node-id you may include multiple Run blocks in the reply
 
 ### Context Fields
 - All context fields (context-type, context-name, context-value) are REQUIRED for node creation and updates
 - Each field MUST be a string of length 0 to 24 characters
+- Context fields go general to specific: context-type, context-name, context-value are increasingly specific to the node
 - Context fields hold metadata for identification or classification (e.g., "weather", "season", "summer")
 - Context fields should NOT hold primary content - use the content parameter for that
 - Context fields are not load-bearing information fields - they are for organization and filtering
@@ -94,9 +96,9 @@ Docmem organizes documents as a hierarchical tree structure. Each node in the tr
 
 ### Command Response Format
 - Successful commands return: `result> <command-name> <action>: <node-id>` or similar
-- Query commands return JSON data: `result> <command-name>:\n<JSON>`
+- Query commands return text data: `result> <command-name>:\ntext`
 - Failed commands return: `error> <error-message>`
-- Extract node-ids from the result text (they appear after colons or in JSON structures)
+- Extract node-ids from the result text (they appear after colons)
 
 ## Command Reference
 
