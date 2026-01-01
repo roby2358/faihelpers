@@ -1,11 +1,4 @@
 class TomlSerializer {
-    constructor() {
-        this.currentRootId = null;
-    }
-
-    setRootId(rootId) {
-        this.currentRootId = rootId;
-    }
 
     escapeKey(key) {
         if (/^[a-zA-Z0-9_-]+$/.test(key)) {

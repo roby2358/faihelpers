@@ -1,4 +1,5 @@
 let currentDocmem = null;
+let selectedPersistRootId = null;
 
 function showMessage(text, type = 'info') {
     const messageBar = document.getElementById('message-bar');
@@ -598,7 +599,6 @@ async function renderViewContent(rootId) {
     }
 }
 
-let tomlSerializer = new TomlSerializer();
 
 function initPersist() {
     const saveBtn = document.getElementById('persist-save-btn');
@@ -606,6 +606,8 @@ function initPersist() {
     const fileInput = document.getElementById('persist-file-input');
     const uploadTextBtn = document.getElementById('persist-upload-text-btn');
     const textFileInput = document.getElementById('persist-text-file-input');
+    const uploadParagraphBtn = document.getElementById('persist-upload-paragraph-btn');
+    const paragraphFileInput = document.getElementById('persist-paragraph-file-input');
 
     if (saveBtn) {
         saveBtn.addEventListener('click', async () => {
@@ -616,10 +618,15 @@ function initPersist() {
                     return;
                 }
 
-                const selectedRootId = tomlSerializer.currentRootId || roots[0].id;
+                let selectedRootId = selectedPersistRootId;
+                if (!selectedRootId || !roots.find(r => r.id === selectedRootId)) {
+                    selectedRootId = roots[0].id;
+                    selectedPersistRootId = selectedRootId;
+                }
                 const docmem = new Docmem(selectedRootId);
                 await docmem.ready();
                 
+                const tomlSerializer = new TomlSerializer();
                 const filename = `${selectedRootId}.toml`;
                 await tomlSerializer.saveToFile(docmem, selectedRootId, filename);
                 showMessage(`Saved ${filename}`, 'success');
@@ -646,6 +653,7 @@ function initPersist() {
             }
 
             try {
+                const tomlSerializer = new TomlSerializer();
                 const tomlText = await tomlSerializer.loadFromFile(file);
                 const nodeData = tomlSerializer.parseToml(tomlText);
                 
@@ -685,35 +693,8 @@ function initPersist() {
             }
 
             try {
-                const selectedRootId = `docmem_${Date.now()}`;
-                const docmem = new Docmem(selectedRootId);
-                await docmem.ready();
-
-                const text = await file.text();
-                
-                const lines = text.split('\n');
-                const trimmedLines = [];
-                
-                for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (trimmed.length > 0) {
-                        trimmedLines.push(trimmed);
-                    }
-                }
-
-                if (trimmedLines.length === 0) {
-                    showMessage('No non-empty lines found in file', 'error');
-                    return;
-                }
-
-                const rootNode = docmem._getRoot();
-                let createdCount = 0;
-
-                for (const line of trimmedLines) {
-                    const order = docmem._calculateOrderForAppend(rootNode.id);
-                    await docmem._createAndInsertNode(rootNode.id, line, order, 'line', 'source', 'upload', 1);
-                    createdCount++;
-                }
+                const lineImporter = new LineImporter();
+                const { docmem, selectedRootId, createdCount } = await lineImporter.createDocmemFromFile(file);
 
                 showMessage(`Created ${createdCount} nodes from ${file.name}`, 'success');
                 renderPersist();
@@ -725,6 +706,39 @@ function initPersist() {
                 showMessage('Error uploading text file: ' + error.message, 'error');
             } finally {
                 textFileInput.value = '';
+            }
+        });
+    }
+
+    if (uploadParagraphBtn) {
+        uploadParagraphBtn.addEventListener('click', () => {
+            if (paragraphFileInput) {
+                paragraphFileInput.click();
+            }
+        });
+    }
+
+    if (paragraphFileInput) {
+        paragraphFileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) {
+                return;
+            }
+
+            try {
+                const paragraphImporter = new ParagraphImporter();
+                const { docmem, selectedRootId, createdCount } = await paragraphImporter.createDocmemFromFile(file);
+
+                showMessage(`Created ${createdCount} nodes from ${file.name}`, 'success');
+                renderPersist();
+                if (currentDocmem && currentDocmem.docmemId === selectedRootId) {
+                    renderDocmem();
+                }
+            } catch (error) {
+                console.error('Error uploading paragraph file:', error);
+                showMessage('Error uploading paragraph file: ' + error.message, 'error');
+            } finally {
+                paragraphFileInput.value = '';
             }
         });
     }
@@ -745,7 +759,11 @@ function renderPersist() {
             return;
         }
         
-        const currentRootId = tomlSerializer.currentRootId || roots[0].id;
+        let currentRootId = selectedPersistRootId;
+        if (!currentRootId || !roots.find(r => r.id === currentRootId)) {
+            currentRootId = roots[0].id;
+            selectedPersistRootId = currentRootId;
+        }
         
         rootsBar.innerHTML = roots.map((root, index) => {
             const isActive = root.id === currentRootId;
@@ -760,7 +778,7 @@ function renderPersist() {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
                 const rootId = link.getAttribute('data-root-id');
-                tomlSerializer.setRootId(rootId);
+                selectedPersistRootId = rootId;
                 renderPersist();
             });
         });
