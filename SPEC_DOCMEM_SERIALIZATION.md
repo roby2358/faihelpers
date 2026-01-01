@@ -1,28 +1,27 @@
 ## 📘 Canonical Plain‑Text Docmem Serialization (v6)
 
 ### 1. Overview
-A plain‑text, fully reversible format for storing **docmem** node trees.  
-It uses line‑oriented `name=value` pairs followed by a clear content block, and a terminating line of three hyphens.
+A plain‑text format for storing **docmem** node trees. Each record contains optional headers (`name=value` pairs) and a content block. Records end with `---` and are separated by blank lines.
 
 ---
 
 ### 2. Record Structure
 
-Each **node record** consists of:
+Each record contains:
 
-1.One or more `name=value` header pairs
-- each header ends at newline; no end delimiter required  
-  2.A **content section**, which begins one of three ways:
-- a **blank line** (normal case: unquoted multiline body)
-- a line containing only`""`→ empty string
-- a line starting with`"`or`'` →quotedscalarcontent (endsatmatchingquote)
-  3.A line containing exactly`---`marks the **end of the record**  
-  4.Oneormore blank lines separate node records
+1. **Headers** (optional): Zero or more `name=value` pairs, one per line
+2. **Content section**, indicated by one of:
+   - `""` → empty content
+   - Blank line → multiline content (ends at `---`)
+   - 12-character alphanumeric delimiter → multiline content (ends at matching delimiter, then `---`)
+3. **Record terminator**: `---` on a line by itself (optional for the last record in a file)
+4. **Record separator**: One or more blank lines between records
 
 ```
 headers...
-<blank line | "" | '...' | "..." >
+<"" | blank line | 12-char-delimiter>
 <optional multiline content>
+<12-char-delimiter (if used)>
 ---
 ```
 
@@ -30,14 +29,13 @@ headers...
 
 ### 3. Semantics of content openers
 
-| First content line | Meaning |
-|:--------------------|:---------|
-| *blank line* | following lines (up to`---`)=body content |
-| `""` | empty content (no body) |
-| `'something'` | single‑quotedscalar content; closes on matching `'` |
-| `"something"` | double‑quotedscalar content; closes on matching `"` |
+| First content line | Content structure | Record terminator |
+|:--------------------|:------------------|:------------------|
+| `""` | empty (no body) | `---` |
+| *blank line* | multiline body content | `---` |
+| `[12 alphanumeric chars]` | multiline body content (between matching delimiters) | matching delimiter, then `---` |
 
-After any quoted form, the next line must be`---`.
+The 12-character delimiter must be exactly 12 alphanumeric characters (A-Z, a-z, 0-9). Records end with `---` on a line by itself (the final `---` in a file is optional).
 
 ---
 
@@ -47,7 +45,6 @@ After any quoted form, the next line must be`---`.
 id=three-stooges
 parent=
 context=root:purpose:document
-
 ""
 ---
 
@@ -55,62 +52,72 @@ id=cppzr9xv
 parent=three-stooges
 context=character:name:moe
 
-MoeHowardwastheleaderoftheStooges.
-BornMosesHarryHorwitz,hereprisedtherolethroughdecadesofcomedy.
+Moe Howard was the leader of the Stooges.
+Born Moses Harry Horwitz, he reprised the role through decades of comedy.
 ---
 ```
 
-or using a quoted scalar:
+or using a 12-character delimiter:
 
 ```
 id=pekx4ci2
 parent=cppzr9xv
 context=attribute:years_active:moe_years
-"1920s–1970s"
+a1b2c3d4e5f6
+"1920s–1970s" with quotes and --- delimiters
+a1b2c3d4e5f6
 ---
 ```
 
 ---
 
-### 5. Formal grammar(EBNF‑style, informal)
+### 5. Formal Grammar (EBNF-style, informal)
+
+Note: The final `---` in a file is optional.
 
 ```
-record     ::= 1*( header ) content-section "---" newline
+record     ::= *( header ) content-section "---" newline
 header     ::= name "=" value newline
 name       ::= 1*( ALPHA / DIGIT / "_" / "-" )
 value      ::= *( any-char-except-newline )
 content-section
-            ::= ( newline body | newline quoted | newline empty )
+            ::= ( empty | blank-body | delimited-body )
 empty      ::= '""' newline
-quoted     ::= ('"' *?(not-quote) '"' / "'" *?(not-quote) "'") newline
-body       ::= *?( line-without("---") )    ; stops before line==="---"
+blank-body ::= newline *?( line-without("---") ) newline
+delimited-body
+            ::= delimiter12 newline *?( line-not-equal(delimiter12) ) newline delimiter12 newline
+delimiter12::= 12*( ALPHA / DIGIT )
 ```
 
 ---
 
-### 6. Parsing notes
+### 6. Parsing Notes
 
-- Headers are always **unquoted** simple lines
-- Parser reads headers until it encounters one of:
-    - a blank line → body content follows
-    - a line==`""`→ empty content
-    - a quoted line→ extract scalar→ expect`---`
-- `---` always terminates a record, even after quoted or empty content
-- Nodes separated by ≥1blank line
-- Unescaping of quotes may be handled in later revisions (outofscopeforv6)
+1. Read headers (unquoted `name=value` lines) until encountering:
+   - `""` → empty content, then `---`
+   - Blank line → read content until `---`
+   - 12 alphanumeric characters → save as delimiter, read content until matching delimiter, then `---`
 
----
+2. Records are separated by one or more blank lines.
 
-### 7. Advantages ofv6
-✅Trivial to parse(three entry types for content)  
-✅Human‑friendly neutral syntax(no sentinel keywords)  
-✅Supports single‑lineandmultiline content naturally  
-✅Deterministicdelimiter (`---`)=simple diffing  
-✅Compact(no redundant `content=`tags)
+3. The 12-character delimiter allows content to contain `---`, quotes, and any characters (since `---` appears after the delimiter).
 
 ---
 
-### 8. Limitations(acknowledged)
-- A literal line`---`can’t currently exist in content
-- No escapes or triple‑quote multiline quoting — futurework
-- First line of unquoted content can’t be blank  
+### 7. Advantages
+
+- Uniform record termination (`---` marks record end)
+- Simple parsing (three content types, consistent terminator)
+- Human-readable (no special keywords)
+- Supports single-line and multiline content
+- Deterministic delimiters enable simple diffing
+- Compact (no redundant `content=` tags)
+- 12-character delimiter allows any content, including `---` and quotes
+
+---
+
+### 8. Limitations
+
+- A literal `---` line cannot appear in blank-line-delimited content (use 12-character delimiter instead)
+- The 12-character delimiter must not appear within the content itself (extremely unlikely with randomly generated delimiters)
+- The first line of blank-line-delimited content cannot be blank  
