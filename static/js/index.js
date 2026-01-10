@@ -1,5 +1,6 @@
 let currentDocmem = null;
 let selectedPersistRootId = null;
+let selectedViewRootId = null;
 
 function showMessage(text, type = 'info') {
     const messageBar = document.getElementById('message-bar');
@@ -38,6 +39,7 @@ function initTabs() {
             // Refresh view tab when switching to it
             if (targetTab === 'view') {
                 renderView();
+                initView();
             }
             // Refresh persist tab when switching to it
             if (targetTab === 'persist') {
@@ -511,7 +513,36 @@ function renderRootsList() {
 }
 
 function initView() {
-    // View tab initialization is handled by renderView()
+    const expandBtn = document.getElementById('view-expand-btn');
+    const expandAllBtn = document.getElementById('view-expand-all-btn');
+    
+    if (expandBtn) {
+        expandBtn.addEventListener('click', () => {
+            if (!selectedViewRootId) {
+                showMessage('No root selected', 'error');
+                return;
+            }
+            const tokenInput = document.getElementById('view-token-limit');
+            const maxTokens = parseInt(tokenInput.value);
+            if (!maxTokens || maxTokens < 1) {
+                showMessage('Please enter a valid token limit', 'error');
+                return;
+            }
+            renderViewExpanded(selectedViewRootId, maxTokens);
+        });
+    }
+    
+    if (expandAllBtn) {
+        expandAllBtn.addEventListener('click', () => {
+            if (!selectedViewRootId) {
+                showMessage('No root selected', 'error');
+                return;
+            }
+            // Expand with a very large token limit to get all nodes
+            const maxTokens = 1000000;
+            renderViewExpanded(selectedViewRootId, maxTokens);
+        });
+    }
 }
 
 function renderView() {
@@ -527,13 +558,19 @@ function renderView() {
         
         if (roots.length === 0) {
             rootsBar.innerHTML = '<div class="view-no-roots">No root nodes found</div>';
-            contentPanel.innerHTML = '<div class="view-no-content">Select a root node to view its serialized content</div>';
+            contentPanel.innerHTML = '<div class="view-no-content">Select a root node to view its expanded content</div>';
+            selectedViewRootId = null;
             return;
         }
         
+        // Preserve selected root or default to first
+        if (!selectedViewRootId || !roots.find(r => r.id === selectedViewRootId)) {
+            selectedViewRootId = roots[0].id;
+        }
+        
         // Render root links
-        rootsBar.innerHTML = roots.map((root, index) => `
-            <a href="#" class="view-root-link ${index === 0 ? 'active' : ''}" data-root-id="${root.id}">
+        rootsBar.innerHTML = roots.map((root) => `
+            <a href="#" class="view-root-link ${root.id === selectedViewRootId ? 'active' : ''}" data-root-id="${root.id}">
                 ${escapeHtml(root.id)}
             </a>
         `).join('');
@@ -546,23 +583,23 @@ function renderView() {
                 rootsBar.querySelectorAll('.view-root-link').forEach(l => l.classList.remove('active'));
                 link.classList.add('active');
                 
-                // Load and display serialized content
+                // Track selected root and display expanded content with large token limit
                 const rootId = link.getAttribute('data-root-id');
-                renderViewContent(rootId);
+                selectedViewRootId = rootId;
+                renderViewExpanded(rootId, 1000000);
             });
         });
         
-        // Load first root by default
-        if (roots.length > 0) {
-            renderViewContent(roots[0].id);
-        }
+        // Load selected root with large token limit
+        renderViewExpanded(selectedViewRootId, 1000000);
     } catch (error) {
         rootsBar.innerHTML = `<div class="view-error">Error loading roots: ${escapeHtml(error.message)}</div>`;
         contentPanel.innerHTML = '';
     }
 }
 
-async function renderViewContent(rootId) {
+
+async function renderViewExpanded(rootId, maxTokens) {
     const contentPanel = document.getElementById('view-content-panel');
     
     if (!contentPanel) {
@@ -573,26 +610,29 @@ async function renderViewContent(rootId) {
         const docmem = new Docmem(rootId);
         await docmem.ready();
         
-        // Serialize from the root node
-        const serialized = docmem.serialize(rootId);
+        // Expand to token limit from the root node
+        const expanded = docmem.expandToLength(rootId, maxTokens);
         
-        if (serialized.length === 0) {
+        if (expanded.length === 0) {
             contentPanel.innerHTML = '<div class="view-no-content">No content to display</div>';
             return;
         }
         
-        // Render serialized content as contiguous text
-        const textContent = serialized.map(node => {
+        // Render expanded content as contiguous text
+        const textContent = expanded.map(node => {
             const header = `${node.id} ${node.contextType} ${node.contextName}:${node.contextValue} ${node.createdAt}`;
             const content = node.text || '';
             return `${header}\n${content}`;
         }).join('\n\n');
         
+        // Calculate total tokens
+        const totalTokens = expanded.reduce((sum, node) => sum + (node.tokenCount || 0), 0);
+        
         // Use a pre element to preserve formatting and display as plain text
         const pre = document.createElement('pre');
         pre.className = 'view-serialized-text';
         pre.textContent = textContent;
-        contentPanel.innerHTML = '';
+        contentPanel.innerHTML = `<div class="view-stats">${expanded.length} nodes, ${totalTokens} tokens (expanded to ${maxTokens})</div>`;
         contentPanel.appendChild(pre);
     } catch (error) {
         contentPanel.innerHTML = `<div class="view-error">Error loading content: ${escapeHtml(error.message)}</div>`;

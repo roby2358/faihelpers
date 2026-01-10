@@ -5,6 +5,10 @@ import { OpenRouterAPI } from './OpenRouterAPI.js';
 import { parse as parseCommand } from './bash/command_parser.js';
 import { DocmemCommands } from './docmem_commands.js';
 import { SystemCommands } from './system_commands.js';
+import { ROOT_PROMPT } from './system_prompts/root_prompt.js';
+import { BASH_PROMPT } from './system_prompts/bash_prompt.js';
+import { SYSTEM_PROMPT } from './system_prompts/system_prompt.js';
+import { DOCMEM_PROMPT } from './system_prompts/docmem_prompt.js';
 
 let chatSession = null;
 let api = null;
@@ -76,24 +80,6 @@ function initChat() {
 }
 
 /**
- * Fetch system text from fai_bash_root.txt
- */
-async function fetchSystemText() {
-    try {
-        const response = await fetch('/static/fai_bash_root.txt');
-        if (response.ok) {
-            return await response.text();
-        } else {
-            console.warn('Could not load fai_bash_root.txt, proceeding without system text');
-            return '';
-        }
-    } catch (error) {
-        console.warn('Error loading fai_bash_root.txt:', error);
-        return '';
-    }
-}
-
-/**
  * Start a new chat session
  */
 async function startChatSession() {
@@ -124,8 +110,8 @@ async function startChatSession() {
         // Initialize API
         api = new OpenRouterAPI(apiKey, model);
 
-        // Fetch system text from fai_bash_root.txt
-        const systemText = await fetchSystemText();
+        // Combine system prompts in order: root_prompt, bash_prompt, system_prompt, docmem_prompt
+        const systemText = ROOT_PROMPT + BASH_PROMPT + SYSTEM_PROMPT + DOCMEM_PROMPT;
 
         // Create chat session
         chatSession = new DocmemChat(CHAT_DOCMEM_ID);
@@ -489,7 +475,7 @@ async function executeCommand(args, docmem) {
 /**
  * Process commands from assistant response
  * @param {string} responseText - The assistant response text to extract commands from
- * @param {number} depth - Current recursion depth (max 3 rounds)
+ * @param {number} depth - Current recursion depth (max 1000000 rounds)
  */
 async function processCommands(responseText, depth = 0) {
     const commands = extractRunSections(responseText);
@@ -554,8 +540,8 @@ async function processCommands(responseText, depth = 0) {
         await chatSession.appendUserMessage(commandOutputText);
         appendToChatDisplay(`user> ${commandOutputText}`);
         
-        // Only invoke the model again if we haven't exceeded the depth limit (max 3 rounds)
-        if (depth < 3) {
+        // Only invoke the model again if we haven't exceeded the depth limit (max 1000000 rounds)
+        if (depth < 1000000) {
             // Build message list for LLM
             const messages = await chatSession.buildMessageList();
             
@@ -569,7 +555,7 @@ async function processCommands(responseText, depth = 0) {
             // Process any new # Run commands in the response (recursive, increment depth)
             await processCommands(response, depth + 1);
         } else {
-            appendToChatDisplay(`info> Maximum command processing depth (3 rounds) reached. Command outputs have been recorded but will not trigger automatic model response.`);
+            appendToChatDisplay(`info> Maximum command processing depth (1000000 rounds) reached. Command outputs have been recorded but will not trigger automatic model response.`);
         }
     }
     
