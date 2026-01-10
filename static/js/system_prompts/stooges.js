@@ -3,6 +3,10 @@
  * Encoded from three-stooges.toml
  */
 async function seedStoogesDocmem() {
+
+    // Skip for now
+    return;
+
     const docmemId = 'three-stooges';
     const docmem = new Docmem(docmemId);
     await docmem.ready();
