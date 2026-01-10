@@ -10,11 +10,20 @@ function showMessage(text, type = 'info') {
     messageBar.className = `message-bar ${type}`;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     initTabs();
     initDocmem();
     initView();
     initPersist();
+    
+    // Seed stooges docmem if available
+    if (typeof window.seedStoogesDocmem === 'function') {
+        try {
+            await window.seedStoogesDocmem();
+        } catch (error) {
+            console.warn('Error seeding stooges docmem:', error);
+        }
+    }
     
     // Initial render to show roots list
     renderDocmem();

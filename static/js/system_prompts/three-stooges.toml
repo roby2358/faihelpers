@@ -1,0 +1,67 @@
+[three-stooges]
+parent-node-id=
+context="root:purpose:document"
+content="""
+stooge:name:[]
+    funfact:[]:[]
+"""
+
+[dbmbzbn6]
+parent-node-id=three-stooges
+context="stooge:name:moe"
+content="Moe Howard was the leader of the group, known for his bowl haircut and tendency to slap and hit the other stooges."
+
+[gud6bixg]
+parent-node-id=dbmbzbn6
+context="funfact:fact:one"
+content="Moe's real name was Moses Harry Horwitz."
+
+[7mg7dzy5]
+parent-node-id=dbmbzbn6
+context="funfact:fact:two"
+content="He was the only stooge to appear in all 190 shorts."
+
+[mkgwrc4y]
+parent-node-id=dbmbzbn6
+context="funfact:fact:three"
+content="Moe invented the 'Moe-hawk' hairstyle as part of his character."
+
+[2t6wxas5]
+parent-node-id=three-stooges
+context="stooge:name:larry"
+content="Larry Fine was known for his wild red hair and high-pitched voice. He played the violin and was often the target of the other stooges' pranks."
+
+[4r2rvmsu]
+parent-node-id=2t6wxas5
+context="funfact:fact:one"
+content="Larry's real name was Louis Feinberg."
+
+[si44ipxa]
+parent-node-id=2t6wxas5
+context="funfact:fact:two"
+content="He was an accomplished violinist and often played music on set."
+
+[6uz6rgae]
+parent-node-id=2t6wxas5
+context="funfact:fact:three"
+content="Larry had naturally curly hair, not straight like Moe or bald like Curly."
+
+[u2a5ppm2]
+parent-node-id=three-stooges
+context="stooge:name:curly"
+content="Curly Howard was known for his bald head, distinctive laugh, and physical comedy. He was famous for his 'nyuk nyuk' sound and eye-poking antics."
+
+[x2gb97m8]
+parent-node-id=u2a5ppm2
+context="funfact:fact:one"
+content="Curly's real name was Jerome Lester Horwitz, Moe's younger brother."
+
+[z3nburr3]
+parent-node-id=u2a5ppm2
+context="funfact:fact:two"
+content="He shaved his head for the role and it became his signature look."
+
+[8cehjgkh]
+parent-node-id=u2a5ppm2
+context="funfact:fact:three"
+content="Curly was an excellent dancer and often incorporated dance moves into comedy routines."
