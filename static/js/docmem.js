@@ -591,66 +591,83 @@ class Docmem {
         }
     }
 
+    /**
+     * Expand a node to fit within a token budget.
+     * 
+     * Algorithm:
+     * 1. Reverse BFS to build priority list (level-by-level, last children first within each level)
+     * 2. Iterate through priority list, consuming budget until it's spent (no holes - stop on first failure)
+     * 3. Preorder DFS traversal, rendering only nodes in the included set
+     * 
+     * The priority order guarantees parents come before children, so stopping
+     * on budget exhaustion naturally prevents orphans. Last children (most recent)
+     * have higher priority than earlier children.
+     * 
+     * Example: For tree ROOT -> A(C,D), B(E):
+     * - Priority list: ROOT, B, A, E, D, C
+     * - Budget consumed until exhausted, list truncated
+     * - DFS render: ROOT, A, ..., B, ... (only included nodes)
+     */
     expandToLength(nodeId, maxTokens) {
         if (!nodeId) {
             throw new Error('nodeId is required');
         }
-        const result = [];
+
         const startNode = this.requireNode(nodeId);
-        
-        // Include the starting node itself first (always included, even if it exceeds limit)
-        result.push(startNode);
-        let totalTokens = startNode.tokenCount || 0;
-        
-        // Step 1: BFS to depth 1
-        const depth1Nodes = [];
-        const queue = [{ node: startNode, depth: 0 }];
-        
-        while (queue.length > 0) {
-            const { node, depth } = queue.shift();
-            
-            if (depth === 1) {
-                depth1Nodes.push(node);
-            } else if (depth < 1) {
-                const sortedChildren = this.getSortedChildren(node.id);
-                for (const child of sortedChildren) {
-                    queue.push({ node: child, depth: depth + 1 });
-                }
+
+        // Step 1: Build priority list via reverse BFS
+        // Level-by-level, but within each level, reverse order (last/most recent children first)
+        const priorityList = [];
+        let currentLevel = [startNode];
+
+        while (currentLevel.length > 0) {
+            // Add nodes in reverse order (last ones have higher priority - most recent)
+            for (let i = currentLevel.length - 1; i >= 0; i--) {
+                priorityList.push(currentLevel[i]);
             }
+
+            // Collect children for next level
+            const nextLevel = [];
+            for (const node of currentLevel) {
+                const children = this.getSortedChildren(node.id);
+                nextLevel.push(...children);
+            }
+
+            currentLevel = nextLevel;
         }
-        
-        // Step 2: Expand nodes one by one if possible
-        const sortedDepth1 = depth1Nodes.sort((a, b) => a.order - b.order);
-        
-        for (const node of sortedDepth1) {
-            if (totalTokens >= maxTokens) {
+
+        // Step 2: Consume budget - stop on first node that doesn't fit (no holes)
+        const includedIds = new Set();
+        let totalTokens = 0;
+
+        for (const node of priorityList) {
+            const nodeTokens = node.tokenCount || 0;
+            if (totalTokens + nodeTokens <= maxTokens) {
+                includedIds.add(node.id);
+                totalTokens += nodeTokens;
+            } else {
+                // Budget exhausted - stop here, truncate the rest
                 break;
             }
-            
-            const children = this.getChildren(node.id);
-            if (children.length > 0) {
-                // Node has children, expand by including its children
-                const sortedChildren = this.getSortedChildren(node.id);
-                for (const child of sortedChildren) {
-                    if (totalTokens + child.tokenCount <= maxTokens) {
-                        result.push(child);
-                        totalTokens += child.tokenCount;
-                    } else {
-                        // Stop when we exceed the length
-                        break;
-                    }
-                }
-            } else {
-                // Node with no children, just include it
-                if (totalTokens + node.tokenCount <= maxTokens) {
-                    result.push(node);
-                    totalTokens += node.tokenCount;
-                } else {
-                    break;
-                }
-            }
         }
-        
+
+        // Step 3: Preorder DFS traversal, rendering only included nodes
+        const result = [];
+
+        const renderDfs = (node) => {
+            if (!includedIds.has(node.id)) {
+                // Node not included - skip entire subtree
+                return;
+            }
+            result.push(node);
+            const children = this.getSortedChildren(node.id);
+            for (const child of children) {
+                renderDfs(child);
+            }
+        };
+
+        renderDfs(startNode);
+
         return result;
     }
 
