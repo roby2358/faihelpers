@@ -34,7 +34,7 @@ class ParagraphImporter {
 
         for (const paragraph of paragraphs) {
             const order = docmem.calculateOrderForAppend(rootNode.id);
-            await docmem.createAndInsertNode(rootNode.id, paragraph, order, 'paragraph', 'source', 'upload', 1);
+            await docmem.createAndInsertNode(rootNode.id, paragraph, order, 'paragraph', 'source', 'upload', 0);
             createdCount++;
         }
 

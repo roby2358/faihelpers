@@ -33,7 +33,7 @@ class LineImporter {
 
         for (const line of lines) {
             const order = docmem.calculateOrderForAppend(rootNode.id);
-            await docmem.createAndInsertNode(rootNode.id, line, order, 'line', 'source', 'upload', 1);
+            await docmem.createAndInsertNode(rootNode.id, line, order, 'line', 'source', 'upload', 0);
             createdCount++;
         }
 

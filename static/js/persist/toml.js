@@ -108,19 +108,18 @@ class TomlSerializer {
 
     async buildNodeGraph(docmem, nodeMap, rootData) {
         const processed = new Set();
-        const toProcess = Array.from(nodeMap.values());
+        let toProcess = Array.from(nodeMap.values());
 
         while (toProcess.length > 0) {
             let progress = false;
-            for (let i = toProcess.length - 1; i >= 0; i--) {
-                const data = toProcess[i];
-                
+            const remaining = [];
+
+            for (const data of toProcess) {
                 if (!data.parentId) {
                     const rootNode = this.createNodeFromData(data, null, 0.0);
                     await NodeHasher.hash(rootNode);
                     await docmem.insertNode(rootNode);
                     processed.add(data.id);
-                    toProcess.splice(i, 1);
                     progress = true;
                     continue;
                 }
@@ -142,10 +141,14 @@ class TomlSerializer {
                     await docmem.insertNode(newNode);
                     
                     processed.add(data.id);
-                    toProcess.splice(i, 1);
                     progress = true;
+                    continue;
                 }
+
+                remaining.push(data);
             }
+
+            toProcess = remaining;
             
             if (!progress) {
                 throw new Error('Circular dependency or orphaned nodes in TOML file');
