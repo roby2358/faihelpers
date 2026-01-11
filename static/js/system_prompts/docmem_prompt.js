@@ -5,6 +5,12 @@ export const DOCMEM_PROMPT = `
 
 Docmem organizes documents as a hierarchical tree structure. Each node in the tree represents a unit of content with metadata (context-type, context-name, context-value). The root node serves as the entry point, and child nodes can be appended, inserted, moved, copied, or deleted. The root node has a node-id just like any other node.
 
+The intent is to keep the context window smaller by moving thought processes and work products in system promppts.
+
+Try to keep as much as you can in docmem documents without repeating in the context window.
+
+Docmems are durable. They can be shared across conversations.
+
 ## Important Concepts
 
 ### Node IDs
@@ -129,31 +135,12 @@ Retrieves a single node by its ID.
   - \`node-id\`: Node ID to find (must exist)
 - **Returns:** \`result> docmem-find:\\n<JSON>\` - Complete node object with all fields including text, context, metadata
 
-#### docmem-serialize <node-id>
-Returns all nodes in the subtree starting from the specified node, in depth-first traversal order (includes the starting node and all descendants).
-- **Parameters:**
-  - \`node-id\`: Starting node ID (must exist)
-- **Returns:** \`result> docmem-serialize:\\n<JSON>\` - Array of node objects in traversal order
-- **Use case:** Get all content from a subtree for document generation or export
-
 #### docmem-structure <node-id>
 Returns the hierarchical structure and metadata without text content (efficient for navigation).
 - **Parameters:**
   - \`node-id\`: Starting node ID (must exist)
 - **Returns:** \`result> docmem-structure:\\n<JSON>\` - Array of node objects with all fields EXCEPT text (includes id, parentId, order, tokenCount, context fields, timestamps)
 - **Use case:** Inspect tree structure without loading full text content
-
-#### docmem-expand-to-length <node-id> <maxTokens>
-Returns nodes from the subtree up to a maximum token count, using breadth-first expansion.
-- **Parameters:**
-  - \`node-id\`: Starting node ID (must exist)
-  - \`maxTokens\`: Maximum total token count (must be a number)
-- **Returns:** \`result> docmem-expand-to-length:\\n<JSON>\` - Array of node objects that fit within the token limit
-- **Behavior:**
-  - Always includes the starting node first
-  - Expands breadth-first to depth 1, then expands children in order
-  - Stops when adding more nodes would exceed maxTokens
-  - Useful for context window management in LLM prompts
 
 ### Summary Operations
 
@@ -182,4 +169,26 @@ Returns a list of all root node IDs in the system.
 - **Parameters:** None
 - **Returns:** \`result> docmem-get-all-roots:\\n<JSON>\` - Array of root node objects
 - **Note:** This command does NOT require an active docmem instance.
+`;
+
+const DOCMEM_EXTRA_COMMANDS = `
+
+#### docmem-expand-to-length <node-id> <maxTokens>
+Returns nodes from the subtree up to a maximum token count, using breadth-first expansion.
+- **Parameters:**
+  - \`node-id\`: Starting node ID (must exist)
+  - \`maxTokens\`: Maximum total token count (must be a number)
+- **Returns:** \`result> docmem-expand-to-length:\\n<JSON>\` - Array of node objects that fit within the token limit
+- **Behavior:**
+  - Always includes the starting node first
+  - Expands breadth-first to depth 1, then expands children in order
+  - Stops when adding more nodes would exceed maxTokens
+  - Useful for context window management in LLM prompts
+
+#### docmem-serialize <node-id>
+Returns all nodes in the subtree starting from the specified node, in depth-first traversal order (includes the starting node and all descendants).
+- **Parameters:**
+  - \`node-id\`: Starting node ID (must exist)
+- **Returns:** \`result> docmem-serialize:\\n<JSON>\` - Array of node objects in traversal order
+- **Use case:** Get all content from a subtree for document generation or export
 `;

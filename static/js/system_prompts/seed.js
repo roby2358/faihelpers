@@ -4,7 +4,9 @@
  */
 
 import { ROOT_PROMPT_DOCMEM_ID, ROOT_PROMPT_DATA } from './root_prompt.js';
-import { STOOGES_DOCMEM_ID, STOOGES_DATA } from './stooges.js';
+import { TO_DO_PROMPT_DOCMEM_ID, TO_DO_PROMPT_DATA } from './to_do_prompt.js';
+import { IDEAS_PROMPT_DOCMEM_ID, IDEAS_PROMPT_DATA } from './ideas_prompt.js';
+// import { STOOGES_DOCMEM_ID, STOOGES_DATA } from './stooges.js';
 
 /**
  * Seeds a docmem with provided node data
@@ -15,15 +17,10 @@ async function seedDocmem(docmemId, data) {
     const docmem = new Docmem(docmemId);
     await docmem.ready();
     
-    // Check if already seeded by checking if root has children
-    const root = docmem.getRootById(docmemId);
-    if (root) {
-        const children = docmem.getChildren(docmemId);
-        if (children.length > 0) {
-            // Already seeded, skip
-            console.log(`${docmemId} docmem already seeded, skipping`);
-            return;
-        }
+    // Delete existing non-root nodes to allow re-seeding
+    const children = docmem.getChildren(docmemId);
+    for (const child of children) {
+        await docmem.sqlite.deleteNode(child.id);
     }
     
     // Insert nodes in order (parents before children)
@@ -64,8 +61,10 @@ async function seedDocmem(docmemId, data) {
 async function seedAllDocmems() {
     // List of docmem definitions (references to constants exported by definition files)
     const docmemList = [
-        { docmemId: STOOGES_DOCMEM_ID, data: STOOGES_DATA },
+//        { docmemId: STOOGES_DOCMEM_ID, data: STOOGES_DATA },
         { docmemId: ROOT_PROMPT_DOCMEM_ID, data: ROOT_PROMPT_DATA },
+        { docmemId: TO_DO_PROMPT_DOCMEM_ID, data: TO_DO_PROMPT_DATA },
+        { docmemId: IDEAS_PROMPT_DOCMEM_ID, data: IDEAS_PROMPT_DATA },
     ];
     
     for (const { docmemId, data } of docmemList) {
