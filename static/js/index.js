@@ -16,12 +16,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     initView();
     initPersist();
     
-    // Seed stooges docmem if available
-    if (typeof window.seedStoogesDocmem === 'function') {
+    // Seed all registered docmems
+    if (typeof window.seedAllDocmems === 'function') {
         try {
-            await window.seedStoogesDocmem();
+            await window.seedAllDocmems();
         } catch (error) {
-            console.warn('Error seeding stooges docmem:', error);
+            console.warn('Error seeding docmems:', error);
         }
     }
     
@@ -524,6 +524,8 @@ function renderRootsList() {
 function initView() {
     const expandBtn = document.getElementById('view-expand-btn');
     const expandAllBtn = document.getElementById('view-expand-all-btn');
+    const serializeBtn = document.getElementById('view-serialize-btn');
+    const structureBtn = document.getElementById('view-structure-btn');
     
     if (expandBtn) {
         expandBtn.addEventListener('click', () => {
@@ -550,6 +552,26 @@ function initView() {
             // Expand with a very large token limit to get all nodes
             const maxTokens = 1000000;
             renderViewExpanded(selectedViewRootId, maxTokens);
+        });
+    }
+    
+    if (serializeBtn) {
+        serializeBtn.addEventListener('click', async () => {
+            if (!selectedViewRootId) {
+                showMessage('No root selected', 'error');
+                return;
+            }
+            await renderViewSerialized(selectedViewRootId);
+        });
+    }
+    
+    if (structureBtn) {
+        structureBtn.addEventListener('click', async () => {
+            if (!selectedViewRootId) {
+                showMessage('No root selected', 'error');
+                return;
+            }
+            await renderViewStructure(selectedViewRootId);
         });
     }
 }
@@ -645,6 +667,109 @@ async function renderViewExpanded(rootId, maxTokens) {
         contentPanel.appendChild(pre);
     } catch (error) {
         contentPanel.innerHTML = `<div class="view-error">Error loading content: ${escapeHtml(error.message)}</div>`;
+    }
+}
+
+async function renderViewSerialized(rootId) {
+    const contentPanel = document.getElementById('view-content-panel');
+    
+    if (!contentPanel) {
+        return;
+    }
+    
+    try {
+        const docmem = new Docmem(rootId);
+        await docmem.ready();
+        
+        // Serialize in preorder traversal
+        const nodes = docmem.serialize(rootId);
+        
+        if (nodes.length === 0) {
+            contentPanel.innerHTML = '<div class="view-no-content">No content to display</div>';
+            return;
+        }
+        
+        // Concatenate content: trim each node's text and join with \n\n
+        const serializedContent = nodes
+            .map(node => (node.text || '').trim())
+            .join('\n\n');
+        
+        // Calculate total tokens
+        const totalTokens = nodes.reduce((sum, node) => sum + (node.tokenCount || 0), 0);
+        
+        // Use a pre element to preserve formatting and display as plain text
+        const pre = document.createElement('pre');
+        pre.className = 'view-serialized-text';
+        pre.textContent = serializedContent;
+        contentPanel.innerHTML = `<div class="view-stats">${nodes.length} nodes, ${totalTokens} tokens (serialized)</div>`;
+        contentPanel.appendChild(pre);
+    } catch (error) {
+        contentPanel.innerHTML = `<div class="view-error">Error serializing content: ${escapeHtml(error.message)}</div>`;
+    }
+}
+
+async function renderViewStructure(rootId) {
+    const contentPanel = document.getElementById('view-content-panel');
+    
+    if (!contentPanel) {
+        return;
+    }
+    
+    try {
+        const docmem = new Docmem(rootId);
+        await docmem.ready();
+        
+        // Get structure (nodes without text content)
+        const structure = docmem.structure(rootId);
+        
+        if (structure.length === 0) {
+            contentPanel.innerHTML = '<div class="view-no-content">No structure to display</div>';
+            return;
+        }
+        
+        // Build node map for quick lookup
+        const nodeMap = new Map();
+        structure.forEach(node => nodeMap.set(node.id, node));
+        
+        // Calculate depth for each node with memoization
+        const depthMap = new Map();
+        const getDepth = (nodeId) => {
+            if (depthMap.has(nodeId)) {
+                return depthMap.get(nodeId);
+            }
+            if (nodeId === rootId || !nodeId) {
+                depthMap.set(nodeId, 0);
+                return 0;
+            }
+            const node = nodeMap.get(nodeId);
+            if (!node || !node.parentId) {
+                depthMap.set(nodeId, 0);
+                return 0;
+            }
+            const depth = 1 + getDepth(node.parentId);
+            depthMap.set(nodeId, depth);
+            return depth;
+        };
+        
+        // Format each node like expand format: id contextType contextName:contextValue createdAt
+        const textContent = structure.map(node => {
+            const depth = getDepth(node.id);
+            const indent = '  '.repeat(depth);
+            const header = `${node.id} ${node.contextType} ${node.contextName}:${node.contextValue} ${node.createdAt}`;
+            return `${indent}${header}`;
+        }).join('\n');
+        
+        // Calculate total tokens
+        const totalTokens = structure.reduce((sum, node) => sum + (node.tokenCount || 0), 0);
+        
+        // Use a pre element to preserve formatting and display as plain text
+        const pre = document.createElement('pre');
+        pre.className = 'view-serialized-text';
+        pre.textContent = textContent;
+        contentPanel.innerHTML = `<div class="view-stats">${structure.length} nodes, ${totalTokens} tokens (structure)</div>`;
+        contentPanel.appendChild(pre);
+    } catch (error) {
+        contentPanel.innerHTML = `<div class="view-error">Error getting structure: ${escapeHtml(error.message)}</div>`;
     }
 }
 

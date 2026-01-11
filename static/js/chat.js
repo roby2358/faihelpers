@@ -5,10 +5,6 @@ import { OpenRouterAPI } from './OpenRouterAPI.js';
 import { parse as parseCommand } from './bash/command_parser.js';
 import { DocmemCommands } from './docmem_commands.js';
 import { SystemCommands } from './system_commands.js';
-import { ROOT_PROMPT } from './system_prompts/root_prompt.js';
-import { BASH_PROMPT } from './system_prompts/bash_prompt.js';
-import { SYSTEM_PROMPT } from './system_prompts/system_prompt.js';
-import { DOCMEM_PROMPT } from './system_prompts/docmem_prompt.js';
 
 let chatSession = null;
 let api = null;
@@ -110,13 +106,10 @@ async function startChatSession() {
         // Initialize API
         api = new OpenRouterAPI(apiKey, model);
 
-        // Combine system prompts in order: root_prompt, bash_prompt, system_prompt, docmem_prompt
-        const systemText = ROOT_PROMPT + BASH_PROMPT + SYSTEM_PROMPT + DOCMEM_PROMPT;
-
-        // Create chat session
+        // Create chat session (system messages are handled in buildMessageList)
         chatSession = new DocmemChat(CHAT_DOCMEM_ID);
         await chatSession.ready();
-        await chatSession.createChatSession(systemText);
+        await chatSession.createChatSession();
 
         // Show chat interface
         chatContainer.style.display = 'flex';

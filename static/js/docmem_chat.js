@@ -13,9 +13,8 @@ class DocmemChat {
 
     /**
      * Initialize as a chat session with proper root node context
-     * @param {string} systemText - System text to include in the root node
      */
-    async createChatSession(systemText) {
+    async createChatSession() {
         await this.ready();
         
         // Delete the existing root node if it exists (to replace with chat session root)
@@ -24,12 +23,12 @@ class DocmemChat {
             this.docmem.delete(existingRoot.id);
         }
         
-        // Create chat session root with ISO8601 timestamp
+        // Create chat session root with ISO8601 timestamp (no system text - handled in buildMessageList)
         const timestamp = new Date().toISOString();
         const rootNode = new Node(
             this.docmemId,
             null,
-            systemText,
+            '',  // Empty content - system messages are handled in buildMessageList
             0.0,
             null,
             null,
@@ -108,7 +107,39 @@ class DocmemChat {
     }
 
     /**
-     * Build system messages from all non-chat docmems
+     * Build system message from serialized root-prompt docmem
+     * @returns {Object|null} System message object, or null if root-prompt docmem not found
+     */
+    _buildRootPromptSystemMessage() {
+        try {
+            const rootPromptId = 'root-prompt';
+            const rootPromptRoot = this.docmem.find(rootPromptId);
+            if (!rootPromptRoot) {
+                console.warn('Root-prompt docmem not found');
+                return null;
+            }
+            
+            const serializedNodes = this.docmem.serialize(rootPromptId);
+            if (serializedNodes.length === 0) {
+                console.warn('Root-prompt docmem is empty');
+                return null;
+            }
+            
+            const nodeStrings = serializedNodes.map(node => this._formatNodeWithMetadata(node));
+            const docmemContent = nodeStrings.join('\n\n---\n\n');
+            
+            return {
+                role: 'system',
+                content: `# Docmem: ${rootPromptId}\n\n${docmemContent}`
+            };
+        } catch (error) {
+            console.error('Error building root-prompt system message:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Build system messages from all non-chat docmems (excluding root-prompt)
      * @returns {Array<Object>} Array of system message objects
      */
     _buildNonChatDocmemSystemMessages() {
@@ -117,20 +148,22 @@ class DocmemChat {
         try {
             const allRoots = Docmem.getAllRoots();
             const nonChatDocmems = allRoots.filter(rootInfo => 
-                !rootInfo.id.startsWith('chat_') && rootInfo.id !== this.docmemId
+                !rootInfo.id.startsWith('chat_') && 
+                rootInfo.id !== this.docmemId &&
+                rootInfo.id !== 'root-prompt'
             );
             
             console.log(`=== INCLUDING ${nonChatDocmems.length} NON-CHAT DOCMEMS ===`);
             
             for (const rootInfo of nonChatDocmems) {
                 try {
-                    const expandedNodes = this.docmem.expandToLength(rootInfo.id, 20000);
-                    if (expandedNodes.length === 0) {
-                        console.warn(`Could not find root node for docmem ${rootInfo.id}, skipping`);
+                    const serializedNodes = this.docmem.serialize(rootInfo.id);
+                    if (serializedNodes.length === 0) {
+                        console.warn(`Could not serialize docmem ${rootInfo.id}, skipping`);
                         continue;
                     }
                     
-                    const nodeStrings = expandedNodes.map(node => this._formatNodeWithMetadata(node));
+                    const nodeStrings = serializedNodes.map(node => this._formatNodeWithMetadata(node));
                     const docmemContent = nodeStrings.join('\n\n---\n\n');
                     
                     messages.push({
@@ -138,7 +171,7 @@ class DocmemChat {
                         content: `# Docmem: ${rootInfo.id}\n\n${docmemContent}`
                     });
                     
-                    console.log(`Added docmem ${rootInfo.id} as system message (${expandedNodes.length} nodes)`);
+                    console.log(`Added docmem ${rootInfo.id} as system message (${serializedNodes.length} nodes)`);
                 } catch (error) {
                     console.error(`Error including docmem ${rootInfo.id}:`, error);
                 }
@@ -255,15 +288,13 @@ class DocmemChat {
         
         const messages = [];
         
-        // Add system message from root node text if present
-        if (root.text && root.text.trim()) {
-            messages.push({
-                role: 'system',
-                content: root.text.trim()
-            });
+        // Add serialized root-prompt docmem as first system message
+        const rootPromptMessage = this._buildRootPromptSystemMessage();
+        if (rootPromptMessage) {
+            messages.push(rootPromptMessage);
         }
         
-        // Add system messages from non-chat docmems
+        // Add system messages from non-chat docmems (excluding root-prompt)
         messages.push(...this._buildNonChatDocmemSystemMessages());
         
         // Convert chat session nodes to messages
