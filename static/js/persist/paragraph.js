@@ -1,8 +1,9 @@
 class ParagraphImporter {
     async importFromFile(file) {
         const text = await file.text();
+        const normalizedText = text.replace(/\r/g, '');
         
-        const paragraphs = text.split(/\n{2,}/);
+        const paragraphs = normalizedText.split(/\n(?:\s*\n)+/);
         const trimmedParagraphs = [];
         
         for (const paragraph of paragraphs) {
