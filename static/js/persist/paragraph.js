@@ -28,12 +28,12 @@ class ParagraphImporter {
         const docmem = new Docmem(selectedRootId);
         await docmem.ready();
 
-        const rootNode = docmem._getRoot();
+        const rootNode = docmem.getRoot();
         let createdCount = 0;
 
         for (const paragraph of paragraphs) {
-            const order = docmem._calculateOrderForAppend(rootNode.id);
-            await docmem._createAndInsertNode(rootNode.id, paragraph, order, 'paragraph', 'source', 'upload', 1);
+            const order = docmem.calculateOrderForAppend(rootNode.id);
+            await docmem.createAndInsertNode(rootNode.id, paragraph, order, 'paragraph', 'source', 'upload', 1);
             createdCount++;
         }
 

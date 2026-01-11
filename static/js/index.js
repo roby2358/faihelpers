@@ -117,7 +117,7 @@ function renderDocmem() {
         return;
     }
 
-    const root = currentDocmem._getRoot();
+    const root = currentDocmem.getRoot();
     
     container.innerHTML = `
         <div class="operation-section" style="margin-bottom: 2rem;">
@@ -214,7 +214,7 @@ function renderDocmem() {
     serializeBtn.addEventListener('click', () => {
         // Use root node ID for serialize in the UI
         const rootId = root.id;
-        const serialized = currentDocmem.serialize(rootId);
+        const serialized = currentDocmem.getNodes(rootId);
         renderExpanded(serialized);
     });
 
@@ -233,7 +233,7 @@ function renderDocmem() {
         }
         
         try {
-            const node = currentDocmem.append_child(parentId, contextType, contextName, contextValue, content);
+            const node = currentDocmem.appendChild(parentId, contextType, contextName, contextValue, content);
             showMessage(`Node created: ${node.id}`, 'success');
             renderDocmem();
         } catch (error) {
@@ -255,7 +255,7 @@ function renderDocmem() {
         }
         
         try {
-            const node = currentDocmem.insert_before(nodeId, contextType, contextName, contextValue, content);
+            const node = currentDocmem.insertBefore(nodeId, contextType, contextName, contextValue, content);
             showMessage(`Node inserted before: ${node.id}`, 'success');
             renderDocmem();
         } catch (error) {
@@ -277,7 +277,7 @@ function renderDocmem() {
         }
         
         try {
-            const node = currentDocmem.insert_after(nodeId, contextType, contextName, contextValue, content);
+            const node = currentDocmem.insertAfter(nodeId, contextType, contextName, contextValue, content);
             showMessage(`Node inserted after: ${node.id}`, 'success');
             renderDocmem();
         } catch (error) {
@@ -296,7 +296,7 @@ function renderDocmem() {
         }
         
         try {
-            const node = currentDocmem.update_content(nodeId, content);
+            const node = currentDocmem.updateContent(nodeId, content);
             showMessage(`Node updated: ${node.id}`, 'success');
             renderDocmem();
         } catch (error) {
@@ -319,7 +319,7 @@ function renderDocmem() {
         }
         
         try {
-            const node = currentDocmem.add_summary(startNodeId, endNodeId, content, contextType, contextName, contextValue);
+            const node = currentDocmem.addSummary(startNodeId, endNodeId, content, contextType, contextName, contextValue);
             showMessage(`Summary created: ${node.id}`, 'success');
             renderDocmem();
         } catch (error) {
@@ -332,7 +332,7 @@ function renderTree(node, container, depth = 0) {
     const nodeDiv = document.createElement('div');
     nodeDiv.className = `docmem-node ${node.contextType}`;
     
-    const children = currentDocmem._getChildren(node.id);
+    const children = currentDocmem.getChildren(node.id);
     const hasChildren = children.length > 0;
     // Expand root node (no parent) or nodes at depth 0, or nodes with children
     const isExpanded = node.parentId === null || depth === 0 || hasChildren;
@@ -682,7 +682,7 @@ async function renderViewSerialized(rootId) {
         await docmem.ready();
         
         // Serialize in preorder traversal
-        const nodes = docmem.serialize(rootId);
+        const nodes = docmem.getNodes(rootId);
         
         if (nodes.length === 0) {
             contentPanel.innerHTML = '<div class="view-no-content">No content to display</div>';

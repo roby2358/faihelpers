@@ -3,11 +3,11 @@
  * Encoded from three-stooges.toml
  */
 
-const STOOGES_DOCMEM_ID = 'three-stooges';
+export const STOOGES_DOCMEM_ID = 'three-stooges';
 
 // Node data structure
 // Format: [id, parentId, contextType, contextName, contextValue, content, order]
-const STOOGES_DATA = [
+export const STOOGES_DATA = [
     [STOOGES_DOCMEM_ID, null, 'root', 'purpose', 'document', '', 0.0],
     ['dbmbzbn6', STOOGES_DOCMEM_ID, 'stooge', 'name', 'moe', 'Moe Howard was the leader of the group, known for his bowl haircut and tendency to slap and hit the other stooges.', 1.0],
     ['gud6bixg', 'dbmbzbn6', 'funfact', 'fact', 'one', 'Moe\'s real name was Moses Harry Horwitz.', 1.0],
@@ -22,7 +22,3 @@ const STOOGES_DATA = [
     ['z3nburr3', 'u2a5ppm2', 'funfact', 'fact', 'two', 'He shaved his head for the role and it became his signature look.', 2.0],
     ['8cehjgkh', 'u2a5ppm2', 'funfact', 'fact', 'three', 'Curly was an excellent dancer and often incorporated dance moves into comedy routines.', 3.0],
 ];
-
-// Export constants to window for seed.js
-window.STOOGES_DOCMEM_ID = STOOGES_DOCMEM_ID;
-window.STOOGES_DATA = STOOGES_DATA;

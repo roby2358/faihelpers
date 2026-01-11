@@ -56,7 +56,7 @@ class TomlSerializer {
     }
 
     serializeToToml(docmem, rootId) {
-        const nodes = docmem.serialize(rootId);
+        const nodes = docmem.getNodes(rootId);
         if (nodes.length === 0) {
             return '';
         }
@@ -118,7 +118,7 @@ class TomlSerializer {
                 if (!data.parentId) {
                     const rootNode = this.createNodeFromData(data, null, 0.0);
                     await NodeHasher.hash(rootNode);
-                    await docmem._insertNode(rootNode);
+                    await docmem.insertNode(rootNode);
                     processed.add(data.id);
                     toProcess.splice(i, 1);
                     progress = true;
@@ -131,7 +131,7 @@ class TomlSerializer {
                         throw new Error(`Parent node ${data.parentId} not found`);
                     }
                     
-                    const children = docmem._getChildren(data.parentId);
+                    const children = docmem.getChildren(data.parentId);
                     const maxOrder = children.length > 0 
                         ? Math.max(...children.map(c => c.order))
                         : 0.0;
@@ -139,7 +139,7 @@ class TomlSerializer {
                     
                     const newNode = this.createNodeFromData(data, data.parentId, newOrder);
                     await NodeHasher.hash(newNode);
-                    await docmem._insertNode(newNode);
+                    await docmem.insertNode(newNode);
                     
                     processed.add(data.id);
                     toProcess.splice(i, 1);
@@ -166,7 +166,7 @@ class TomlSerializer {
         const docmem = new Docmem(docmemId);
         await docmem.ready();
 
-        const existingRoot = docmem._getRootById(docmemId);
+        const existingRoot = docmem.getRootById(docmemId);
         if (existingRoot) {
             docmem.delete(docmemId);
         }

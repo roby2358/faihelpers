@@ -1,7 +1,15 @@
 /**
  * DocmemChat - Chat-specific wrapper around Docmem for managing chat sessions
  */
-class DocmemChat {
+import { ROOT_PROMPT_DOCMEM_ID } from './system_prompts/root_prompt.js';
+import { BASH_PROMPT } from './system_prompts/bash_prompt.js';
+import { SYSTEM_PROMPT } from './system_prompts/system_prompt.js';
+import { DOCMEM_PROMPT } from './system_prompts/docmem_prompt.js';
+
+const DEFAULT_EXPAND_MAX_TOKENS = 10000;
+const VALID_CHAT_ROLES = ['user', 'assistant'];
+
+export class DocmemChat {
     constructor(docmemId) {
         this.docmem = new Docmem(docmemId);
         this.docmemId = docmemId;
@@ -11,199 +19,149 @@ class DocmemChat {
         await this.docmem.ready();
     }
 
-    /**
-     * Initialize as a chat session with proper root node context
-     */
-    async createChatSession() {
-        await this.ready();
-        
-        // Delete the existing root node if it exists (to replace with chat session root)
-        const existingRoot = this.docmem._getRootById(this.docmemId);
-        if (existingRoot) {
-            this.docmem.delete(existingRoot.id);
-        }
-        
-        // Create chat session root with ISO8601 timestamp (no system text - handled in buildMessageList)
-        const timestamp = new Date().toISOString();
-        const rootNode = new Node(
-            this.docmemId,
-            null,
-            '',  // Empty content - system messages are handled in buildMessageList
-            0.0,
-            null,
-            null,
-            null,
-            'chat_session',
-            'date',
-            timestamp
-        );
-        await NodeHasher.hash(rootNode);
-        await this.docmem._insertNode(rootNode);
+    // ─────────────────────────────────────────────────────────────────────────
+    // Message Helpers
+    // ─────────────────────────────────────────────────────────────────────────
+
+    msg(role, content) {
+        return { role, content };
     }
 
-    /**
-     * Append a user message to the chat session
-     */
-    async appendUserMessage(content) {
-        const root = this.getRoot();
-        if (!root) {
-            throw new Error('Chat session root not found. Call createChatSession() first.');
-        }
-        return await this.docmem.append_child(
-            root.id,
-            'message',
-            'role',
-            'user',
-            content
-        );
+    systemMsg(content) {
+        return this.msg('system', content);
     }
 
-    /**
-     * Append an assistant message to the chat session
-     */
-    async appendAssistantMessage(content) {
-        const root = this.getRoot();
-        if (!root) {
-            throw new Error('Chat session root not found. Call createChatSession() first.');
-        }
-        
-        // Log the assistant response before appending
-        console.log('=== ASSISTANT RESPONSE ===');
-        console.log(content);
-        console.log('==========================');
-        
-        return await this.docmem.append_child(
-            root.id,
-            'message',
-            'role',
-            'assistant',
-            content
-        );
+    toolMsg(content) {
+        return this.msg('tool', content);
     }
 
-    /**
-     * Format a node with metadata and content into a human-readable string
-     * @param {Node} node - The node to format
-     * @returns {string} Formatted string representation
-     */
-    _formatNodeWithMetadata(node) {
-        const parts = [];
-        parts.push(`id: ${node.id}`);
-        if (node.parentId) {
-            parts.push(`parent_id: ${node.parentId}`);
-        }
-        parts.push(`context_type: ${node.contextType}`);
-        parts.push(`context_name: ${node.contextName}`);
-        parts.push(`context_value: ${node.contextValue}`);
-        parts.push(`order: ${node.order}`);
-        parts.push(`token_count: ${node.tokenCount}`);
-        parts.push(`created_at: ${node.createdAt}`);
-        parts.push(`updated_at: ${node.updatedAt}`);
-        
-        const metadataStr = parts.join(', ');
-        const contentStr = node.text || '';
-        
-        return `${metadataStr}\n${contentStr}`;
+    // ─────────────────────────────────────────────────────────────────────────
+    // Node Predicates
+    // ─────────────────────────────────────────────────────────────────────────
+
+    isSummaryToolNode(node) {
+        return node.contextType === 'summary';
     }
 
-    /**
-     * Build system message from serialized root-prompt docmem
-     * @returns {Object|null} System message object, or null if root-prompt docmem not found
-     */
-    _buildRootPromptSystemMessage() {
-        try {
-            const rootPromptId = 'root-prompt';
-            const rootPromptRoot = this.docmem.find(rootPromptId);
-            if (!rootPromptRoot) {
-                console.warn('Root-prompt docmem not found');
-                return null;
-            }
-            
-            const serializedNodes = this.docmem.serialize(rootPromptId);
-            if (serializedNodes.length === 0) {
-                console.warn('Root-prompt docmem is empty');
-                return null;
-            }
-            
-            const nodeStrings = serializedNodes.map(node => this._formatNodeWithMetadata(node));
-            const docmemContent = nodeStrings.join('\n\n---\n\n');
-            
-            return {
-                role: 'system',
-                content: `# Docmem: ${rootPromptId}\n\n${docmemContent}`
-            };
-        } catch (error) {
-            console.error('Error building root-prompt system message:', error);
+    isMessageNode(node) {
+        return node.contextType === 'message';
+    }
+
+    isToolRoleNode(node) {
+        return node.contextName === 'role' && node.contextValue === 'tool';
+    }
+
+    isValidChatRole(role) {
+        return VALID_CHAT_ROLES.includes(role);
+    }
+
+    isIncludableDocmem(rootInfo) {
+        return !rootInfo.id.startsWith('chat_');
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Children Helpers
+    // ─────────────────────────────────────────────────────────────────────────
+
+    getSortedChildren(parentId) {
+        const children = this.docmem.getChildren(parentId);
+        return [...children].sort((a, b) => a.order - b.order);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Node Formatting
+    // ─────────────────────────────────────────────────────────────────────────
+
+    formatNodeMetadata(node) {
+        const fields = [
+            ['id', node.id],
+            ['parent_id', node.parentId],
+            ['context_type', node.contextType],
+            ['context_name', node.contextName],
+            ['context_value', node.contextValue],
+            ['order', node.order],
+            ['token_count', node.tokenCount],
+            ['created_at', node.createdAt],
+            ['updated_at', node.updatedAt]
+        ];
+        return fields
+            .filter(([_, value]) => value !== null && value !== undefined)
+            .map(([key, value]) => `${key}: ${value}`)
+            .join(', ');
+    }
+
+    formatNodeWithMetadata(node) {
+        return `${this.formatNodeMetadata(node)}\n${node.text || ''}`;
+    }
+
+    formatNodesExpanded(nodes) {
+        return nodes.map(node => this.formatNodeWithMetadata(node)).join('\n\n---\n\n');
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // System Message Builders
+    // ─────────────────────────────────────────────────────────────────────────
+
+    buildExpandedSystemMessage(docmemId, nodes) {
+        return this.systemMsg(`${docmemId}\n\n${this.formatNodesExpanded(nodes)}`);
+    }
+
+    buildRootPromptSystemMessage() {
+        const rootPromptRoot = this.docmem.find(ROOT_PROMPT_DOCMEM_ID);
+        if (!rootPromptRoot) {
+            console.warn('Root-prompt docmem not found');
             return null;
         }
-    }
 
-    /**
-     * Build system messages from all non-chat docmems (excluding root-prompt)
-     * @returns {Array<Object>} Array of system message objects
-     */
-    _buildNonChatDocmemSystemMessages() {
-        const messages = [];
-        
-        try {
-            const allRoots = Docmem.getAllRoots();
-            const nonChatDocmems = allRoots.filter(rootInfo => 
-                !rootInfo.id.startsWith('chat_') && 
-                rootInfo.id !== this.docmemId &&
-                rootInfo.id !== 'root-prompt'
-            );
-            
-            console.log(`=== INCLUDING ${nonChatDocmems.length} NON-CHAT DOCMEMS ===`);
-            
-            for (const rootInfo of nonChatDocmems) {
-                try {
-                    const serializedNodes = this.docmem.serialize(rootInfo.id);
-                    if (serializedNodes.length === 0) {
-                        console.warn(`Could not serialize docmem ${rootInfo.id}, skipping`);
-                        continue;
-                    }
-                    
-                    const nodeStrings = serializedNodes.map(node => this._formatNodeWithMetadata(node));
-                    const docmemContent = nodeStrings.join('\n\n---\n\n');
-                    
-                    messages.push({
-                        role: 'system',
-                        content: `# Docmem: ${rootInfo.id}\n\n${docmemContent}`
-                    });
-                    
-                    console.log(`Added docmem ${rootInfo.id} as system message (${serializedNodes.length} nodes)`);
-                } catch (error) {
-                    console.error(`Error including docmem ${rootInfo.id}:`, error);
-                }
-            }
-        } catch (error) {
-            console.error('Error getting docmem roots for system context:', error);
+        const serialized = this.docmem.serialize(ROOT_PROMPT_DOCMEM_ID);
+        if (!serialized || serialized.length === 0) {
+            console.warn('Root-prompt docmem is empty');
+            return null;
         }
-        
-        return messages;
+
+        return this.systemMsg(serialized);
     }
 
-    /**
-     * Convert a summary node to OpenAI message format (tool call + tool response)
-     * @param {Node} node - The summary node to convert
-     * @returns {Array<Object>} Array of two message objects [assistant message with tool_calls, tool response]
-     */
-    _convertSummaryNodeToMessages(node) {
+    buildPromptsSystemMessage() {
+        return this.systemMsg(BASH_PROMPT + SYSTEM_PROMPT + DOCMEM_PROMPT);
+    }
+
+    tryBuildExpandedDocmemMessage(docmemId) {
+        const expandedNodes = this.docmem.expandToLength(docmemId, DEFAULT_EXPAND_MAX_TOKENS);
+        if (expandedNodes.length === 0) {
+            console.warn(`Could not expand docmem ${docmemId}, skipping`);
+            return null;
+        }
+
+        console.log(`Added docmem ${docmemId} as system message (${expandedNodes.length} nodes)`);
+        return this.buildExpandedSystemMessage(docmemId, expandedNodes);
+    }
+
+    buildNonChatDocmemSystemMessages() {
+        const allRoots = Docmem.getAllRoots();
+        const includable = allRoots.filter(r => this.isIncludableDocmem(r));
+
+        console.log(`=== INCLUDING ${includable.length} NON-CHAT DOCMEMS ===`);
+
+        return includable
+            .map(r => this.tryBuildExpandedDocmemMessage(r.id))
+            .filter(msg => msg !== null);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Chat Node Converters
+    // ─────────────────────────────────────────────────────────────────────────
+
+    convertSummaryNodeToMessages(node) {
         const toolCallId = `call_${node.id}`;
-        
         return [
             {
                 role: 'assistant',
-                tool_calls: [
-                    {
-                        id: toolCallId,
-                        type: 'function',
-                        function: {
-                            name: 'summary',
-                            arguments: '{}'
-                        }
-                    }
-                ]
+                tool_calls: [{
+                    id: toolCallId,
+                    type: 'function',
+                    function: { name: 'summary', arguments: '{}' }
+                }]
             },
             {
                 role: 'tool',
@@ -214,146 +172,124 @@ class DocmemChat {
         ];
     }
 
-    /**
-     * Convert a message node to OpenAI message format
-     * @param {Node} node - The message node to convert
-     * @returns {Object|null} Message object, or null if node format is invalid
-     */
-    _convertMessageNodeToMessage(node) {
-        if (node.contextName === 'role' && node.contextValue === 'tool') {
-            return {
-                role: 'tool',
-                content: node.text
-            };
+    convertMessageNodeToMessage(node) {
+        if (this.isToolRoleNode(node)) {
+            return this.toolMsg(node.text);
         }
-        
-        if (node.contextName === 'role') {
-            const role = node.contextValue;
-            if (role !== 'user' && role !== 'assistant') {
-                console.warn(`Unknown message role: ${role}, skipping node ${node.id}`);
-                return null;
-            }
-            return {
-                role: role,
-                content: node.text
-            };
+
+        if (node.contextName !== 'role') {
+            console.warn(`Unknown node format: contextName=${node.contextName}, skipping node ${node.id}`);
+            return null;
         }
-        
-        console.warn(`Unknown node format: contextName=${node.contextName}, contextValue=${node.contextValue}, skipping node ${node.id}`);
-        return null;
+
+        const role = node.contextValue;
+        if (!this.isValidChatRole(role)) {
+            console.warn(`Unknown message role: ${role}, skipping node ${node.id}`);
+            return null;
+        }
+
+        return this.msg(role, node.text);
     }
 
-    /**
-     * Convert a chat session node to OpenAI message format(s)
-     * @param {Node} node - The node to convert
-     * @returns {Array<Object>} Array of message objects (may be empty)
-     */
-    _convertChatNodeToMessages(node) {
-        if (node.contextType === 'summary' && node.contextName === 'role' && node.contextValue === 'tool') {
+    convertChatNodeToMessages(node) {
+        if (this.isSummaryToolNode(node)) {
             console.log(`Including summary node ${node.id} as assistant tool call + tool message pair`);
-            return this._convertSummaryNodeToMessages(node);
+            return this.convertSummaryNodeToMessages(node);
         }
-        
-        if (node.contextType === 'message') {
-            if (node.contextName === 'role' && node.contextValue === 'tool') {
-                console.log(`Including tool node ${node.id} as tool message`);
-                return [{ role: 'tool', content: node.text }];
-            }
-            
-            const message = this._convertMessageNodeToMessage(node);
-            return message ? [message] : [];
+
+        if (!this.isMessageNode(node)) {
+            console.warn(`Skipping node ${node.id}: context_type is not 'message' or 'summary' (got '${node.contextType}')`);
+            return [];
         }
-        
-        console.warn(`Skipping node ${node.id}: context_type is not 'message' or 'summary' (got '${node.contextType}')`);
-        return [];
+
+        if (this.isToolRoleNode(node)) {
+            console.log(`Including tool node ${node.id} as tool message`);
+            return [this.toolMsg(node.text)];
+        }
+
+        const message = this.convertMessageNodeToMessage(node);
+        return message ? [message] : [];
     }
 
-    /**
-     * Build OpenAI message list from chat session
-     * Iterates over root's children, oldest to newest
-     * Summary nodes are formatted as assistant tool call + tool response pairs
-     * Message nodes are formatted as standard messages
-     * Also includes expanded content from non-chat docmems as system messages
-     */
-    async buildMessageList() {
-        const root = this.getRoot();
-        if (!root) {
-            throw new Error('Chat session root not found. Call createChatSession() first.');
-        }
+    // ─────────────────────────────────────────────────────────────────────────
+    // Chat Session Operations
+    // ─────────────────────────────────────────────────────────────────────────
 
-        const children = this.docmem._getChildren(root.id);
-        const sortedChildren = [...children].sort((a, b) => a.order - b.order);
-        
-        this._logBuildingMessageList(root, sortedChildren);
-        
-        const messages = [];
-        
-        // Add serialized root-prompt docmem as first system message
-        const rootPromptMessage = this._buildRootPromptSystemMessage();
-        if (rootPromptMessage) {
-            messages.push(rootPromptMessage);
+    deleteExistingRoot() {
+        const existingRoot = this.docmem.getRootById(this.docmemId);
+        if (existingRoot) {
+            this.docmem.delete(existingRoot.id);
         }
-        
-        // Add system messages from non-chat docmems (excluding root-prompt)
-        messages.push(...this._buildNonChatDocmemSystemMessages());
-        
-        // Convert chat session nodes to messages
-        for (const node of sortedChildren) {
-            const nodeMessages = this._convertChatNodeToMessages(node);
-            messages.push(...nodeMessages);
-        }
-        
-        this._logFinalMessageList(messages);
-        
+    }
+
+    async createChatSession() {
+        await this.ready();
+        this.deleteExistingRoot();
+
+        const rootNode = new Node(
+            this.docmemId,
+            null,
+            '',
+            0.0,
+            null,
+            null,
+            null,
+            'chat_session',
+            'date',
+            new Date().toISOString()
+        );
+        await NodeHasher.hash(rootNode);
+        await this.docmem.insertNode(rootNode);
+    }
+
+    async appendUserMessage(content) {
+        return await this.docmem.appendChild(this.docmemId, 'message', 'role', 'user', content);
+    }
+
+    async appendAssistantMessage(content) {
+        console.log('=== ASSISTANT RESPONSE ===');
+        console.log(content);
+        console.log('==========================');
+        return await this.docmem.appendChild(this.docmemId, 'message', 'role', 'assistant', content);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Build Message List
+    // ─────────────────────────────────────────────────────────────────────────
+
+    async buildMessageList() {
+        const systemMessages = [
+            this.buildRootPromptSystemMessage(),
+            this.buildPromptsSystemMessage(),
+            ...this.buildNonChatDocmemSystemMessages()
+        ].filter(msg => msg !== null);
+
+        const sortedChildren = this.getSortedChildren(this.docmemId);
+
+        const chatMessages = sortedChildren.flatMap(node => this.convertChatNodeToMessages(node));
+
+        const messages = [...systemMessages, ...chatMessages];
+
         return messages;
     }
 
-    /**
-     * Log information about building the message list
-     * @param {Node} root - The root node
-     * @param {Array<Node>} sortedChildren - Sorted children nodes
-     */
-    _logBuildingMessageList(root, sortedChildren) {
-        console.log('=== BUILDING MESSAGE LIST ===');
-        console.log(`Root ID: ${root.id}`);
-        console.log(`Total children: ${sortedChildren.length}`);
-        sortedChildren.forEach(node => {
-            const textPreview = node.text ? node.text.substring(0, 50) : '(empty)';
-            console.log(`  Node: ${node.id}, contextType: ${node.contextType}, contextName: ${node.contextName}, contextValue: ${node.contextValue}, order: ${node.order}, text: ${textPreview}...`);
-        });
-    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // Public API
+    // ─────────────────────────────────────────────────────────────────────────
 
-    /**
-     * Log the final message list
-     * @param {Array<Object>} messages - The message list to log
-     */
-    _logFinalMessageList(messages) {
-        console.log('=== CHAT MESSAGE LIST TO LLM ===');
-        console.log(JSON.stringify(messages, null, 2));
-        console.log('================================');
-    }
-
-    /**
-     * Get the chat session root node
-     */
     getRoot() {
         return this.docmem.find(this.docmemId);
     }
 
-    /**
-     * Close the underlying docmem instance
-     */
     close() {
         this.docmem.close();
     }
 
-    // Expose other docmem methods as needed
     find(nodeId) {
         return this.docmem.find(nodeId);
     }
 
     async update_content(nodeId, content) {
-        return await this.docmem.update_content(nodeId, content);
+        return await this.docmem.updateContent(nodeId, content);
     }
 }
-

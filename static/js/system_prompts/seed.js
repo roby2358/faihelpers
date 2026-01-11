@@ -3,6 +3,9 @@
  * Seeds a docmem with provided node data
  */
 
+import { ROOT_PROMPT_DOCMEM_ID, ROOT_PROMPT_DATA } from './root_prompt.js';
+import { STOOGES_DOCMEM_ID, STOOGES_DATA } from './stooges.js';
+
 /**
  * Seeds a docmem with provided node data
  * @param {string} docmemId - The ID of the docmem to seed
@@ -13,9 +16,9 @@ async function seedDocmem(docmemId, data) {
     await docmem.ready();
     
     // Check if already seeded by checking if root has children
-    const root = docmem._getRootById(docmemId);
+    const root = docmem.getRootById(docmemId);
     if (root) {
-        const children = docmem._getChildren(docmemId);
+        const children = docmem.getChildren(docmemId);
         if (children.length > 0) {
             // Already seeded, skip
             console.log(`${docmemId} docmem already seeded, skipping`);
@@ -61,8 +64,8 @@ async function seedDocmem(docmemId, data) {
 async function seedAllDocmems() {
     // List of docmem definitions (references to constants exported by definition files)
     const docmemList = [
-        { docmemId: window.STOOGES_DOCMEM_ID, data: window.STOOGES_DATA },
-        { docmemId: 'root-prompt', data: [['root-prompt', null, 'root', 'purpose', 'document', '#\nYou are a fai agent who can chat and do things.\n', 0.0]] },
+        { docmemId: STOOGES_DOCMEM_ID, data: STOOGES_DATA },
+        { docmemId: ROOT_PROMPT_DOCMEM_ID, data: ROOT_PROMPT_DATA },
     ];
     
     for (const { docmemId, data } of docmemList) {

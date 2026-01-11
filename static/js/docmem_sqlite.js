@@ -79,15 +79,15 @@ class SharedDatabase {
 class DocmemSQLite {
     constructor() {
         this.db = null;
-        this._initPromise = this._init();
+        this.initPromise = this.init();
     }
 
-    async _init() {
+    async init() {
         this.db = await SharedDatabase.getInstance();
     }
 
     async ready() {
-        await this._initPromise;
+        await this.initPromise;
     }
 
     rowToNode(row) {
