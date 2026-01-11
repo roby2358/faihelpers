@@ -19,46 +19,9 @@ class Node {
 
     _countTokens(text) {
         if (!text) return 0;
-        try {
-            // Try gpt-tokenizer from CDN - check various possible global names
-            if (typeof gptTokenizer !== 'undefined') {
-                if (typeof gptTokenizer.encode === 'function') {
-                    return gptTokenizer.encode(text).length;
-                } else if (typeof gptTokenizer === 'function') {
-                    // If it's a constructor, instantiate it
-                    const tokenizer = new gptTokenizer();
-                    if (tokenizer && typeof tokenizer.encode === 'function') {
-                        return tokenizer.encode(text).length;
-                    }
-                }
-            }
-            if (typeof GPTTokenizer !== 'undefined') {
-                if (typeof GPTTokenizer.encode === 'function') {
-                    return GPTTokenizer.encode(text).length;
-                } else if (typeof GPTTokenizer === 'function') {
-                    const tokenizer = new GPTTokenizer();
-                    if (tokenizer && typeof tokenizer.encode === 'function') {
-                        return tokenizer.encode(text).length;
-                    }
-                }
-            }
-            if (typeof window !== 'undefined') {
-                if (window.gptTokenizer && typeof window.gptTokenizer.encode === 'function') {
-                    return window.gptTokenizer.encode(text).length;
-                }
-            }
-            // Try tiktoken
-            if (typeof tiktoken !== 'undefined') {
-                const encoding = tiktoken.get_encoding('cl100k_base');
-                return encoding.encode(text).length;
-            }
-            // Fallback to approximation
-            console.warn('Tokenizer not available, using approximation (characters / 4)');
-            return Math.ceil(text.length / 4);
-        } catch (e) {
-            console.warn('Tokenizer error, using approximation:', e);
-            return Math.ceil(text.length / 4);
-        }
+        // Using approximation (characters / 4) instead of tokenizer
+        // This provides a reasonable estimate for token counting purposes
+        return Math.ceil(text.length / 4);
     }
 
     toDict() {
