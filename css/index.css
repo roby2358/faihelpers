@@ -1,3 +1,4 @@
+/* ===== Base Styles ===== */
 html, body {
     height: 100%;
     margin: 0;
@@ -12,6 +13,12 @@ body {
     line-height: 1.6;
 }
 
+h1 {
+    color: #333;
+    margin-top: 0;
+}
+
+/* ===== App Layout ===== */
 #app {
     position: fixed;
     top: 60px;
@@ -25,15 +32,7 @@ body {
     overflow: hidden;
 }
 
-.tab-bar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    max-width: 1200px;
-    margin: 0 auto;
-}
-
+/* ===== Message Bar ===== */
 .message-bar {
     position: fixed;
     bottom: 0;
@@ -66,12 +65,18 @@ body {
     flex: 1;
 }
 
+/* ===== Tab Bar & Navigation ===== */
 .tab-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    max-width: 1200px;
+    margin: 0 auto;
     display: flex;
     border-bottom: 2px solid #e0e0e0;
     background-color: #f5f5f5;
     padding: 0;
-    margin: 0;
     z-index: 10;
 }
 
@@ -108,17 +113,12 @@ body {
     overflow-y: auto;
 }
 
-
 .tab-content.active {
     display: flex;
     flex-direction: column;
 }
 
-h1 {
-    color: #333;
-    margin-top: 0;
-}
-
+/* ===== Docmem Styles ===== */
 .docmem-controls {
     display: flex;
     gap: 0.5rem;
@@ -391,6 +391,7 @@ h1 {
     line-height: 1.6;
 }
 
+/* ===== Chat Styles ===== */
 .chat-controls {
     flex: 0 0 auto;
     margin-bottom: 1rem;
@@ -482,27 +483,7 @@ h1 {
     cursor: not-allowed;
 }
 
-.chat-send-btn {
-    padding: 0.75rem 1.5rem;
-    border: 1px solid #0066cc;
-    background-color: #0066cc;
-    color: white;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    font-weight: 500;
-}
-
-.chat-send-btn:hover:not(:disabled) {
-    background-color: #0052a3;
-}
-
-.chat-send-btn:disabled {
-    background-color: #ccc;
-    border-color: #ccc;
-    cursor: not-allowed;
-}
-
+.chat-send-btn,
 .chat-continue-btn {
     padding: 0.75rem 1.5rem;
     border: 1px solid #0066cc;
@@ -514,16 +495,19 @@ h1 {
     font-weight: 500;
 }
 
+.chat-send-btn:hover:not(:disabled),
 .chat-continue-btn:hover:not(:disabled) {
     background-color: #0052a3;
 }
 
+.chat-send-btn:disabled,
 .chat-continue-btn:disabled {
     background-color: #ccc;
     border-color: #ccc;
     cursor: not-allowed;
 }
 
+/* ===== View Container Styles ===== */
 .view-container {
     display: flex;
     flex-direction: column;
@@ -619,8 +603,7 @@ h1 {
 }
 
 .view-no-roots,
-.view-no-content,
-.view-error {
+.view-no-content {
     padding: 1rem;
     text-align: center;
     color: #666;
@@ -628,7 +611,10 @@ h1 {
 }
 
 .view-error {
+    padding: 1rem;
+    text-align: center;
     color: #dc3545;
+    font-style: italic;
 }
 
 .view-node {
@@ -704,6 +690,7 @@ h1 {
     border: 1px solid #e0e0e0;
 }
 
+/* ===== Persist Container Styles ===== */
 .persist-container {
     display: flex;
     flex-direction: column;
@@ -769,8 +756,7 @@ h1 {
     background-color: #f0f0f0;
 }
 
-.persist-no-roots,
-.persist-error {
+.persist-no-roots {
     padding: 1rem;
     text-align: center;
     color: #666;
@@ -778,6 +764,9 @@ h1 {
 }
 
 .persist-error {
+    padding: 1rem;
+    text-align: center;
     color: #dc3545;
+    font-style: italic;
 }
 
