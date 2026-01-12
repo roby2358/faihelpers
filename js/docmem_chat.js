@@ -72,8 +72,8 @@ export class DocmemChat {
     // Node Formatting
     // ─────────────────────────────────────────────────────────────────────────
 
-    formatNodeMetadata(node) {
-        const fields = [
+    buildNodeMetadataFields(node) {
+        return [
             ['id', node.id],
             ['parent_id', node.parentId],
             ['context_type', node.contextType],
@@ -84,10 +84,22 @@ export class DocmemChat {
             ['created_at', node.createdAt],
             ['updated_at', node.updatedAt]
         ];
+    }
+
+    filterDefinedFields(fields) {
+        return fields.filter(([_, value]) => value !== null && value !== undefined);
+    }
+
+    formatMetadataFields(fields) {
         return fields
-            .filter(([_, value]) => value !== null && value !== undefined)
             .map(([key, value]) => `${key}: ${value}`)
             .join(', ');
+    }
+
+    formatNodeMetadata(node) {
+        const fields = this.buildNodeMetadataFields(node);
+        const defined = this.filterDefinedFields(fields);
+        return this.formatMetadataFields(defined);
     }
 
     formatNodeWithMetadata(node) {
@@ -106,16 +118,31 @@ export class DocmemChat {
         return this.systemMsg(`${docmemId}\n\n${this.formatNodesExpanded(nodes)}`);
     }
 
-    buildRootPromptSystemMessage() {
+    validateRootPromptExists() {
         const rootPromptRoot = this.docmem.find(ROOT_PROMPT_DOCMEM_ID);
         if (!rootPromptRoot) {
             console.warn('Root-prompt docmem not found');
-            return null;
+            return false;
         }
+        return true;
+    }
 
+    serializeRootPrompt() {
         const serialized = this.docmem.serialize(ROOT_PROMPT_DOCMEM_ID);
         if (!serialized || serialized.length === 0) {
             console.warn('Root-prompt docmem is empty');
+            return null;
+        }
+        return serialized;
+    }
+
+    buildRootPromptSystemMessage() {
+        if (!this.validateRootPromptExists()) {
+            return null;
+        }
+
+        const serialized = this.serializeRootPrompt();
+        if (!serialized) {
             return null;
         }
 
@@ -126,8 +153,12 @@ export class DocmemChat {
         return this.systemMsg(BASH_PROMPT + SYSTEM_PROMPT + DOCMEM_PROMPT);
     }
 
+    expandDocmemNodes(docmemId, maxTokens) {
+        return this.docmem.expandToLength(docmemId, maxTokens);
+    }
+
     tryBuildExpandedDocmemMessage(docmemId) {
-        const expandedNodes = this.docmem.expandToLength(docmemId, DEFAULT_EXPAND_MAX_TOKENS);
+        const expandedNodes = this.expandDocmemNodes(docmemId, DEFAULT_EXPAND_MAX_TOKENS);
         if (expandedNodes.length === 0) {
             console.warn(`Could not expand docmem ${docmemId}, skipping`);
             return null;
@@ -137,9 +168,13 @@ export class DocmemChat {
         return this.buildExpandedSystemMessage(docmemId, expandedNodes);
     }
 
-    buildNonChatDocmemSystemMessages() {
+    collectIncludableDocmems() {
         const allRoots = Docmem.getAllRoots();
-        const includable = allRoots.filter(r => this.isIncludableDocmem(r));
+        return allRoots.filter(r => this.isIncludableDocmem(r));
+    }
+
+    buildNonChatDocmemSystemMessages() {
+        const includable = this.collectIncludableDocmems();
 
         console.log(`=== INCLUDING ${includable.length} NON-CHAT DOCMEMS ===`);
 
@@ -152,24 +187,51 @@ export class DocmemChat {
     // Chat Node Converters
     // ─────────────────────────────────────────────────────────────────────────
 
+    generateToolCallId(nodeId) {
+        return `call_${nodeId}`;
+    }
+
+    buildAssistantToolCallMessage(toolCallId, functionName) {
+        return {
+            role: 'assistant',
+            tool_calls: [{
+                id: toolCallId,
+                type: 'function',
+                function: { name: functionName, arguments: '{}' }
+            }]
+        };
+    }
+
+    buildToolResultMessage(toolCallId, functionName, result) {
+        return {
+            role: 'tool',
+            tool_call_id: toolCallId,
+            name: functionName,
+            content: JSON.stringify(result)
+        };
+    }
+
     convertSummaryNodeToMessages(node) {
-        const toolCallId = `call_${node.id}`;
-        return [
-            {
-                role: 'assistant',
-                tool_calls: [{
-                    id: toolCallId,
-                    type: 'function',
-                    function: { name: 'summary', arguments: '{}' }
-                }]
-            },
-            {
-                role: 'tool',
-                tool_call_id: toolCallId,
-                name: 'summary',
-                content: JSON.stringify({ text: node.text })
-            }
-        ];
+        const toolCallId = this.generateToolCallId(node.id);
+        const assistantMessage = this.buildAssistantToolCallMessage(toolCallId, 'summary');
+        const toolMessage = this.buildToolResultMessage(toolCallId, 'summary', { text: node.text });
+        return [assistantMessage, toolMessage];
+    }
+
+    validateContextName(node) {
+        if (node.contextName !== 'role') {
+            console.warn(`Unknown node format: contextName=${node.contextName}, skipping node ${node.id}`);
+            return false;
+        }
+        return true;
+    }
+
+    validateMessageRole(role, nodeId) {
+        if (!this.isValidChatRole(role)) {
+            console.warn(`Unknown message role: ${role}, skipping node ${nodeId}`);
+            return false;
+        }
+        return true;
     }
 
     convertMessageNodeToMessage(node) {
@@ -177,24 +239,36 @@ export class DocmemChat {
             return this.toolMsg(node.text);
         }
 
-        if (node.contextName !== 'role') {
-            console.warn(`Unknown node format: contextName=${node.contextName}, skipping node ${node.id}`);
+        if (!this.validateContextName(node)) {
             return null;
         }
 
         const role = node.contextValue;
-        if (!this.isValidChatRole(role)) {
-            console.warn(`Unknown message role: ${role}, skipping node ${node.id}`);
+        if (!this.validateMessageRole(role, node.id)) {
             return null;
         }
 
         return this.msg(role, node.text);
     }
 
+    handleSummaryNode(node) {
+        console.log(`Including summary node ${node.id} as assistant tool call + tool message pair`);
+        return this.convertSummaryNodeToMessages(node);
+    }
+
+    handleToolRoleNode(node) {
+        console.log(`Including tool node ${node.id} as tool message`);
+        return [this.toolMsg(node.text)];
+    }
+
+    handleMessageNode(node) {
+        const message = this.convertMessageNodeToMessage(node);
+        return message ? [message] : [];
+    }
+
     convertChatNodeToMessages(node) {
         if (this.isSummaryToolNode(node)) {
-            console.log(`Including summary node ${node.id} as assistant tool call + tool message pair`);
-            return this.convertSummaryNodeToMessages(node);
+            return this.handleSummaryNode(node);
         }
 
         if (!this.isMessageNode(node)) {
@@ -203,12 +277,10 @@ export class DocmemChat {
         }
 
         if (this.isToolRoleNode(node)) {
-            console.log(`Including tool node ${node.id} as tool message`);
-            return [this.toolMsg(node.text)];
+            return this.handleToolRoleNode(node);
         }
 
-        const message = this.convertMessageNodeToMessage(node);
-        return message ? [message] : [];
+        return this.handleMessageNode(node);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -222,12 +294,9 @@ export class DocmemChat {
         }
     }
 
-    async createChatSession() {
-        await this.ready();
-        this.deleteExistingRoot();
-
-        const rootNode = new Node(
-            this.docmemId,
+    createChatRootNode(docmemId) {
+        return new Node(
+            docmemId,
             null,
             '',
             0.0,
@@ -238,6 +307,13 @@ export class DocmemChat {
             'date',
             new Date().toISOString()
         );
+    }
+
+    async createChatSession() {
+        await this.ready();
+        this.deleteExistingRoot();
+
+        const rootNode = this.createChatRootNode(this.docmemId);
         await NodeHasher.hash(rootNode);
         await this.docmem.insertNode(rootNode);
     }
@@ -257,20 +333,23 @@ export class DocmemChat {
     // Build Message List
     // ─────────────────────────────────────────────────────────────────────────
 
-    async buildMessageList() {
-        const systemMessages = [
+    buildSystemMessages() {
+        return [
             this.buildRootPromptSystemMessage(),
             this.buildPromptsSystemMessage(),
             ...this.buildNonChatDocmemSystemMessages()
         ].filter(msg => msg !== null);
+    }
 
+    buildChatMessages() {
         const sortedChildren = this.getSortedChildren(this.docmemId);
+        return sortedChildren.flatMap(node => this.convertChatNodeToMessages(node));
+    }
 
-        const chatMessages = sortedChildren.flatMap(node => this.convertChatNodeToMessages(node));
-
-        const messages = [...systemMessages, ...chatMessages];
-
-        return messages;
+    async buildMessageList() {
+        const systemMessages = this.buildSystemMessages();
+        const chatMessages = this.buildChatMessages();
+        return [...systemMessages, ...chatMessages];
     }
 
     // ─────────────────────────────────────────────────────────────────────────
