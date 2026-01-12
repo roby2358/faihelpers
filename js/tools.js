@@ -1,4 +1,4 @@
-function randomString(length) {
+export function randomString(length) {
     if (length <= 0) {
         throw new Error('Length must be greater than 0');
     }

@@ -1,3 +1,5 @@
+import { Docmem } from '../docmem.js';
+
 class LineImporter {
     async importFromFile(file) {
         const text = await file.text();

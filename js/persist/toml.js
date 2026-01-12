@@ -1,3 +1,5 @@
+import { Node, Docmem } from '../docmem.js';
+
 class TomlSerializer {
 
     escapeKey(key) {

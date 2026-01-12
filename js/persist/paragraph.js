@@ -1,3 +1,5 @@
+import { Docmem } from '../docmem.js';
+
 class ParagraphImporter {
     async importFromFile(file) {
         const text = await file.text();

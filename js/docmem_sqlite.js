@@ -1,7 +1,9 @@
+import { Node, OptimisticLockError } from './docmem_types.js';
+
 /**
  * SharedDatabase - Singleton SQLite database instance
  */
-class SharedDatabase {
+export class SharedDatabase {
     static _instance = null;
     static _initPromise = null;
 
@@ -76,7 +78,7 @@ class SharedDatabase {
 /**
  * DocmemSQLite - SQLite implementation of docmem database operations
  */
-class DocmemSQLite {
+export class DocmemSQLite {
     constructor() {
         this.db = null;
         this.initPromise = this.init();
