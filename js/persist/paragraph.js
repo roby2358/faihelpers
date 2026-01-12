@@ -1,6 +1,6 @@
 import { Docmem } from '../docmem.js';
 
-class ParagraphImporter {
+export class ParagraphImporter {
     async importFromFile(file) {
         const text = await file.text();
         const normalizedText = text.replace(/\r/g, '');

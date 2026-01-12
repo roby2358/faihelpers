@@ -1,5 +1,8 @@
 import { Docmem } from './docmem.js';
 import { seedAllDocmems } from './system_prompts/seed.js';
+import { LineImporter } from './persist/line.js';
+import { ParagraphImporter } from './persist/paragraph.js';
+import { TomlSerializer } from './persist/toml.js';
 
 let currentDocmem = null;
 let selectedPersistRootId = null;

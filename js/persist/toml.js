@@ -1,6 +1,6 @@
 import { Node, Docmem, NodeHasher } from '../docmem.js';
 
-class TomlSerializer {
+export class TomlSerializer {
 
     escapeKey(key) {
         if (/^[a-zA-Z0-9_-]+$/.test(key)) {
