@@ -1,8 +1,10 @@
+import { seedAllDocmems } from './system_prompts/seed.js';
+
 let currentDocmem = null;
 let selectedPersistRootId = null;
 let selectedViewRootId = null;
 
-function showMessage(text, type = 'info') {
+export function showMessage(text, type = 'info') {
     const messageBar = document.getElementById('message-bar');
     const messageText = document.getElementById('message-text');
     
@@ -17,12 +19,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     initPersist();
     
     // Seed all registered docmems
-    if (typeof window.seedAllDocmems === 'function') {
-        try {
-            await window.seedAllDocmems();
-        } catch (error) {
-            console.warn('Error seeding docmems:', error);
-        }
+    try {
+        await seedAllDocmems();
+    } catch (error) {
+        console.warn('Error seeding docmems:', error);
     }
     
     // Initial render to show roots list

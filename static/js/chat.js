@@ -6,6 +6,7 @@ import { parse as parseCommand } from './bash/command_parser.js';
 import { DocmemCommands } from './docmem_commands.js';
 import { SystemCommands } from './system_commands.js';
 import { DocmemChat } from './docmem_chat.js';
+import { showMessage } from './index.js';
 
 let chatSession = null;
 let api = null;
@@ -54,7 +55,7 @@ function initChat() {
                 api = new OpenRouterAPI(apiKey, newModel);
                 sessionStorage.setItem('chat_model', newModel);
                 const modelLabel = modelSelect.options[modelSelect.selectedIndex].text;
-                window.showMessage(`Model changed to ${modelLabel}`, 'info');
+                showMessage(`Model changed to ${modelLabel}`, 'info');
             }
         }
     });
@@ -89,12 +90,12 @@ async function startChatSession() {
     const model = modelSelect.value;
 
     if (!apiKey) {
-        window.showMessage('Please enter an API key', 'error');
+        showMessage('Please enter an API key', 'error');
         return;
     }
 
     if (!model) {
-        window.showMessage('Please select a model', 'error');
+        showMessage('Please select a model', 'error');
         return;
     }
 
@@ -118,10 +119,10 @@ async function startChatSession() {
         const chatInput = document.getElementById('chat-input');
         chatInput.focus();
 
-        window.showMessage('Chat session started', 'success');
+        showMessage('Chat session started', 'success');
     } catch (error) {
         console.error('Error starting chat session:', error);
-        window.showMessage('Error starting chat session: ' + error.message, 'error');
+        showMessage('Error starting chat session: ' + error.message, 'error');
     }
 }
 
@@ -141,7 +142,7 @@ async function sendMessage() {
     }
 
     if (!chatSession || !api) {
-        window.showMessage('Please start a chat session first', 'error');
+        showMessage('Please start a chat session first', 'error');
         return;
     }
 
@@ -174,7 +175,7 @@ async function sendMessage() {
         await processCommands(response);
     } catch (error) {
         console.error('Error sending message:', error);
-        window.showMessage('Error: ' + error.message, 'error');
+        showMessage('Error: ' + error.message, 'error');
         appendToChatDisplay(`error> ${error.message}`);
     } finally {
         isProcessing = false;
@@ -195,7 +196,7 @@ async function sendContinueMessage() {
     }
 
     if (!chatSession || !api) {
-        window.showMessage('Please start a chat session first', 'error');
+        showMessage('Please start a chat session first', 'error');
         return;
     }
 
@@ -228,7 +229,7 @@ async function sendContinueMessage() {
         await processCommands(response);
     } catch (error) {
         console.error('Error sending continue message:', error);
-        window.showMessage('Error: ' + error.message, 'error');
+        showMessage('Error: ' + error.message, 'error');
         appendToChatDisplay(`error> ${error.message}`);
     } finally {
         isProcessing = false;
