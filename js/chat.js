@@ -49,7 +49,7 @@ function ensureChatSessionActive() {
  */
 async function recordUserMessage(message) {
     await chatSession.appendUserMessage(message);
-    appendToChatDisplay(`user> ${message}`);
+    appendToChatDisplay(`\nuser> ${message}`);
 }
 
 /**
@@ -57,7 +57,7 @@ async function recordUserMessage(message) {
  */
 async function recordAssistantMessage(response) {
     await chatSession.appendAssistantMessage(response);
-    appendToChatDisplay(`assistant> ${response}`);
+    appendToChatDisplay(`\nassistant> ${response}`);
 }
 
 /**
@@ -75,7 +75,7 @@ async function invokeModelAndRecordResponse() {
  */
 function appendCommandOutput(commandOutputText, commandText, outputType, outputMessage) {
     const separator = commandOutputText ? '\n' : '';
-    return commandOutputText + separator + `command> ${commandText}\n${outputType}> ${outputMessage}`;
+    return commandOutputText + separator + `command> ${commandText}\n\n${outputType}> ${outputMessage}`;
 }
 
 /**
