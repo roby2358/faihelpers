@@ -15,6 +15,126 @@ let isProcessing = false;
 const CHAT_DOCMEM_ID = 'chat_session';
 
 /**
+ * Enable or disable UI controls
+ */
+function setUIEnabled(enabled) {
+    const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('chat-send-btn');
+    const continueBtn = document.getElementById('chat-continue-btn');
+    
+    chatInput.disabled = !enabled;
+    sendBtn.disabled = !enabled;
+    continueBtn.disabled = !enabled;
+    
+    if (enabled) {
+        chatInput.focus();
+    }
+}
+
+/**
+ * Ensure chat session is active
+ */
+function ensureChatSessionActive() {
+    if (!chatSession || !api) {
+        showMessage('Please start a chat session first', 'error');
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Record user message to chat session and display
+ */
+async function recordUserMessage(message) {
+    await chatSession.appendUserMessage(message);
+    appendToChatDisplay(`user> ${message}`);
+}
+
+/**
+ * Record assistant message to chat session and display
+ */
+async function recordAssistantMessage(response) {
+    await chatSession.appendAssistantMessage(response);
+    appendToChatDisplay(`assistant> ${response}`);
+}
+
+/**
+ * Invoke model and record response
+ */
+async function invokeModelAndRecordResponse() {
+    const messages = await chatSession.buildMessageList();
+    const response = await api.chat(messages);
+    await recordAssistantMessage(response);
+    return response;
+}
+
+/**
+ * Append command output to command output text
+ */
+function appendCommandOutput(commandOutputText, commandText, outputType, outputMessage) {
+    const separator = commandOutputText ? '\n' : '';
+    return commandOutputText + separator + `command> ${commandText}\n${outputType}> ${outputMessage}`;
+}
+
+/**
+ * Validate node position mode
+ */
+function validateNodePositionMode(mode) {
+    if (mode !== '--append-child' && mode !== '--before' && mode !== '--after') {
+        throw new Error('Mode must be --append-child, --before, or --after');
+    }
+}
+
+/**
+ * Extract optional content from remaining arguments
+ */
+function extractOptionalContent(restArgs, startIndex) {
+    return restArgs.length > startIndex 
+        ? restArgs.slice(startIndex).join(' ').replace(/^\n+|\n+$/g, '') 
+        : '';
+}
+
+/**
+ * Load stored API key from sessionStorage
+ */
+function loadStoredApiKey(apiKeyInput) {
+    const storedApiKey = sessionStorage.getItem('chat_api_key');
+    if (storedApiKey) {
+        apiKeyInput.value = storedApiKey;
+    }
+}
+
+/**
+ * Load stored model from sessionStorage
+ */
+function loadStoredModel(modelSelect) {
+    const storedModel = sessionStorage.getItem('chat_model');
+    if (storedModel) {
+        const optionExists = Array.from(modelSelect.options).some(opt => opt.value === storedModel);
+        if (optionExists) {
+            modelSelect.value = storedModel;
+        }
+    }
+}
+
+/**
+ * Store API key and model to sessionStorage
+ */
+function storeApiKeyAndModel(apiKey, model) {
+    sessionStorage.setItem('chat_api_key', apiKey);
+    sessionStorage.setItem('chat_model', model);
+}
+
+/**
+ * Require minimum number of arguments for a command
+ */
+function requireArgs(restArgs, minCount, commandName, usage) {
+    if (restArgs.length < minCount) {
+        throw new Error(`${commandName} requires ${usage}`);
+    }
+}
+
+/**
  * Initialize chat interface
  */
 function initChat() {
@@ -60,21 +180,9 @@ function initChat() {
         }
     });
 
-    // Try to load API key from sessionStorage
-    const storedApiKey = sessionStorage.getItem('chat_api_key');
-    if (storedApiKey) {
-        apiKeyInput.value = storedApiKey;
-    }
-
-    // Try to load model from sessionStorage
-    const storedModel = sessionStorage.getItem('chat_model');
-    if (storedModel) {
-        // Check if stored model is in the select options
-        const optionExists = Array.from(modelSelect.options).some(opt => opt.value === storedModel);
-        if (optionExists) {
-            modelSelect.value = storedModel;
-        }
-    }
+    // Try to load API key and model from sessionStorage
+    loadStoredApiKey(apiKeyInput);
+    loadStoredModel(modelSelect);
 }
 
 /**
@@ -100,10 +208,8 @@ async function startChatSession() {
     }
 
     try {
-        // Store API key in sessionStorage
-        sessionStorage.setItem('chat_api_key', apiKey);
-        // Store model in sessionStorage
-        sessionStorage.setItem('chat_model', model);
+        // Store API key and model in sessionStorage
+        storeApiKeyAndModel(apiKey, model);
 
         // Initialize API
         api = new OpenRouterAPI(apiKey, model);
@@ -141,35 +247,22 @@ async function sendMessage() {
         return;
     }
 
-    if (!chatSession || !api) {
-        showMessage('Please start a chat session first', 'error');
+    if (!ensureChatSessionActive()) {
         return;
     }
 
     isProcessing = true;
-    chatInput.disabled = true;
-    const sendBtn = document.getElementById('chat-send-btn');
-    const continueBtn = document.getElementById('chat-continue-btn');
-    sendBtn.disabled = true;
-    continueBtn.disabled = true;
+    setUIEnabled(false);
 
     try {
-        // Append user message to chat session
-        await chatSession.appendUserMessage(message);
-        appendToChatDisplay(`user> ${message}`);
+        // Record user message
+        await recordUserMessage(message);
 
         // Clear input
         chatInput.value = '';
 
-        // Build message list for LLM
-        const messages = await chatSession.buildMessageList();
-
-        // Call LLM
-        const response = await api.chat(messages);
-
-        // Append assistant response to chat session
-        await chatSession.appendAssistantMessage(response);
-        appendToChatDisplay(`assistant> ${response}`);
+        // Invoke model and record response
+        const response = await invokeModelAndRecordResponse();
 
         // Process any # Run commands in the response
         await processCommands(response);
@@ -179,10 +272,7 @@ async function sendMessage() {
         appendToChatDisplay(`error> ${error.message}`);
     } finally {
         isProcessing = false;
-        chatInput.disabled = false;
-        sendBtn.disabled = false;
-        continueBtn.disabled = false;
-        chatInput.focus();
+        setUIEnabled(true);
     }
 }
 
@@ -195,35 +285,21 @@ async function sendContinueMessage() {
         return;
     }
 
-    if (!chatSession || !api) {
-        showMessage('Please start a chat session first', 'error');
+    if (!ensureChatSessionActive()) {
         return;
     }
 
     const message = 'Please continue.';
 
     isProcessing = true;
-    const chatInput = document.getElementById('chat-input');
-    const sendBtn = document.getElementById('chat-send-btn');
-    const continueBtn = document.getElementById('chat-continue-btn');
-    chatInput.disabled = true;
-    sendBtn.disabled = true;
-    continueBtn.disabled = true;
+    setUIEnabled(false);
 
     try {
-        // Append user message to chat session
-        await chatSession.appendUserMessage(message);
-        appendToChatDisplay(`user> ${message}`);
+        // Record user message
+        await recordUserMessage(message);
 
-        // Build message list for LLM
-        const messages = await chatSession.buildMessageList();
-
-        // Call LLM
-        const response = await api.chat(messages);
-
-        // Append assistant response to chat session
-        await chatSession.appendAssistantMessage(response);
-        appendToChatDisplay(`assistant> ${response}`);
+        // Invoke model and record response
+        const response = await invokeModelAndRecordResponse();
 
         // Process any # Run commands in the response
         await processCommands(response);
@@ -233,10 +309,7 @@ async function sendContinueMessage() {
         appendToChatDisplay(`error> ${error.message}`);
     } finally {
         isProcessing = false;
-        chatInput.disabled = false;
-        sendBtn.disabled = false;
-        continueBtn.disabled = false;
-        chatInput.focus();
+        setUIEnabled(true);
     }
 }
 
@@ -283,46 +356,32 @@ async function executeDocmemCommand(args, docmem) {
         
         switch (command) {
             case 'docmem-create': {
-                if (restArgs.length < 1) {
-                    throw new Error('docmem-create requires <root-id>');
-                }
+                requireArgs(restArgs, 1, 'docmem-create', '<root-id>');
                 const rootId = restArgs[0];
                 return await commands.create(rootId);
             }
             
             case 'docmem-create-node': {
-                if (restArgs.length < 5) {
-                    throw new Error('docmem-create-node requires <--append-child|--before|--after> <node_id> <context_type> <context_name> <context_value> [<content>]');
-                }
+                requireArgs(restArgs, 5, 'docmem-create-node', '<--append-child|--before|--after> <node_id> <context_type> <context_name> <context_value> [<content>]');
                 const mode = restArgs[0];
-                if (mode !== '--append-child' && mode !== '--before' && mode !== '--after') {
-                    throw new Error('docmem-create-node requires mode to be --append-child, --before, or --after');
-                }
+                validateNodePositionMode(mode);
                 const nodeId = restArgs[1];
                 const contextType = restArgs[2];
                 const contextName = restArgs[3];
                 const contextValue = restArgs[4];
-                // Content can be empty - join remaining args (if any) and trim leading/trailing newlines
-                // Note: Empty strings are filtered out by the parser, so if content was "", restArgs.length will be 5
-                const content = restArgs.length > 5 ? restArgs.slice(5).join(' ').replace(/^\n+|\n+$/g, '') : '';
+                const content = extractOptionalContent(restArgs, 5);
                 return await commands.createNode(mode, nodeId, contextType, contextName, contextValue, content);
             }
             
             case 'docmem-update-content': {
-                if (restArgs.length < 1) {
-                    throw new Error('docmem-update-content requires <node_id> [<content>]');
-                }
+                requireArgs(restArgs, 1, 'docmem-update-content', '<node_id> [<content>]');
                 const nodeId = restArgs[0];
-                // Content can be empty - join remaining args (if any) and trim leading/trailing newlines
-                // Note: Empty strings are filtered out by the parser, so if content was "", restArgs.length will be 1
-                const content = restArgs.length > 1 ? restArgs.slice(1).join(' ').replace(/^\n+|\n+$/g, '') : '';
+                const content = extractOptionalContent(restArgs, 1);
                 return await commands.updateContent(nodeId, content);
             }
             
             case 'docmem-update-context': {
-                if (restArgs.length < 4) {
-                    throw new Error('docmem-update-context requires <node_id> <context_type> <context_name> <context_value>');
-                }
+                requireArgs(restArgs, 4, 'docmem-update-context', '<node_id> <context_type> <context_name> <context_value>');
                 const nodeId = restArgs[0];
                 const contextType = restArgs[1];
                 const contextName = restArgs[2];
@@ -331,51 +390,38 @@ async function executeDocmemCommand(args, docmem) {
             }
             
             case 'docmem-find': {
-                if (restArgs.length < 1) {
-                    throw new Error('docmem-find requires <node_id>');
-                }
+                requireArgs(restArgs, 1, 'docmem-find', '<node_id>');
                 const nodeId = restArgs[0];
                 return commands.find(nodeId);
             }
             
             case 'docmem-delete': {
-                if (restArgs.length < 1) {
-                    throw new Error('docmem-delete requires <node_id>');
-                }
+                requireArgs(restArgs, 1, 'docmem-delete', '<node_id>');
                 const nodeId = restArgs[0];
                 return commands.delete(nodeId);
             }
             
             case 'docmem-serialize': {
-                if (restArgs.length < 1) {
-                    throw new Error('docmem-serialize requires <node_id>');
-                }
+                requireArgs(restArgs, 1, 'docmem-serialize', '<node_id>');
                 const nodeId = restArgs[0];
                 return commands.serialize(nodeId);
             }
             
             case 'docmem-structure': {
-                if (restArgs.length < 1) {
-                    throw new Error('docmem-structure requires <node_id>');
-                }
+                requireArgs(restArgs, 1, 'docmem-structure', '<node_id>');
                 const nodeId = restArgs[0];
                 return commands.structure(nodeId);
             }
             
             case 'docmem-expand-to-length': {
-                if (restArgs.length < 2) {
-                    throw new Error('docmem-expand-to-length requires <node_id> <maxTokens>');
-                }
+                requireArgs(restArgs, 2, 'docmem-expand-to-length', '<node_id> <maxTokens>');
                 const nodeId = restArgs[0];
                 const maxTokensArg = restArgs[1];
                 return commands.expandToLength(nodeId, maxTokensArg);
             }
             
             case 'docmem-add-summary': {
-                if (restArgs.length < 6) {
-                    throw new Error('docmem-add-summary requires <context_type> <context_name> <context_value> <content> <start-node-id> <end-node-id>');
-                }
-                // Format: context_type context_name context_value content start_node_id end_node_id
+                requireArgs(restArgs, 6, 'docmem-add-summary', '<context_type> <context_name> <context_value> <content> <start-node-id> <end-node-id>');
                 const contextType = restArgs[0];
                 const contextName = restArgs[1];
                 const contextValue = restArgs[2];
@@ -386,26 +432,18 @@ async function executeDocmemCommand(args, docmem) {
             }
             
             case 'docmem-move-node': {
-                if (restArgs.length < 3) {
-                    throw new Error('docmem-move-node requires <--append-child|--before|--after> <node_id> <target_id>');
-                }
+                requireArgs(restArgs, 3, 'docmem-move-node', '<--append-child|--before|--after> <node_id> <target_id>');
                 const mode = restArgs[0];
-                if (mode !== '--append-child' && mode !== '--before' && mode !== '--after') {
-                    throw new Error('docmem-move-node requires mode to be --append-child, --before, or --after');
-                }
+                validateNodePositionMode(mode);
                 const nodeId = restArgs[1];
                 const targetId = restArgs[2];
                 return await commands.moveNode(mode, nodeId, targetId);
             }
             
             case 'docmem-copy-node': {
-                if (restArgs.length < 3) {
-                    throw new Error('docmem-copy-node requires <--append-child|--before|--after> <node_id> <target_id>');
-                }
+                requireArgs(restArgs, 3, 'docmem-copy-node', '<--append-child|--before|--after> <node_id> <target_id>');
                 const mode = restArgs[0];
-                if (mode !== '--append-child' && mode !== '--before' && mode !== '--after') {
-                    throw new Error('docmem-copy-node requires mode to be --append-child, --before, or --after');
-                }
+                validateNodePositionMode(mode);
                 const nodeId = restArgs[1];
                 const targetId = restArgs[2];
                 return await commands.copyNode(mode, nodeId, targetId);
@@ -503,17 +541,8 @@ async function processCommands(responseText, depth = 0) {
             });
             
             // Build command output text for user message
-            if (result.success) {
-                if (commandOutputText) {
-                    commandOutputText += '\n';
-                }
-                commandOutputText += `command> ${commandText}\nresult> ${result.result}`;
-            } else {
-                if (commandOutputText) {
-                    commandOutputText += '\n';
-                }
-                commandOutputText += `command> ${commandText}\nerror> ${result.result}`;
-            }
+            const outputType = result.success ? 'result' : 'error';
+            commandOutputText = appendCommandOutput(commandOutputText, commandText, outputType, result.result);
         } catch (error) {
             const errorMessage = `Parse error: ${error.message}`;
             results.push({
@@ -522,30 +551,19 @@ async function processCommands(responseText, depth = 0) {
                 success: false
             });
             // Build command output text for user message
-            if (commandOutputText) {
-                commandOutputText += '\n';
-            }
-            commandOutputText += `command> ${commandText}\nerror> ${errorMessage}`;
+            commandOutputText = appendCommandOutput(commandOutputText, commandText, 'error', errorMessage);
         }
     }
     
     // If we have command output, append it as a user message
     if (commandOutputText) {
-        // Append command output as user message
-        await chatSession.appendUserMessage(commandOutputText);
-        appendToChatDisplay(`user> ${commandOutputText}`);
+        // Record command output as user message
+        await recordUserMessage(commandOutputText);
         
         // Only invoke the model again if we haven't exceeded the depth limit (max 1000000 rounds)
         if (depth < 1000000) {
-            // Build message list for LLM
-            const messages = await chatSession.buildMessageList();
-            
-            // Call LLM again
-            const response = await api.chat(messages);
-            
-            // Append assistant response to chat session
-            chatSession.appendAssistantMessage(response);
-            appendToChatDisplay(`assistant> ${response}`);
+            // Invoke model and record response
+            const response = await invokeModelAndRecordResponse();
             
             // Process any new # Run commands in the response (recursive, increment depth)
             await processCommands(response, depth + 1);
