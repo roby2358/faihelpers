@@ -2,6 +2,55 @@
  * Core types for docmem system
  */
 
+/**
+ * NodeHasher - Computes SHA-512 hash of node state for optimistic locking
+ */
+export class NodeHasher {
+    /**
+     * Compute hash for node state, set it on the node, and return the node
+     * Hashes: parentId, contextType, contextName, contextValue, text, order
+     * @param {Node} node - The node to hash
+     * @returns {Promise<Node>} The node with hash property set (Base64-encoded SHA-512 hash, 88 characters)
+     */
+    static async hash(node) {
+        // Create deterministic serialization: parentId|contextType|contextName|contextValue|text|order
+        // Using | as delimiter (simple and unlikely to conflict)
+        // Normalize NULL/undefined to empty string for deterministic hashing
+        // Convert order to string for consistent serialization
+        const data = [
+            node.parentId || '',
+            node.contextType || '',
+            node.contextName || '',
+            node.contextValue || '',
+            node.text || '',
+            String(node.order ?? '')
+        ].join('|');
+        
+        // Compute SHA-512 hash
+        const msgBuffer = new TextEncoder().encode(data);
+        const hashBuffer = await crypto.subtle.digest('SHA-512', msgBuffer);
+        
+        // Convert to base64
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const binaryString = String.fromCharCode(...hashArray);
+        node.hash = btoa(binaryString);
+        return node;
+    }
+}
+
+/**
+ * OptimisticLockError - Error thrown when optimistic locking fails due to concurrent modification
+ */
+export class OptimisticLockError extends Error {
+    constructor(nodeId, message = 'Concurrent modification detected') {
+        super(message);
+        this.name = 'OptimisticLockError';
+        this.nodeId = nodeId;
+        this.message = `Optimistic lock failed for node ${nodeId}: ${message}. The node was modified by another operation. Please read the current state and retry your update.`;
+    }
+}
+
+
 export class Node {
     constructor(nodeId, parentId, text, order, tokenCount = null, createdAt = null, updatedAt = null, contextType, contextName, contextValue, readonly = 0) {
         if (!contextType || !contextName || !contextValue) {
@@ -61,53 +110,5 @@ export class Node {
         );
         node.hash = data.hash || null;
         return node;
-    }
-}
-
-/**
- * NodeHasher - Computes SHA-512 hash of node state for optimistic locking
- */
-export class NodeHasher {
-    /**
-     * Compute hash for node state, set it on the node, and return the node
-     * Hashes: parentId, contextType, contextName, contextValue, text, order
-     * @param {Node} node - The node to hash
-     * @returns {Promise<Node>} The node with hash property set (Base64-encoded SHA-512 hash, 88 characters)
-     */
-    static async hash(node) {
-        // Create deterministic serialization: parentId|contextType|contextName|contextValue|text|order
-        // Using | as delimiter (simple and unlikely to conflict)
-        // Normalize NULL/undefined to empty string for deterministic hashing
-        // Convert order to string for consistent serialization
-        const data = [
-            node.parentId || '',
-            node.contextType || '',
-            node.contextName || '',
-            node.contextValue || '',
-            node.text || '',
-            String(node.order ?? '')
-        ].join('|');
-        
-        // Compute SHA-512 hash
-        const msgBuffer = new TextEncoder().encode(data);
-        const hashBuffer = await crypto.subtle.digest('SHA-512', msgBuffer);
-        
-        // Convert to base64
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const binaryString = String.fromCharCode(...hashArray);
-        node.hash = btoa(binaryString);
-        return node;
-    }
-}
-
-/**
- * OptimisticLockError - Error thrown when optimistic locking fails due to concurrent modification
- */
-export class OptimisticLockError extends Error {
-    constructor(nodeId, message = 'Concurrent modification detected') {
-        super(message);
-        this.name = 'OptimisticLockError';
-        this.nodeId = nodeId;
-        this.message = `Optimistic lock failed for node ${nodeId}: ${message}. The node was modified by another operation. Please read the current state and retry your update.`;
     }
 }
