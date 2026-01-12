@@ -1,3 +1,4 @@
+import { Docmem } from './docmem.js';
 import { seedAllDocmems } from './system_prompts/seed.js';
 
 let currentDocmem = null;

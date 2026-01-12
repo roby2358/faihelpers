@@ -1,6 +1,7 @@
 /**
  * DocmemChat - Chat-specific wrapper around Docmem for managing chat sessions
  */
+import { Docmem, Node, NodeHasher } from './docmem.js';
 import { ROOT_PROMPT_DOCMEM_ID } from './system_prompts/root_prompt.js';
 import { BASH_PROMPT } from './system_prompts/bash_prompt.js';
 import { SYSTEM_PROMPT } from './system_prompts/system_prompt.js';

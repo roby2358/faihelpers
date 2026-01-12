@@ -3,6 +3,7 @@
  * Seeds a docmem with provided node data
  */
 
+import { Docmem, Node, NodeHasher } from '../docmem.js';
 import { ROOT_PROMPT_DOCMEM_ID, ROOT_PROMPT_DATA } from './root_prompt.js';
 import { TO_DO_PROMPT_DOCMEM_ID, TO_DO_PROMPT_DATA } from './to_do_prompt.js';
 import { IDEAS_PROMPT_DOCMEM_ID, IDEAS_PROMPT_DATA } from './ideas_prompt.js';

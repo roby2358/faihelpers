@@ -1,6 +1,8 @@
 /**
  * DocmemCommands - Command wrapper class for docmem operations
  */
+import { Docmem } from './docmem.js';
+
 export class DocmemCommands {
     constructor(docmem) {
         this.docmem = docmem;
