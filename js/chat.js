@@ -7,10 +7,12 @@ import { DocmemCommands } from './docmem_commands.js';
 import { SystemCommands } from './system_commands.js';
 import { DocmemChat } from './docmem_chat.js';
 import { showMessage } from './index.js';
+import { Key } from './key.js';
 
 let chatSession = null;
 let api = null;
 let isProcessing = false;
+let keyHandler = null;
 
 const CHAT_DOCMEM_ID = 'chat_session';
 
@@ -157,12 +159,10 @@ function initChat() {
         await sendContinueMessage();
     });
 
-    chatInput.addEventListener('keypress', async (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            await sendMessage();
-        }
-    });
+    keyHandler = new Key(chatInput);
+    keyHandler.on('Enter', async () => {
+        await sendMessage();
+    }, { shift: false });
 
     // Handle model selection change - update API instance if chat is active
     modelSelect.addEventListener('change', () => {
