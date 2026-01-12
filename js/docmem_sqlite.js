@@ -90,6 +90,52 @@ class DocmemSQLite {
         await this.initPromise;
     }
 
+    executeScalar(sql, params) {
+        const stmt = this.db.prepare(sql);
+        stmt.bind(params);
+        stmt.step();
+        const result = stmt.get()[0];
+        stmt.free();
+        return result;
+    }
+
+    executeSingleRow(sql, params) {
+        const stmt = this.db.prepare(sql);
+        stmt.bind(params);
+        const hasRow = stmt.step();
+        const result = hasRow ? stmt.getAsObject() : null;
+        stmt.free();
+        return result;
+    }
+
+    executeMultipleRows(sql, params) {
+        const stmt = this.db.prepare(sql);
+        stmt.bind(params);
+        const rows = [];
+        while (stmt.step()) {
+            rows.push(stmt.getAsObject());
+        }
+        stmt.free();
+        return rows;
+    }
+
+    executeUpdate(sql, params) {
+        const stmt = this.db.prepare(sql);
+        stmt.bind(params);
+        stmt.step();
+        const rowsModified = this.db.getRowsModified();
+        stmt.free();
+        return rowsModified;
+    }
+
+    executeUpdateWithOptimisticLock(sql, params, nodeId, expectedHash) {
+        const rowsAffected = this.executeUpdate(sql, params);
+        
+        if (rowsAffected === 0) {
+            this.checkOptimisticLockFailure(nodeId, expectedHash);
+        }
+    }
+
     rowToNode(row) {
         const node = new Node(
             row.id,
@@ -109,67 +155,56 @@ class DocmemSQLite {
     }
 
     async insertNode(node) {
-        const stmt = this.db.prepare(`
-            INSERT INTO nodes (id, parent_id, text, order_value, token_count, created_at, updated_at, context_type, context_name, context_value, readonly, hash)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-        stmt.bind([
-            node.id,
-            node.parentId,
-            node.text,
-            node.order,
-            node.tokenCount,
-            node.createdAt,
-            node.updatedAt,
-            node.contextType,
-            node.contextName,
-            node.contextValue,
-            node.readonly !== undefined ? node.readonly : 0,
-            node.hash
-        ]);
-        stmt.step();
-        stmt.free();
+        this.executeUpdate(
+            `INSERT INTO nodes (id, parent_id, text, order_value, token_count, created_at, updated_at, context_type, context_name, context_value, readonly, hash)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                node.id,
+                node.parentId,
+                node.text,
+                node.order,
+                node.tokenCount,
+                node.createdAt,
+                node.updatedAt,
+                node.contextType,
+                node.contextName,
+                node.contextValue,
+                node.readonly !== undefined ? node.readonly : 0,
+                node.hash
+            ]
+        );
     }
 
     getNode(nodeId) {
-        const stmt = this.db.prepare('SELECT * FROM nodes WHERE id = ?');
-        stmt.bind([nodeId]);
-        const result = stmt.step() ? this.rowToNode(stmt.getAsObject()) : null;
-        stmt.free();
-        return result;
+        const row = this.executeSingleRow('SELECT * FROM nodes WHERE id = ?', [nodeId]);
+        if (!row) {
+            return null;
+        }
+        return this.rowToNode(row);
     }
 
     getRootById(rootId) {
-        const stmt = this.db.prepare('SELECT * FROM nodes WHERE id = ? AND parent_id IS NULL');
-        stmt.bind([rootId]);
-        const result = stmt.step() ? this.rowToNode(stmt.getAsObject()) : null;
-        stmt.free();
-        return result;
+        const row = this.executeSingleRow('SELECT * FROM nodes WHERE id = ? AND parent_id IS NULL', [rootId]);
+        if (!row) {
+            return null;
+        }
+        return this.rowToNode(row);
     }
 
     getChildren(parentId) {
-        const stmt = this.db.prepare(`
-            SELECT * FROM nodes
-            WHERE parent_id = ?
-            ORDER BY order_value
-        `);
-        stmt.bind([parentId]);
-        const children = [];
-        while (stmt.step()) {
-            children.push(this.rowToNode(stmt.getAsObject()));
-        }
-        stmt.free();
-        return children;
+        const rows = this.executeMultipleRows(
+            'SELECT * FROM nodes WHERE parent_id = ? ORDER BY order_value',
+            [parentId]
+        );
+        return rows.map(row => this.rowToNode(row));
     }
 
     getAllRoots() {
-        const stmt = this.db.prepare('SELECT * FROM nodes WHERE parent_id IS NULL ORDER BY created_at');
-        const roots = [];
-        while (stmt.step()) {
-            roots.push(this.rowToNode(stmt.getAsObject()));
-        }
-        stmt.free();
-        return roots;
+        const rows = this.executeMultipleRows(
+            'SELECT * FROM nodes WHERE parent_id IS NULL ORDER BY created_at',
+            []
+        );
+        return rows.map(row => this.rowToNode(row));
     }
 
     static getAllRoots() {
@@ -199,28 +234,17 @@ class DocmemSQLite {
     }
 
     deleteNodeById(nodeId) {
-        const stmt = this.db.prepare('DELETE FROM nodes WHERE id = ?');
-        stmt.bind([nodeId]);
-        stmt.step();
-        stmt.free();
+        this.executeUpdate('DELETE FROM nodes WHERE id = ?', [nodeId]);
     }
 
     checkOptimisticLockFailure(nodeId, expectedHash) {
-        const idCheckStmt = this.db.prepare('SELECT COUNT(*) FROM nodes WHERE id = ?');
-        idCheckStmt.bind([nodeId]);
-        idCheckStmt.step();
-        const idCount = idCheckStmt.get()[0];
-        idCheckStmt.free();
+        const idCount = this.executeScalar('SELECT COUNT(*) FROM nodes WHERE id = ?', [nodeId]);
         
         if (idCount === 0) {
             throw new OptimisticLockError(nodeId, 'Another agent deleted the node');
         }
         
-        const hashCheckStmt = this.db.prepare('SELECT COUNT(*) FROM nodes WHERE id = ? AND hash = ?');
-        hashCheckStmt.bind([nodeId, expectedHash]);
-        hashCheckStmt.step();
-        const hashCount = hashCheckStmt.get()[0];
-        hashCheckStmt.free();
+        const hashCount = this.executeScalar('SELECT COUNT(*) FROM nodes WHERE id = ? AND hash = ?', [nodeId, expectedHash]);
         
         if (hashCount === 0) {
             throw new OptimisticLockError(nodeId, 'Another agent changed the node. Review the operation and try again.');
@@ -230,59 +254,39 @@ class DocmemSQLite {
     }
 
     updateNodeContent(node, expectedHash) {
-        const stmt = this.db.prepare(
-            'UPDATE nodes SET text = ?, token_count = ?, updated_at = ?, hash = ? WHERE id = ? AND hash = ?'
+        this.executeUpdateWithOptimisticLock(
+            'UPDATE nodes SET text = ?, token_count = ?, updated_at = ?, hash = ? WHERE id = ? AND hash = ?',
+            [node.text, node.tokenCount, node.updatedAt, node.hash, node.id, expectedHash],
+            node.id,
+            expectedHash
         );
-        stmt.bind([node.text, node.tokenCount, node.updatedAt, node.hash, node.id, expectedHash]);
-        stmt.step();
-        const rowsAffected = this.db.getRowsModified();
-        stmt.free();
-        
-        if (rowsAffected === 0) {
-            this.checkOptimisticLockFailure(node.id, expectedHash);
-        }
     }
 
     updateNodeContext(node, expectedHash) {
-        const stmt = this.db.prepare(
-            'UPDATE nodes SET context_type = ?, context_name = ?, context_value = ?, updated_at = ?, hash = ? WHERE id = ? AND hash = ?'
+        this.executeUpdateWithOptimisticLock(
+            'UPDATE nodes SET context_type = ?, context_name = ?, context_value = ?, updated_at = ?, hash = ? WHERE id = ? AND hash = ?',
+            [node.contextType, node.contextName, node.contextValue, node.updatedAt, node.hash, node.id, expectedHash],
+            node.id,
+            expectedHash
         );
-        stmt.bind([node.contextType, node.contextName, node.contextValue, node.updatedAt, node.hash, node.id, expectedHash]);
-        stmt.step();
-        const rowsAffected = this.db.getRowsModified();
-        stmt.free();
-        
-        if (rowsAffected === 0) {
-            this.checkOptimisticLockFailure(node.id, expectedHash);
-        }
     }
 
     updateNodeParentAndOrder(node, expectedHash) {
-        const stmt = this.db.prepare(
-            'UPDATE nodes SET parent_id = ?, order_value = ?, updated_at = ?, hash = ? WHERE id = ? AND hash = ?'
+        this.executeUpdateWithOptimisticLock(
+            'UPDATE nodes SET parent_id = ?, order_value = ?, updated_at = ?, hash = ? WHERE id = ? AND hash = ?',
+            [node.parentId, node.order, node.updatedAt, node.hash, node.id, expectedHash],
+            node.id,
+            expectedHash
         );
-        stmt.bind([node.parentId, node.order, node.updatedAt, node.hash, node.id, expectedHash]);
-        stmt.step();
-        const rowsAffected = this.db.getRowsModified();
-        stmt.free();
-        
-        if (rowsAffected === 0) {
-            this.checkOptimisticLockFailure(node.id, expectedHash);
-        }
     }
 
     updateNodeParent(nodeId, parentId, hash, updatedAt, expectedHash) {
-        const stmt = this.db.prepare(
-            'UPDATE nodes SET parent_id = ?, hash = ?, updated_at = ? WHERE id = ? AND hash = ?'
+        this.executeUpdateWithOptimisticLock(
+            'UPDATE nodes SET parent_id = ?, hash = ?, updated_at = ? WHERE id = ? AND hash = ?',
+            [parentId, hash, updatedAt, nodeId, expectedHash],
+            nodeId,
+            expectedHash
         );
-        stmt.bind([parentId, hash, updatedAt, nodeId, expectedHash]);
-        stmt.step();
-        const rowsAffected = this.db.getRowsModified();
-        stmt.free();
-        
-        if (rowsAffected === 0) {
-            this.checkOptimisticLockFailure(nodeId, expectedHash);
-        }
     }
 
     close() {
