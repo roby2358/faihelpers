@@ -1,187 +1,438 @@
 # Command Line Parsing Specification
 
-This document defines the requirements for command line argument parsing, designed for implementation with PEGGY (PEG parser generator).
+This document defines the requirements for command line argument parsing, designed for implementation with PEGGY (PEG parser generator). The parser provides bash-compatible argument parsing with extensions for multi-line input support (triple quotes). It handles quoting, escaping, and whitespace splitting while maintaining simplicity by supporting only positional arguments (no flags or options in the current implementation).
+
+**Key Features:**
+- Positional argument parsing
+- Three quote types: single (`'...'`), double (`"..."`), and triple (`"""..."""`)
+- Bash-compatible escaping with limited extensions
+- Multi-line input support
+- Unicode support
+- Structured error reporting
 
 ## Basic Syntax
 
 ### Positional Arguments
-- **MUST** preserve order of positional arguments
+The parser **MUST**:
+- Parse all arguments as positional arguments (no flags or options in current implementation)
+- Preserve the exact order of arguments as provided in the input
+- Return arguments in a sequential array (first argument at index 0)
+- Treat the first argument the same as subsequent arguments (no special command handling)
+
+Examples:
+- `command arg1 arg2 arg3` → `["command", "arg1", "arg2", "arg3"]`
+- `arg1 arg2 arg3` → `["arg1", "arg2", "arg3"]` (no special first element)
+- `"arg 1" "arg 2"` → `["arg 1", "arg 2"]` (order preserved)
 
 ## Quoting and Escaping
 
 ### String Quoting
-- **MUST** support multiline single quotes: `'string with spaces'`
-- **MUST** support multiline double quotes: `"string with spaces"`
-- **MUST** not perform shell expansion, and preserve content within quotes exactly
-- **MUST** remove quote delimiters from final argument values (quotes are delimiters, not content)
-- **MUST** literally preserve quotes within opposite quote type: `"it's fine"` or `'say "hello"'`
-- **MUST** support escaped quotes in double quotes: `"say \"hello\""`
-- **MUST NOT** support escaping within single quotes (single quotes are completely literal in bash)
-  - Example: `'it\'s fine'` is invalid - the backslash is literal, not an escape
-- **MUST** support exactly three double-quote characters (""") for multi-line input
-  - This is an allowed difference from bash
-  - **NOTE:** Triple backticks (```) WILL NOT work for multi-line values
-- **MUST** preserve newlines inside single, double quotes or triple quote (""") blocks, to support multi-line input
-  - This is an allowed difference from bash
-- **MUST NOT** support escaping within triple quote blocks (triple quotes are completely literal)
-  - This is an allowed difference from bash
-- **MUST** literally preserve single and double quotes within triple quote blocks `"""Say'n "hello"""`
-  - This is a difference from bash
-- **MUST** preserve backticks (single or triple) inside triple quote blocks `"""back`tick and ```code``````
-  - This is a difference from bash
-- **MUST NOT** provide for escaped triple quotes
-  - The next sequence of triple quotes is not enclosed, it simply closes the quote
-  - IT **MUST** NOT BE POSSIBLE TO ENCLOSE TRIPLE QUOTES (""") INSIDE TRIPLE QUOTES! This is by design.
-  - This is a difference from bash
-- **MUST** support multiline triple quote blocks: `"""line1 line2"""`
-  - This is a difference from bash
+
+#### Single Quotes (`'...'`)
+The parser **MUST**:
+- Support single quotes for literal string values
+- Preserve all content within single quotes exactly (completely literal)
+- NOT support any escape sequences (all characters literal, including backslashes)
+- Remove the single quote delimiters from the final argument value
+- Preserve newlines within single quotes (multi-line support)
+- Preserve double quotes within single quotes literally: `'say "hello"'` → `say "hello"`
+
+The parser **MUST NOT**:
+- Interpret backslashes as escape characters: `'it\'s'` is invalid (terminates at first `'`)
+- Support quote concatenation: `'a''b'` is two arguments, not one
+
+#### Double Quotes (`"..."`)
+The parser **MUST**:
+- Support double quotes for string values with limited escaping
+- Preserve content within double quotes (with escape processing)
+- Support only these escape sequences: `\"`, `\$`, `` \` ``, `\\`, `\<newline>`
+- Preserve unrecognized escape sequences literally (backslash included): `\n` → `\n`
+- Remove the double quote delimiters from the final argument value
+- Preserve newlines within double quotes (multi-line support)
+- Preserve single quotes within double quotes literally: `"it's fine"` → `it's fine`
+
+The parser **MUST NOT**:
+- Perform shell expansion (no variable substitution, no command substitution)
+- Interpret ANSI-C escape sequences like `\n`, `\t` as special (they remain literal `\n`, `\t`)
+
+#### Triple Quotes (`"""..."""`)
+The parser **MUST**:
+- Support exactly three consecutive double-quote characters as delimiters
+- Preserve all content within triple quotes exactly (completely literal)
+- NOT support any escape sequences (all characters literal, including backslashes)
+- Remove the triple quote delimiters from the final argument value
+- Preserve newlines within triple quotes (multi-line support)
+- Preserve single quotes, double quotes, and backticks literally within triple quotes
+  - Example: `"""Say'n "hello" with `backticks` """` → `Say'n "hello" with `backticks` `
+
+The parser **MUST NOT**:
+- Allow escaping triple quotes within triple quotes
+- Support nesting triple quotes (the next `"""` always closes the block)
+- Interpret any escape sequences (even `\` followed by `"""`)
+
+**Important Notes:**
+- Triple quotes are NOT bash syntax (this is an extension for multi-line input)
+- Triple backticks (` ``` `) have no special meaning (they are literal characters)
+- Only ASCII quote characters are recognized (no Unicode quote variants)
 
 ### Escaping
-- **MUST** support backslash escaping outside quotes: `\X` becomes `X` (backslash removed, character preserved)
-  - `\\` double backslash becomes single backslash `\`, as in bash
-- **MUST** support limited escaping in double quotes: `\"`, `\$`, `` ` ``, `\\`, `\<newline>` only
-  - `\"` becomes `"`
-  - `\$` becomes `$`
-  - `` \` `` becomes `` ` ``
-  - `\\` becomes `\`
-  - `\<newline>` becomes literal newline `\n`
-  - Any other backslash sequence (e.g., `\X`) preserves the backslash: becomes `\X` (literal backslash + character)
-- **MUST** replace `\<newline>` with newline to support multiline inputs
-  - In double quotes: `\<newline>` becomes literal newline character
-  - In unquoted: `\<newline>` becomes literal newline character (will split arguments as whitespace)
-  - This is an allowed difference with bash
-- **MUST NOT** interpret escape sequences like `\n`, `\t`, `\r` in double quotes (they are literal in bash, except `\<newline>` which is special)
-- **MUST NOT** support any escaping in single quotes (single quotes are completely literal)
-- **MUST** preserve backslashes in double quotes that don't form recognized escape sequences (e.g., `\a` becomes `\a`)
-- Note: Bash only interprets `\n`, `\t`, etc. in `$'...'` (ANSI-C quoting), not in regular `"..."` quotes
+
+#### Unquoted Context
+- **MUST** support backslash escaping: `\` followed by any character removes the backslash and preserves the character
+  - `\X` becomes `X` (backslash removed, character `X` preserved)
+  - `\\` becomes `\` (double backslash becomes single backslash)
+  - `\ ` becomes ` ` (escaped space becomes space, doesn't split arguments)
+  - `\<newline>` becomes literal newline character (acts as whitespace, splits arguments)
+
+#### Double Quote Context
+- **MUST** support limited escaping: only `\"`, `\$`, `` \` ``, `\\`, `\<newline>` are recognized escape sequences
+  - `\"` becomes `"` (escaped quote)
+  - `\$` becomes `$` (escaped dollar sign)
+  - `` \` `` becomes `` ` `` (escaped backtick)
+  - `\\` becomes `\` (escaped backslash)
+  - `\<newline>` becomes literal newline character (preserved in string value)
+  - Any other backslash sequence (e.g., `\X`, `\a`, `\n`, `\t`) **MUST** preserve the backslash: becomes `\X`, `\a`, `\n`, `\t` (literal backslash + character)
+- **MUST NOT** interpret escape sequences like `\n`, `\t`, `\r` as special characters (they remain literal `\n`, `\t`, `\r`)
+  - Note: Bash only interprets `\n`, `\t`, etc. in `$'...'` (ANSI-C quoting), not in regular `"..."` quotes
+
+#### Single Quote Context
+- **MUST NOT** support any escaping (single quotes are completely literal)
+- All characters including backslashes are preserved exactly as-is
+- There is no way to include a single quote inside single quotes in this implementation
+
+#### Triple Quote Context
+- **MUST NOT** support any escaping (triple quotes are completely literal)
+- All characters including backslashes, single quotes, and double quotes are preserved exactly as-is
+- There is no way to include triple quotes (""") inside triple quotes
 
 ### Whitespace Handling
-- **MUST** split arguments on whitespace
-- **MUST** treat any amount of whitespace as a single delimiter
-- **MUST** preserve whitespace within quoted strings exactly
-- **MUST** preserve newlines within quoted strings exactly (difference)
-- **MUST** allow optional leading/trailing whitespace around the command (automatically handled by parser)
-- **MUST NOT** include whitespace in argument values (whitespace is a delimiter, not content)
-- **MUST** trim unquoted arguments (leading/trailing whitespace removed from unquoted argument values)
-- Example: `arg1    arg2` → two arguments `arg1` and `arg2` (multiple spaces treated as single delimiter)
+Whitespace characters include: space (` `), tab (`\t`), newline (`\n`), and carriage return (`\r`).
+
+The parser **MUST**:
+- Split arguments on one or more whitespace characters
+- Treat any amount of consecutive whitespace as a single delimiter between arguments
+- Preserve all whitespace (including newlines) within quoted strings exactly
+  - Single quotes: all whitespace preserved literally
+  - Double quotes: all whitespace preserved literally (except `\<newline>` escape sequence)
+  - Triple quotes: all whitespace preserved literally (no escaping)
+- Allow optional leading whitespace before the first argument
+- Allow optional trailing whitespace after the last argument
+- Require at least one whitespace character between adjacent arguments
+- Trim unquoted arguments: remove leading and trailing whitespace from unquoted argument values
+  - If an unquoted argument becomes empty after trimming, it **MUST** be filtered out
+- NOT include whitespace in unquoted argument values (whitespace is a delimiter, not content)
+
+Examples:
+- `arg1    arg2` → `["arg1", "arg2"]` (multiple spaces treated as single delimiter)
+- `  arg1  ` → `["arg1"]` (leading/trailing whitespace removed)
+- `"  arg1  "` → `["  arg1  "]` (whitespace preserved in quotes)
+- `arg1\narg2` → `["arg1", "arg2"]` (unescaped newline splits arguments)
 
 ## Error Handling
 
 ### Invalid Syntax
-- **MUST** detect unterminated quotes: `"unclosed string`
-- **MUST** provide clear error message with position/context
+- **MUST** detect unterminated single quotes: `'unclosed string`
+- **MUST** detect unterminated double quotes: `"unclosed string`
+- **MUST** detect unterminated triple quotes: `"""unclosed string`
+- **MUST** throw `SyntaxError` exception with parse failure information
+- **MUST** provide error location information (line, column) from PEGGY's error reporting
+- **MUST** provide expected tokens in error messages from PEGGY's error reporting
 
 ## Common Patterns
 
 ### Subcommands
-- **MUST** support subcommand pattern: `command subcommand [options] [args]`
-  - treat as a regular positional argument for application logic to handle
+The parser **MUST**:
+- Support subcommand pattern: `command subcommand [args...]`
+- Treat subcommands as regular positional arguments (no special parsing)
+- Leave subcommand interpretation to application logic
+
+The parser does NOT:
+- Distinguish between commands and subcommands
+- Parse different argument structures based on subcommands
+- Provide special handling for subcommand help or validation
+
+Examples:
+- `git commit -m "message"` → `["git", "commit", "-m", "message"]` (all positional)
+- `docker run nginx` → `["docker", "run", "nginx"]` (all positional)
+- Application logic must inspect the positional array to identify subcommands
 
 ## Typing
-- **MUST** handle all positional arguments as strings
+The parser **MUST**:
+- Return all arguments as JavaScript strings (primitive string type)
+- NOT attempt type conversion (numbers remain strings, boolean-like values remain strings)
+- NOT interpret special values like "true", "false", "null", "undefined" (they are strings)
+
+Examples:
+- `command 123` → `["command", "123"]` (number as string)
+- `command true` → `["command", "true"]` (boolean as string)
+- `command null` → `["command", "null"]` (null keyword as string)
 
 ## Edge Cases
 
 ### Special Values
-- **MUST** handle empty quoted arguments: `""` or `''` or `""""""` returns empty string `''` 
-  - Empty strings are filtered out from the final argument array (empty quoted strings do not create array elements)
-- **MUST** filter out empty unquoted arguments (whitespace-only unquoted arguments are removed)
-- **MUST** filter out null, undefined, or empty string values from the final argument array
+
+#### Empty Strings
+The parser **MUST**:
+- Parse empty quoted strings: `""`, `''`, or `""""""` as empty string values
+- Filter out empty string values from the final argument array
+  - Empty quoted strings do NOT create array elements in the result
+- Filter out null and undefined values from the final argument array
+- Filter out whitespace-only unquoted arguments (they are trimmed to empty string, then filtered)
+
+Examples:
+- `command ""` → `["command"]` (empty double quotes filtered out)
+- `command ''` → `["command"]` (empty single quotes filtered out)
+- `command """"""` → `["command"]` (empty triple quotes filtered out)
+- `command "" arg` → `["command", "arg"]` (empty string between arguments filtered out)
+- `command   ` → `["command"]` (trailing whitespace-only argument filtered out)
 
 ### Unicode and Special Characters
-- **MUST** support UTF-8 in argument values
-- **MUST** preserve Unicode characters exactly
-- **SHOULD** handle file paths with spaces and special characters
+The parser **MUST**:
+- Support UTF-8 encoded characters in argument values
+- Preserve Unicode characters exactly as provided in the input
+- Handle multi-byte Unicode characters correctly (e.g., emoji, accented characters)
+- Treat Unicode whitespace characters as literal characters (only ASCII space, tab, newline, carriage return are delimiters)
+
+The parser **SHOULD**:
+- Handle file paths with spaces (via quoting or escaping)
+- Handle file paths with special characters (via quoting or escaping)
+
+Examples:
+- `command "José"` → `["command", "José"]` (accented character preserved)
+- `command "Hello 👋"` → `["command", "Hello 👋"]` (emoji preserved)
+- `command "文字"` → `["command", "文字"]` (CJK characters preserved)
+- `command "/path/with\ spaces/file.txt"` → `["command", "/path/with spaces/file.txt"]` (escaped space in path)
 
 ## Output Format
 
 ### Parsed Result Structure
-- **MUST** return a simple array of strings (positional arguments in order)
-- **MUST** filter out empty arguments (null, undefined, or empty strings are excluded from the array)
-- **MUST** handle all arguments as strings
-- **MUST** preserve argument order
-- Example: `"cmd arg1  arg2"` → `["cmd", "arg1", "arg2"]`
+The `parse()` function **MUST**:
+- Return a JavaScript array of strings (positional arguments in order)
+- Filter out empty arguments (null, undefined, or empty strings excluded from array)
+- Return all arguments as primitive string type
+- Preserve the order of arguments exactly as provided
+- Return an empty array `[]` for input containing only whitespace or empty strings
+- Return an empty array `[]` for empty string input `""`
+
+The result array:
+- Has numeric indices starting at 0
+- Contains only non-empty string values
+- Preserves whitespace within string values (from quoted arguments)
+- Does NOT contain the quote delimiters (quotes are removed)
+- Does NOT contain escape backslashes (backslashes are processed)
+
+Examples:
+- `"cmd arg1  arg2"` → `["cmd", "arg1", "arg2"]`
+- `""` → `[]` (empty input)
+- `"  "` → `[]` (whitespace only)
+- `"cmd '' arg"` → `["cmd", "arg"]` (empty quotes filtered)
+- `"cmd 'a' 'b' 'c'"` → `["cmd", "a", "b", "c"]`
 
 ### API
-- The parser exports a `parse(input)` function that takes a string and returns an array of argument strings
-- The parser exports a `SyntaxError` class for error handling
-- Usage: `import { parse, SyntaxError } from './command_parser.js'`
+The generated parser **MUST**:
+- Export a `parse(input)` function that takes a command string and returns an array of argument strings
+- Throw PEGGY's `SyntaxError` class on parse failures with structured error information including:
+  - `message`: Human-readable error description
+  - `location`: Object with line and column information (`start` and `end` positions)
+  - `expected`: Array of expected tokens at the error position
+  - `found`: The actual text found at the error position
+- Accept multi-line input strings (newlines within quoted strings are preserved)
+- Return an empty array `[]` for input that contains only whitespace or empty strings
 
 ## PEGGY-Specific Considerations
 
 ### Grammar Structure
-- **MUST** define grammar rules for:
+The implementation **MUST** define grammar rules for:
   - `command`: top-level entry point (returns array of argument strings)
   - `argument`: unquoted or quoted string (single, double, or triple quote blocks)
   - `quoted_triple_quote`: triple quote blocks (""") with literal content
+    - `triple_quote_content`: content within triple quotes
+    - `triple_quote_char`: any character that's not three consecutive double quotes
   - `quoted_single`: single quotes with literal content (no escaping)
+    - `single_quote_content`: content within single quotes
+    - `single_quote_char`: any character except single quote
   - `quoted_double`: double quotes with limited escaping
+    - `double_quote_content`: content within double quotes
+    - `double_quote_char`: characters with escape sequence handling
   - `unquoted`: unquoted argument with backslash escaping and trimming
-- **MUST** use semantic actions to filter empty arguments and build result array
-- **MUST** handle whitespace explicitly in grammar (optional leading/trailing, required between arguments)
+    - `unquoted_char`: characters with backslash escape handling
+  - `whitespace`: one or more whitespace characters (space, tab, newline, carriage return)
 
-### Error Reporting
-- **MUST** leverage PEGGY's built-in error reporting (throws `SyntaxError`)
-- **MUST** provide line/column information for syntax errors
-- **MUST** include expected tokens in error messages
-- Errors are thrown as exceptions that can be caught and presented to users/LLMs
+The implementation **MUST**:
+- Use semantic actions to filter empty arguments (null, undefined, empty string) and build result array
+- Handle whitespace explicitly in grammar (optional leading/trailing, required between arguments)
+- Return null for empty unquoted arguments after trimming (which are then filtered out)
+
+### Error Reporting (PEGGY-Specific)
+The PEGGY-generated parser **MUST**:
+- Leverage PEGGY's built-in error reporting (automatically generated)
+- Throw `SyntaxError` exceptions on parse failures
+- Provide structured error information including:
+  - Line and column numbers (1-indexed)
+  - Expected tokens at the error position
+  - Found text at the error position
+- Allow errors to be caught and handled by the calling application
+- Support error presentation to users or LLMs (structured error objects)
 
 ### Performance
-- **SHOULD** parse in single pass (PEG allows this)
-- **SHOULD** avoid backtracking where possible
-- **SHOULD** handle large argument lists efficiently
-- **MUST** support multi-line commands (different)
+The parser **SHOULD**:
+- Parse input in a single pass (PEG parsing allows this)
+- Minimize backtracking by ordering grammar rules appropriately:
+  - Triple quotes checked first (longest delimiter)
+  - Single quotes checked second
+  - Double quotes checked third
+  - Unquoted checked last (fallback)
+- Handle large argument lists efficiently (linear time complexity)
+- Handle large string values efficiently (no unnecessary copying)
+
+The parser **MUST**:
+- Support multi-line commands (newlines within quoted strings preserved)
+- Complete parsing in reasonable time for typical command lengths (< 1000 characters)
+- Not have exponential time complexity for any input patterns
 
 ## Testing Requirements
 
 ### Test Cases
-- **MUST** test all MUST requirements
-- **SHOULD** test all SHOULD requirements
-- **SHOULD** include edge cases from Edge Cases section
-- **SHOULD** test error cases from Error Handling section
+Test suites **MUST**:
+- Test all MUST requirements from this specification
+- Cover all quoting types (single, double, triple)
+- Cover all escape sequences (unquoted and double quote contexts)
+- Cover empty string handling (quoted and unquoted)
+- Cover whitespace handling (splitting, trimming, preservation)
+- Cover multi-line inputs (newlines within quotes)
+- Cover Unicode and special characters
+- Test error cases (unterminated quotes, invalid syntax)
+
+Test suites **SHOULD**:
+- Test all SHOULD requirements from this specification
+- Include edge cases from the Edge Cases section
+- Test boundary conditions (empty input, very long strings)
+- Test combinations of quoting types in single command
+- Test performance with large inputs (stress testing)
+- Provide clear test descriptions and expected outcomes
+
+Test format **SHOULD**:
+- Use input/output pairs with clear expected results
+- Group tests by feature category (quoting, escaping, whitespace, etc.)
+- Include both positive tests (valid input) and negative tests (error cases)
+- Provide test names that describe what is being tested
 
 ### Example Test Cases
 - Basic: `command arg1 arg2` → `["command", "arg1", "arg2"]`
 - Quoted: `command "path with spaces" 'another path'` → `["command", "path with spaces", "another path"]`
 - Escaped in double quotes: `command "say \"hello\""` → `["command", "say \"hello\""]`
-- Single quotes (no escaping): `command 'it'\''s fine'` → `["command", "it's fine"]` (if bash-style quote concatenation is used)
-- Single quotes (no escaping): `command "it's fine"` → `["command", "it's fine"]`
+- Single quotes preserve quotes inside doubles: `command "it's fine"` → `["command", "it's fine"]`
+- Double quotes preserve quotes inside singles: `command 'say "hello"'` → `["command", "say \"hello\""]`
+- Triple quotes preserve everything: `command """it's "fine" here"""` → `["command", "it's \"fine\" here"]`
 - Empty quoted: `command ""` → `["command"]` (empty string filtered out)
+- Empty triple quoted: `command """"""` → `["command"]` (empty string filtered out)
 - Unicode: `command "José"` → `["command", "José"]`
 - Backslash outside quotes: `command /path/to\ file` → `["command", "/path/to file"]`
+- Double backslash outside quotes: `command path\\file` → `["command", "path\file"]`
 - Literal escape sequences: `command "line1\nline2"` → `["command", "line1\\nline2"]` (literal backslash-n, not newline)
-- Backslash-newline in double quotes: `command "line1\<newline>line2"` → `["command", "line1\nline2"]` (becomes actual newline)
-- Backslash-newline unquoted: `command arg1\<newline>arg2` → `["command", "arg1", "arg2"]` (newline splits arguments)
+- Backslash-newline in double quotes: `command "line1\<actual newline>line2"` → `["command", "line1\nline2"]` (becomes actual newline)
+- Backslash-newline unquoted: `command arg1\<actual newline>arg2` → `["command", "arg1", "arg2"]` (newline splits arguments)
 - Unquoted trimming: `command  arg1  ` → `["command", "arg1"]` (leading/trailing whitespace trimmed from unquoted args)
+- Multiline single quote: `command 'line1<newline>line2'` → `["command", "line1\nline2"]` (newlines preserved)
+- Multiline double quote: `command "line1<newline>line2"` → `["command", "line1\nline2"]` (newlines preserved)
+- Multiline triple quote: `command """line1<newline>line2"""` → `["command", "line1\nline2"]` (newlines preserved)
 
 ## Implementation Notes
 
 ### Preprocessing
-- **SHOULD** normalize line endings if reading from file
-- **NOTE**: Triple quote quoting (""" for multi-line content) is NOT bash behavior. This is documented as a non-bash extension for multi-line content support.
-- **IMPORTANT**: Triple backticks (```) WILL NOT work for multi-line values. Use triple quotes (""") instead.
+Applications using this parser **SHOULD**:
+- Accept input strings as-is without preprocessing
+- Optionally normalize line endings before parsing if reading from files with mixed line endings
+- NOT attempt to preprocess escape sequences (the parser handles all escaping)
+
+**Important Notes:**
+- Triple quote quoting (`"""..."""` for multi-line content) is NOT standard bash behavior
+  - This is an intentional extension for multi-line content support
+  - Bash does not have a triple-quote syntax
+- Triple backticks (` ``` `) do NOT work for multi-line values
+  - Use triple quotes (`"""..."""`) instead
+  - Backticks have no special meaning in this parser (they are literal characters)
+- The parser handles raw input strings directly (no shell expansion, no variable substitution)
+
+### Differences from Bash
+This parser intentionally differs from bash in several ways:
+
+**Extensions (features not in bash):**
+- Triple quote syntax (`"""..."""`) for multi-line literal strings
+- Preserves newlines within all quote types (bash may handle differently in some contexts)
+
+**Simplifications (bash features not implemented):**
+- No shell expansion (variables like `$VAR`, command substitution like `$(cmd)`, etc.)
+- No brace expansion (`{a,b,c}`)
+- No tilde expansion (`~/path`)
+- No glob patterns (`*.txt`)
+- No ANSI-C quoting (`$'...'` with `\n`, `\t`, etc.)
+- No quote concatenation (`'a'b'c'` → `abc`)
+- No history expansion (`!123`)
+- Backslash-newline in unquoted context becomes literal newline (bash removes it as line continuation)
+
+**Identical to bash:**
+- Single quote behavior (completely literal, no escaping)
+- Double quote behavior (limited escaping: `\"`, `\$`, `` \` ``, `\\`, `\<newline>`)
+- Unquoted backslash escaping (removes backslash, preserves next character)
+- Whitespace argument splitting
+- Empty argument filtering
 
 ### Current Implementation Status
-- **IMPLEMENTED**: Positional arguments only (no flags/options)
-- **IMPLEMENTED**: Single, double, and triple quote (""") quoting
-- **IMPLEMENTED**: Backslash escaping in double quotes and unquoted
-- **IMPLEMENTED**: Empty argument filtering
-- **IMPLEMENTED**: Unquoted argument trimming
-- **NOT IMPLEMENTED**: Flags, options, help system (see Future Implementation section)
+The current implementation includes:
+- ✅ **IMPLEMENTED**: Positional arguments only (no flags/options)
+- ✅ **IMPLEMENTED**: Single quotes (`'...'`) with completely literal content (no escaping)
+- ✅ **IMPLEMENTED**: Double quotes (`"..."`) with limited escaping (`\"`, `\$`, `` \` ``, `\\`, `\<newline>`)
+- ✅ **IMPLEMENTED**: Triple quotes (`"""..."""`) with completely literal content (no escaping)
+- ✅ **IMPLEMENTED**: Backslash escaping in unquoted context (all characters)
+- ✅ **IMPLEMENTED**: Backslash escaping in double quotes (limited set)
+- ✅ **IMPLEMENTED**: Empty argument filtering (null, undefined, empty string)
+- ✅ **IMPLEMENTED**: Unquoted argument trimming (leading/trailing whitespace removed)
+- ✅ **IMPLEMENTED**: Multiline support within quoted strings (newlines preserved)
+- ✅ **IMPLEMENTED**: Whitespace argument splitting (space, tab, newline, carriage return)
+- ❌ **NOT IMPLEMENTED**: Flags/options parsing (see Future Implementation section)
+- ❌ **NOT IMPLEMENTED**: Built-in help system (see Future Implementation section)
+- ❌ **NOT IMPLEMENTED**: Quote concatenation (bash allows `'a'b'c'` → `abc`, this parser doesn't)
 
 ### Error Reporting
-- **MUST** throw `SyntaxError` exception on parse failures
-- **MUST** provide error location information (line, column)
-- **MUST** provide expected tokens in error messages
-- The parser uses PEG.js/Peggy error reporting which provides structured error information
+The parser **MUST**:
+- Throw PEGGY's `SyntaxError` exception class on parse failures
+- Provide structured error information in the exception object with:
+  - `message`: Human-readable error description
+  - `location`: Object containing:
+    - `start`: Object with `line`, `column`, and `offset` of error start position
+    - `end`: Object with `line`, `column`, and `offset` of error end position
+  - `expected`: Array of expected token descriptions at the error position
+  - `found`: String describing the actual text found at the error position (or null if end of input)
+- Use PEGGY's built-in error reporting (automatically generated)
+- Provide line and column numbers starting from 1 (not 0-indexed)
+
+**Common Error Scenarios:**
+- Unterminated single quote: throws error at end of input or closing delimiter
+- Unterminated double quote: throws error at end of input or closing delimiter
+- Unterminated triple quote: throws error at end of input (expecting `"""`)
+- Unexpected characters: typically won't error, parsed as unquoted arguments
 
 # Implementation Notes
 
 ### Backslash-Newline Handling
-- Backslash-newline (`\<newline>`) is converted to a literal newline character
-  - In double quotes: preserved as literal newline in the string value
-  - In unquoted: becomes literal newline which acts as whitespace delimiter (splits arguments)
-  - This differs from bash where backslash-newline outside quotes is a line continuation (removed during parsing)
+The parser **MUST** convert backslash-newline (`\` followed by actual newline character) to a literal newline character:
+
+**In Double Quotes:**
+- `\<newline>` **MUST** become a literal newline character (`\n`)
+- The newline **MUST** be preserved as part of the string value
+- Example: `"line1\<actual newline>line2"` → `"line1\nline2"` (actual newline in the string)
+
+**In Unquoted Context:**
+- `\<newline>` **MUST** become a literal newline character
+- The newline **MUST** act as whitespace (argument delimiter)
+- This **MUST** split the argument at that position
+- Example: `arg1\<actual newline>arg2` → `["arg1", "arg2"]` (two separate arguments)
+
+**Difference from Bash:**
+- Bash treats backslash-newline outside quotes as line continuation (the backslash and newline are removed entirely)
+- This parser treats it as a literal newline character (whitespace delimiter)
+- This is an intentional difference to support multi-line input
 
 # Future implementation
 
