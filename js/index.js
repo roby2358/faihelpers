@@ -842,6 +842,7 @@ function initPersist() {
     const textFileInput = document.getElementById('persist-text-file-input');
     const uploadParagraphBtn = document.getElementById('persist-upload-paragraph-btn');
     const paragraphFileInput = document.getElementById('persist-paragraph-file-input');
+    const removeBtn = document.getElementById('persist-remove-btn');
 
     if (saveBtn) {
         saveBtn.addEventListener('click', () => handlePersistSave());
@@ -881,6 +882,10 @@ function initPersist() {
 
     if (paragraphFileInput) {
         paragraphFileInput.addEventListener('change', (e) => handleParagraphFileUpload(e, paragraphFileInput));
+    }
+
+    if (removeBtn) {
+        removeBtn.addEventListener('click', () => handlePersistRemove());
     }
 }
 
@@ -984,6 +989,37 @@ async function handleParagraphFileUpload(event, fileInput) {
     }
 }
 
+async function handlePersistRemove() {
+    if (!selectedPersistRootId) {
+        showMessage('No docmem selected to remove', 'error');
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to remove docmem "${selectedPersistRootId}"? This will permanently delete it and all its content.`)) {
+        return;
+    }
+
+    try {
+        const docmem = new Docmem(selectedPersistRootId);
+        await docmem.ready();
+        
+        docmem.delete(selectedPersistRootId);
+        
+        if (currentDocmem && currentDocmem.docmemId === selectedPersistRootId) {
+            currentDocmem = null;
+        }
+        
+        selectedPersistRootId = null;
+        
+        showMessage('Docmem removed successfully', 'success');
+        renderPersist();
+        renderDocmem();
+    } catch (error) {
+        console.error('Error removing docmem:', error);
+        showMessage('Error removing docmem: ' + error.message, 'error');
+    }
+}
+
 function renderPersist() {
     const rootsBar = document.getElementById('persist-roots-bar');
     
@@ -996,6 +1032,7 @@ function renderPersist() {
         
         if (roots.length === 0) {
             rootsBar.innerHTML = '<div class="persist-no-roots">No root nodes found</div>';
+            selectedPersistRootId = null;
             return;
         }
         
