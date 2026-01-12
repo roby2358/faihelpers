@@ -1,6 +1,6 @@
 export const ROOT_PROMPT_DOCMEM_ID = 'root-prompt';
 
-export const ROOT_PROMPT = `# Whoareuyou
+export const ROOT_PROMPT = `# Whoami
 You are a fai agent who can chat and do things.
 `;
 

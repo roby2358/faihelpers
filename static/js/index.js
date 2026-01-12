@@ -682,19 +682,15 @@ async function renderViewSerialized(rootId) {
         await docmem.ready();
         
         // Serialize in preorder traversal
-        const nodes = docmem.getNodes(rootId);
+        const serializedContent = docmem.serialize(rootId);
         
-        if (nodes.length === 0) {
+        if (!serializedContent || serializedContent.length === 0) {
             contentPanel.innerHTML = '<div class="view-no-content">No content to display</div>';
             return;
         }
         
-        // Concatenate content: trim each node's text and join with \n\n
-        const serializedContent = nodes
-            .map(node => (node.text || '').trim())
-            .join('\n\n');
-        
         // Calculate total tokens
+        const nodes = docmem.getNodes(rootId);
         const totalTokens = nodes.reduce((sum, node) => sum + (node.tokenCount || 0), 0);
         
         // Use a pre element to preserve formatting and display as plain text
@@ -719,54 +715,23 @@ async function renderViewStructure(rootId) {
         const docmem = new Docmem(rootId);
         await docmem.ready();
         
-        // Get structure (nodes without text content)
-        const structure = docmem.structure(rootId);
+        // Use the structure method which now returns markdown tree format
+        const structureContent = docmem.structure(rootId);
         
-        if (structure.length === 0) {
+        if (!structureContent || structureContent.length === 0) {
             contentPanel.innerHTML = '<div class="view-no-content">No structure to display</div>';
             return;
         }
         
-        // Build node map for quick lookup
-        const nodeMap = new Map();
-        structure.forEach(node => nodeMap.set(node.id, node));
-        
-        // Calculate depth for each node with memoization
-        const depthMap = new Map();
-        const getDepth = (nodeId) => {
-            if (depthMap.has(nodeId)) {
-                return depthMap.get(nodeId);
-            }
-            if (nodeId === rootId || !nodeId) {
-                depthMap.set(nodeId, 0);
-                return 0;
-            }
-            const node = nodeMap.get(nodeId);
-            if (!node || !node.parentId) {
-                depthMap.set(nodeId, 0);
-                return 0;
-            }
-            const depth = 1 + getDepth(node.parentId);
-            depthMap.set(nodeId, depth);
-            return depth;
-        };
-        
-        // Format each node like expand format: id contextType contextName:contextValue createdAt
-        const textContent = structure.map(node => {
-            const depth = getDepth(node.id);
-            const indent = '  '.repeat(depth);
-            const header = `${node.id} ${node.contextType} ${node.contextName}:${node.contextValue} ${node.createdAt}`;
-            return `${indent}${header}`;
-        }).join('\n');
-        
-        // Calculate total tokens
-        const totalTokens = structure.reduce((sum, node) => sum + (node.tokenCount || 0), 0);
+        // Calculate total tokens and node count
+        const nodes = docmem.getNodes(rootId);
+        const totalTokens = nodes.reduce((sum, node) => sum + (node.tokenCount || 0), 0);
         
         // Use a pre element to preserve formatting and display as plain text
         const pre = document.createElement('pre');
         pre.className = 'view-serialized-text';
-        pre.textContent = textContent;
-        contentPanel.innerHTML = `<div class="view-stats">${structure.length} nodes, ${totalTokens} tokens (structure)</div>`;
+        pre.textContent = structureContent;
+        contentPanel.innerHTML = `<div class="view-stats">${nodes.length} nodes, ${totalTokens} tokens (structure)</div>`;
         contentPanel.appendChild(pre);
     } catch (error) {
         contentPanel.innerHTML = `<div class="view-error">Error getting structure: ${escapeHtml(error.message)}</div>`;

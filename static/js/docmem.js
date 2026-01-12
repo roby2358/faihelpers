@@ -567,27 +567,18 @@ class Docmem {
         }
         const result = [];
         const startNode = this.requireNode(nodeId);
-        this.structureRecursive(startNode, result);
-        return result;
+        this.structureRecursive(startNode, result, 0);
+        return result.join('\n');
     }
 
-    structureRecursive(node, result) {
-        // Return structure without text content
-        result.push({
-            id: node.id,
-            parentId: node.parentId,
-            order: node.order,
-            tokenCount: node.tokenCount,
-            createdAt: node.createdAt,
-            updatedAt: node.updatedAt,
-            contextType: node.contextType,
-            contextName: node.contextName,
-            contextValue: node.contextValue,
-            readonly: node.readonly
-        });
+    structureRecursive(node, result, depth) {
+        const indent = '  '.repeat(depth);
+        const line = `${indent}- ${node.id} ${node.contextType} ${node.contextName}:${node.contextValue} ${node.createdAt}`;
+        result.push(line);
+        
         const sortedChildren = this.getSortedChildren(node.id);
         for (const child of sortedChildren) {
-            this.structureRecursive(child, result);
+            this.structureRecursive(child, result, depth + 1);
         }
     }
 
