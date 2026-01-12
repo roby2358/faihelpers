@@ -32,7 +32,8 @@ Docmems are durable. They can be shared across conversations.
 ### Content
 - Content is the actual text stored in the node
 - Content MAY be empty (use "" or '' for empty content)
-- For multi-line content, use triple backticks (\`\`\` \`\`\`)
+- For multi-line content, use triple quotes (""" """)
+- **IMPORTANT:** Triple backticks (\`\`\` \`\`\`) WILL NOT work for multi-line content
 
 ### Docmem Instance
 - Most commands require an active docmem instance (a docmem root must be created or loaded first)

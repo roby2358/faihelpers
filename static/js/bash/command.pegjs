@@ -1,6 +1,6 @@
 {
   // PEG grammar for command-line argument parsing
-  // Implements bash-compatible parsing with extensions for triple backticks
+  // Implements bash-compatible parsing with extensions for triple quotes
   
   // Export CommandParser class wrapper for ES modules
   // This code is included in the generated parser file
@@ -15,20 +15,20 @@ command
     }
 
 argument
-  = quoted_triple_backtick
+  = quoted_triple_quote
   / quoted_single
   / quoted_double
   / unquoted
 
-// Triple backtick quotes (exactly three backticks, no escaping, closes on next three)
-quoted_triple_backtick
-  = "```" content:triple_backtick_content? "```" { return content || ''; }
+// Triple quote quotes (exactly three double quotes, no escaping, closes on next three)
+quoted_triple_quote
+  = '"""' content:triple_quote_content? '"""' { return content || ''; }
 
-triple_backtick_content
-  = chars:triple_backtick_char* { return chars.join(''); }
+triple_quote_content
+  = chars:triple_quote_char* { return chars.join(''); }
 
-triple_backtick_char
-  = !"```" char:. { return char; } // Any character that's not three backticks
+triple_quote_char
+  = !'"""' char:. { return char; } // Any character that's not three double quotes
 
 // Single quotes (completely literal, no escaping whatsoever)
 quoted_single

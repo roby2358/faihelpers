@@ -11,7 +11,9 @@ ls -lA
 
 A reply can have multiple # Run blocks, but only one command per # Run block.
 
-Arguments are space separated, and can be enclosed in quotes (" "), single quotes (' '), or triple backticks for multi-line inputs (\`\`\` \`\`\`).
+Arguments are space separated, and can be enclosed in quotes (" "), single quotes (' '), or triple quotes for multi-line inputs (""" """).
+
+**IMPORTANT:** Triple backticks (\`\`\` \`\`\`) WILL NOT work for multi-line values. Use triple quotes (""" """) instead.
 
 # CRITICAL EXECUTION RULE: Sequential Dependencies
 

@@ -18,21 +18,22 @@ This document defines the requirements for command line argument parsing, design
 - **MUST** support escaped quotes in double quotes: `"say \"hello\""`
 - **MUST NOT** support escaping within single quotes (single quotes are completely literal in bash)
   - Example: `'it\'s fine'` is invalid - the backslash is literal, not an escape
-- **MUST** support exactly three backtick quotes for multi-line input
+- **MUST** support exactly three double-quote characters (""") for multi-line input
   - This is an allowed difference from bash
-- **MUST** preserve newlines inside single, double quotes or triple backtick quotes, to support multi-line input
+  - **NOTE:** Triple backticks (```) WILL NOT work for multi-line values
+- **MUST** preserve newlines inside single, double quotes or triple quote (""") blocks, to support multi-line input
   - This is an allowed difference from bash
-- **MUST NOT** support escaping within triple backtick quotes (triple backtick quotes are completely literal)
+- **MUST NOT** support escaping within triple quote blocks (triple quotes are completely literal)
   - This is an allowed difference from bash
-- **MUST** literally preserve single and double quotes within triple backtick quotes ` ```Say'n "hello"``` `
+- **MUST** literally preserve single and double quotes within triple quote blocks `"""Say'n "hello"""`
   - This is a difference from bash
-- **MUST** preserve single or double backticks inside triple backtick quotes ` ```back`tick``` `
+- **MUST** preserve backticks (single or triple) inside triple quote blocks `"""back`tick and ```code``````
   - This is a difference from bash
-- **MUST NOT** provide for escaped triple backticks
-  - The next sequence of triple backticks is not enclosed, it simply closes the quote
-  - IT **MUST** NOT BE POSSIBLE TO ENCLOSE TRIPLE BACKTICKS INSIDE TRIPLE BACKTICKS! COME ON!
+- **MUST NOT** provide for escaped triple quotes
+  - The next sequence of triple quotes is not enclosed, it simply closes the quote
+  - IT **MUST** NOT BE POSSIBLE TO ENCLOSE TRIPLE QUOTES (""") INSIDE TRIPLE QUOTES! This is by design.
   - This is a difference from bash
-- **MUST** support multiline triple backtick quotes: ` ```line1 line2``` `
+- **MUST** support multiline triple quote blocks: `"""line1 line2"""`
   - This is a difference from bash
 
 ### Escaping
@@ -82,7 +83,7 @@ This document defines the requirements for command line argument parsing, design
 ## Edge Cases
 
 ### Special Values
-- **MUST** handle empty quoted arguments: `""` or `''` or ` `````` ` returns empty string `''` 
+- **MUST** handle empty quoted arguments: `""` or `''` or `""""""` returns empty string `''` 
   - Empty strings are filtered out from the final argument array (empty quoted strings do not create array elements)
 - **MUST** filter out empty unquoted arguments (whitespace-only unquoted arguments are removed)
 - **MUST** filter out null, undefined, or empty string values from the final argument array
@@ -111,8 +112,8 @@ This document defines the requirements for command line argument parsing, design
 ### Grammar Structure
 - **MUST** define grammar rules for:
   - `command`: top-level entry point (returns array of argument strings)
-  - `argument`: unquoted or quoted string (single, double, or triple backtick quotes)
-  - `quoted_triple_backtick`: triple backtick quotes with literal content
+  - `argument`: unquoted or quoted string (single, double, or triple quote blocks)
+  - `quoted_triple_quote`: triple quote blocks (""") with literal content
   - `quoted_single`: single quotes with literal content (no escaping)
   - `quoted_double`: double quotes with limited escaping
   - `unquoted`: unquoted argument with backslash escaping and trimming
@@ -157,11 +158,12 @@ This document defines the requirements for command line argument parsing, design
 
 ### Preprocessing
 - **SHOULD** normalize line endings if reading from file
-- **NOTE**: Triple backtick quoting (``` for multi-line content) is NOT bash behavior - bash uses backticks for command substitution. This is documented as a non-bash extension for multi-line content support.
+- **NOTE**: Triple quote quoting (""" for multi-line content) is NOT bash behavior. This is documented as a non-bash extension for multi-line content support.
+- **IMPORTANT**: Triple backticks (```) WILL NOT work for multi-line values. Use triple quotes (""") instead.
 
 ### Current Implementation Status
 - **IMPLEMENTED**: Positional arguments only (no flags/options)
-- **IMPLEMENTED**: Single, double, and triple backtick quoting
+- **IMPLEMENTED**: Single, double, and triple quote (""") quoting
 - **IMPLEMENTED**: Backslash escaping in double quotes and unquoted
 - **IMPLEMENTED**: Empty argument filtering
 - **IMPLEMENTED**: Unquoted argument trimming

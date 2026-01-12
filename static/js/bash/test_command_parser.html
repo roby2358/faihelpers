@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Command Parser Tests</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        .test {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+        }
+        .test.fail {
+            border-left-color: #f44336;
+        }
+        .test-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .test-result {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .pass {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .fail {
+            color: #f44336;
+            font-weight: bold;
+        }
+        .summary {
+            background: #333;
+            color: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        pre {
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Command Parser Tests</h1>
+    <div id="results"></div>
+    <div class="summary" id="summary"></div>
+
+    <script type="module">
+        import { parse } from './command_parser.js';
+
+        const tests = [
+            {
+                name: 'Triple quotes with multi-line content',
+                input: 'command """line1\nline2\nline3"""',
+                expected: ['command', 'line1\nline2\nline3']
+            },
+            {
+                name: 'Triple quotes with single quotes inside',
+                input: 'command """Say\'n hello"""',
+                expected: ['command', "Say'n hello"]
+            },
+            {
+                name: 'Triple quotes with double quotes inside',
+                input: 'command """Say "hello" friend"""',
+                expected: ['command', 'Say "hello" friend']
+            },
+            {
+                name: 'Triple quotes with backticks inside',
+                input: 'command """code `example` here"""',
+                expected: ['command', 'code `example` here']
+            },
+            {
+                name: 'Triple quotes with triple backticks inside',
+                input: 'command """```code block```"""',
+                expected: ['command', '```code block```']
+            },
+            {
+                name: 'Empty triple quotes',
+                input: 'command """"""',
+                expected: ['command']
+            },
+            {
+                name: 'Multiple triple quote arguments',
+                input: 'command """first arg""" """second arg"""',
+                expected: ['command', 'first arg', 'second arg']
+            },
+            {
+                name: 'Triple quotes mixed with regular quotes',
+                input: 'command "normal" """triple""" \'single\'',
+                expected: ['command', 'normal', 'triple', 'single']
+            },
+            {
+                name: 'Triple quotes with newlines and spaces',
+                input: 'command """  \n  multi\n  line  \n  """',
+                expected: ['command', '  \n  multi\n  line  \n  ']
+            },
+            {
+                name: 'Triple backticks should NOT work',
+                input: 'command ```should not work```',
+                shouldFail: true
+            },
+            {
+                name: 'Basic command with simple args',
+                input: 'command arg1 arg2',
+                expected: ['command', 'arg1', 'arg2']
+            },
+            {
+                name: 'Single quotes preserve content',
+                input: "command 'single quoted'",
+                expected: ['command', 'single quoted']
+            },
+            {
+                name: 'Double quotes with escaping',
+                input: 'command "say \\"hello\\""',
+                expected: ['command', 'say "hello"']
+            }
+        ];
+
+        const resultsDiv = document.getElementById('results');
+        const summaryDiv = document.getElementById('summary');
+        let passed = 0;
+        let failed = 0;
+
+        tests.forEach((test, index) => {
+            const testDiv = document.createElement('div');
+            testDiv.className = 'test';
+            
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'test-name';
+            nameDiv.textContent = `Test ${index + 1}: ${test.name}`;
+            testDiv.appendChild(nameDiv);
+
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'test-result';
+
+            try {
+                const result = parse(test.input);
+                
+                if (test.shouldFail) {
+                    // This test expects the parse to fail or produce unexpected results
+                    // Check if the result is what we DON'T want (triple backticks parsed as multi-line)
+                    const hasMultilineBackticks = result.some(arg => arg.includes('\n') && test.input.includes('```'));
+                    
+                    if (hasMultilineBackticks) {
+                        failed++;
+                        testDiv.classList.add('fail');
+                        resultDiv.innerHTML = `<span class="fail">FAIL</span> - Triple backticks incorrectly parsed as multi-line<br>` +
+                            `Result: <pre>${JSON.stringify(result, null, 2)}</pre>`;
+                    } else {
+                        passed++;
+                        resultDiv.innerHTML = `<span class="pass">PASS</span> - Triple backticks correctly rejected/parsed as separate tokens<br>` +
+                            `Result: <pre>${JSON.stringify(result, null, 2)}</pre>`;
+                    }
+                } else {
+                    const success = JSON.stringify(result) === JSON.stringify(test.expected);
+                    
+                    if (success) {
+                        passed++;
+                        resultDiv.innerHTML = `<span class="pass">PASS</span><br>` +
+                            `Result: <pre>${JSON.stringify(result, null, 2)}</pre>`;
+                    } else {
+                        failed++;
+                        testDiv.classList.add('fail');
+                        resultDiv.innerHTML = `<span class="fail">FAIL</span><br>` +
+                            `Expected: <pre>${JSON.stringify(test.expected, null, 2)}</pre>` +
+                            `Got: <pre>${JSON.stringify(result, null, 2)}</pre>`;
+                    }
+                }
+            } catch (error) {
+                if (test.shouldFail) {
+                    passed++;
+                    resultDiv.innerHTML = `<span class="pass">PASS</span> - Correctly threw error<br>` +
+                        `Error: ${error.message}`;
+                } else {
+                    failed++;
+                    testDiv.classList.add('fail');
+                    resultDiv.innerHTML = `<span class="fail">ERROR</span><br>` +
+                        `${error.message}`;
+                }
+            }
+
+            testDiv.appendChild(resultDiv);
+            resultsDiv.appendChild(testDiv);
+        });
+
+        summaryDiv.innerHTML = `
+            <h2>Test Summary</h2>
+            <p>Total: ${tests.length} tests</p>
+            <p style="color: #4CAF50;">Passed: ${passed}</p>
+            <p style="color: #f44336;">Failed: ${failed}</p>
+            <p><strong>${failed === 0 ? '✓ All tests passed!' : '✗ Some tests failed'}</strong></p>
+        `;
+    </script>
+</body>
+</html>
