@@ -12,75 +12,99 @@ export class OpenRouterAPI {
     }
 
     /**
-     * Call the chat completion API
+     * Build request headers for API call
      */
-    async chat(messages, options = {}) {
-        if (!this.apiKey || this.apiKey.trim() === '') {
-            throw new Error('API key is missing or empty');
-        }
-
-        const apiKey = this.apiKey.trim();
-
-        const headers = {
-            'Authorization': `Bearer ${apiKey}`,
+    buildHeaders() {
+        return {
+            'Authorization': `Bearer ${this.apiKey}`,
             'Content-Type': 'application/json',
             'HTTP-Referer': window.location.href,
             'X-Title': 'FAI Helpers'
         };
+    }
 
-        const requestBody = {
-            model: options.model || this.model,
+    /**
+     * Build request body for chat completion
+     */
+    buildRequestBody(messages, temperature, maxTokens) {
+        return {
+            model: this.model,
             messages,
-            temperature: options.temperature || 0.7,
-            max_tokens: options.maxTokens || 2000
+            temperature,
+            max_tokens: maxTokens
         };
+    }
 
+    /**
+     * Log request details to console
+     */
+    logRequest(requestBody, headers, messages) {
         console.log('Request URL:', `${this.baseURL}/chat/completions`);
-        console.log('Request headers:', { ...headers, 'Authorization': 'Bearer ***' }); // Don't log full key
+        console.log('Request headers:', { ...headers, 'Authorization': 'Bearer ***' });
         console.log('Request body:', { ...requestBody, messages: `[${messages.length} messages]` });
         
-        // Log full prompt/messages being sent
         console.log('=== PROMPT TO LLM ===');
         console.log('Model:', requestBody.model);
         console.log('Temperature:', requestBody.temperature);
         console.log('Max Tokens:', requestBody.max_tokens);
         console.log('Messages:', JSON.stringify(messages, null, 2));
         console.log('====================');
+    }
 
-        const response = await fetch(`${this.baseURL}/chat/completions`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(requestBody)
-        });
-
-        if (!response.ok) {
-            let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-            let errorData = null;
-            try {
-                errorData = await response.json();
-                errorMessage = errorData.error?.message || errorData.message || errorMessage;
-                console.error('=== API ERROR RESPONSE ===');
-                console.error('Status:', response.status);
-                console.error('Error Data:', JSON.stringify(errorData, null, 2));
-                console.error('========================');
-            } catch (e) {
-                // If response isn't JSON, use status text
-                console.error('=== API ERROR (Non-JSON) ===');
-                console.error('Status:', response.status);
-                console.error('Status Text:', response.statusText);
-                console.error('===========================');
-            }
-            throw new Error(`API Error: ${errorMessage}`);
+    /**
+     * Log error response to console
+     */
+    logErrorResponse(response, errorData) {
+        if (errorData) {
+            console.error('=== API ERROR RESPONSE ===');
+            console.error('Status:', response.status);
+            console.error('Error Data:', JSON.stringify(errorData, null, 2));
+            console.error('========================');
+        } else {
+            console.error('=== API ERROR (Non-JSON) ===');
+            console.error('Status:', response.status);
+            console.error('Status Text:', response.statusText);
+            console.error('===========================');
         }
+    }
 
-        const data = await response.json();
-        
-        // Log raw response JSON
+    /**
+     * Log successful response to console
+     */
+    logSuccessResponse(data, responseContent) {
         console.log('=== RAW LLM RESPONSE ===');
         console.log(JSON.stringify(data, null, 2));
         console.log('========================');
         
-        // Validate response structure
+        console.log('=== RESPONSE FROM LLM ===');
+        console.log('Model Used:', data.model || 'unknown');
+        console.log('Usage:', JSON.stringify(data.usage || {}, null, 2));
+        console.log('Response Content:', responseContent);
+        console.log('==========================');
+    }
+
+    /**
+     * Handle error response from API
+     */
+    async handleErrorResponse(response) {
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        let errorData = null;
+        
+        try {
+            errorData = await response.json();
+            errorMessage = errorData.error?.message || errorData.message || errorMessage;
+        } catch (e) {
+            // Response isn't JSON, use status text
+        }
+        
+        this.logErrorResponse(response, errorData);
+        throw new Error(`API Error: ${errorMessage}`);
+    }
+
+    /**
+     * Validate response structure
+     */
+    validateResponse(data) {
         if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
             throw new Error('API Error: Invalid response structure - no choices array');
         }
@@ -88,15 +112,52 @@ export class OpenRouterAPI {
         if (!data.choices[0].message || !data.choices[0].message.content) {
             throw new Error('API Error: Invalid response structure - missing message content');
         }
+    }
+
+    /**
+     * Extract content from validated response
+     */
+    extractResponseContent(data) {
+        return data.choices[0].message.content;
+    }
+
+    /**
+     * Perform the HTTP request to the API
+     */
+    async performRequest(headers, requestBody) {
+        return await fetch(`${this.baseURL}/chat/completions`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(requestBody)
+        });
+    }
+
+    /**
+     * Call the chat completion API
+     */
+    async chat(messages, temperature, maxTokens) {
+        if (!this.apiKey || this.apiKey.trim() === '') {
+            throw new Error('API key is missing or empty');
+        }
+
+        const headers = this.buildHeaders();
+        const requestBody = this.buildRequestBody(messages, temperature, maxTokens);
         
-        const responseContent = data.choices[0].message.content;
+        this.logRequest(requestBody, headers, messages);
         
-        // Log full response received
-        console.log('=== RESPONSE FROM LLM ===');
-        console.log('Model Used:', data.model || 'unknown');
-        console.log('Usage:', JSON.stringify(data.usage || {}, null, 2));
-        console.log('Response Content:', responseContent);
-        console.log('==========================');
+        const response = await this.performRequest(headers, requestBody);
+
+        if (!response.ok) {
+            await this.handleErrorResponse(response);
+        }
+
+        const data = await response.json();
+        
+        this.validateResponse(data);
+        
+        const responseContent = this.extractResponseContent(data);
+        
+        this.logSuccessResponse(data, responseContent);
         
         return responseContent;
     }

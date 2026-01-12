@@ -65,7 +65,7 @@ async function recordAssistantMessage(response) {
  */
 async function invokeModelAndRecordResponse() {
     const messages = await chatSession.buildMessageList();
-    const response = await api.chat(messages);
+    const response = await api.chat(messages, 0.7, 2000);
     await recordAssistantMessage(response);
     return response;
 }
