@@ -4,12 +4,103 @@ let currentDocmem = null;
 let selectedPersistRootId = null;
 let selectedViewRootId = null;
 
-export function showMessage(text, type = 'info') {
+export function showMessage(text, type) {
     const messageBar = document.getElementById('message-bar');
     const messageText = document.getElementById('message-text');
     
     messageText.textContent = text;
     messageBar.className = `message-bar ${type}`;
+}
+
+function getInputValue(elementId) {
+    const element = document.getElementById(elementId);
+    if (!element) {
+        throw new Error(`Element not found: ${elementId}`);
+    }
+    return element.value.trim();
+}
+
+function setInputValue(elementId, value) {
+    const element = document.getElementById(elementId);
+    if (!element) {
+        throw new Error(`Element not found: ${elementId}`);
+    }
+    element.value = value;
+}
+
+function getContextFields(prefix) {
+    const contextType = getInputValue(`${prefix}-context-type`);
+    const contextName = getInputValue(`${prefix}-context-name`);
+    const contextValue = getInputValue(`${prefix}-context-value`);
+    return { contextType, contextName, contextValue };
+}
+
+function validateRequired(fields, fieldNames) {
+    for (let i = 0; i < fields.length; i++) {
+        if (!fields[i]) {
+            throw new Error(`${fieldNames[i]} is required`);
+        }
+    }
+}
+
+function calculateTotalTokens(nodes) {
+    return nodes.reduce((sum, node) => sum + (node.tokenCount || 0), 0);
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function copyToClipboard(text, successMessage) {
+    navigator.clipboard.writeText(text);
+    showMessage(successMessage, 'success');
+}
+
+function scrollToElement(elementId) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+function setupNodeIdCopyHandler(element) {
+    const nodeId = element.getAttribute('data-node-id');
+    element.style.cursor = 'pointer';
+    element.style.textDecoration = 'underline';
+    element.addEventListener('click', (e) => {
+        e.stopPropagation();
+        copyToClipboard(nodeId, 'Node ID copied to clipboard');
+    });
+}
+
+function setupRootLoadHandler(element) {
+    const nodeId = element.getAttribute('data-node-id');
+    element.style.cursor = 'pointer';
+    element.style.textDecoration = 'underline';
+    element.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const docmemId = nodeId;
+        navigator.clipboard.writeText(docmemId);
+        await loadDocmem(docmemId);
+        showMessage(`Docmem loaded: ${docmemId}`, 'success');
+    });
+}
+
+function createPreElement(className, textContent) {
+    const pre = document.createElement('pre');
+    pre.className = className;
+    pre.textContent = textContent;
+    return pre;
+}
+
+function renderEmptyState(container, message) {
+    container.innerHTML = `<div class="view-no-content">${escapeHtml(message)}</div>`;
+}
+
+function renderErrorState(container, error) {
+    container.innerHTML = `<div class="view-error">Error: ${escapeHtml(error.message)}</div>`;
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -196,163 +287,183 @@ function renderDocmem() {
         <div id="expanded-content" class="expanded-content" style="display: none;"></div>
     `;
 
-    renderTree(root, document.getElementById('docmem-tree'));
+    renderTree(root, document.getElementById('docmem-tree'), 0);
     renderRootsList();
 
     const expandBtn = document.getElementById('expand-btn');
     const serializeBtn = document.getElementById('serialize-btn');
-    const expandTokenLimit = document.getElementById('expand-token-limit');
 
-    expandBtn.addEventListener('click', () => {
-        const maxTokens = parseInt(expandTokenLimit.value) || 1000;
-        // Use root node ID for expand in the UI
-        const rootId = root.id;
-        const expanded = currentDocmem.expandToLength(rootId, maxTokens);
-        renderExpanded(expanded);
-    });
-
-    serializeBtn.addEventListener('click', () => {
-        // Use root node ID for serialize in the UI
-        const rootId = root.id;
-        const serialized = currentDocmem.getNodes(rootId);
-        renderExpanded(serialized);
-    });
+    expandBtn.addEventListener('click', () => handleDocmemExpand(root.id));
+    serializeBtn.addEventListener('click', () => handleDocmemSerialize(root.id));
 
     // Operation handlers
     const appendBtn = document.getElementById('append-btn');
-    appendBtn.addEventListener('click', () => {
-        const parentId = document.getElementById('append-parent-id').value.trim();
-        const contextType = document.getElementById('append-context-type').value.trim();
-        const contextName = document.getElementById('append-context-name').value.trim();
-        const contextValue = document.getElementById('append-context-value').value.trim();
-        const content = document.getElementById('append-content').value.trim();
-        
-        if (!parentId || !content || !contextType || !contextName || !contextValue) {
-            showMessage('Parent ID, content, and all context fields are required', 'error');
-            return;
-        }
-        
-        try {
-            const node = currentDocmem.appendChild(parentId, contextType, contextName, contextValue, content);
-            showMessage(`Node created: ${node.id}`, 'success');
-            renderDocmem();
-        } catch (error) {
-            showMessage('Error: ' + error.message, 'error');
-        }
-    });
+    appendBtn.addEventListener('click', () => handleAppendChild());
 
     const insertBeforeBtn = document.getElementById('insert-before-btn');
-    insertBeforeBtn.addEventListener('click', () => {
-        const nodeId = document.getElementById('insert-before-node-id').value.trim();
-        const contextType = document.getElementById('insert-before-context-type').value.trim();
-        const contextName = document.getElementById('insert-before-context-name').value.trim();
-        const contextValue = document.getElementById('insert-before-context-value').value.trim();
-        const content = document.getElementById('insert-before-content').value.trim();
-        
-        if (!nodeId || !content || !contextType || !contextName || !contextValue) {
-            showMessage('Node ID, content, and all context fields are required', 'error');
-            return;
-        }
-        
-        try {
-            const node = currentDocmem.insertBefore(nodeId, contextType, contextName, contextValue, content);
-            showMessage(`Node inserted before: ${node.id}`, 'success');
-            renderDocmem();
-        } catch (error) {
-            showMessage('Error: ' + error.message, 'error');
-        }
-    });
+    insertBeforeBtn.addEventListener('click', () => handleInsertBefore());
 
     const insertAfterBtn = document.getElementById('insert-after-btn');
-    insertAfterBtn.addEventListener('click', () => {
-        const nodeId = document.getElementById('insert-after-node-id').value.trim();
-        const contextType = document.getElementById('insert-after-context-type').value.trim();
-        const contextName = document.getElementById('insert-after-context-name').value.trim();
-        const contextValue = document.getElementById('insert-after-context-value').value.trim();
-        const content = document.getElementById('insert-after-content').value.trim();
-        
-        if (!nodeId || !content || !contextType || !contextName || !contextValue) {
-            showMessage('Node ID, content, and all context fields are required', 'error');
-            return;
-        }
-        
-        try {
-            const node = currentDocmem.insertAfter(nodeId, contextType, contextName, contextValue, content);
-            showMessage(`Node inserted after: ${node.id}`, 'success');
-            renderDocmem();
-        } catch (error) {
-            showMessage('Error: ' + error.message, 'error');
-        }
-    });
+    insertAfterBtn.addEventListener('click', () => handleInsertAfter());
 
     const updateBtn = document.getElementById('update-btn');
-    updateBtn.addEventListener('click', () => {
-        const nodeId = document.getElementById('update-node-id').value.trim();
-        const content = document.getElementById('update-content').value.trim();
-        
-        if (!nodeId || !content) {
-            showMessage('Node ID and content are required', 'error');
-            return;
-        }
-        
-        try {
-            const node = currentDocmem.updateContent(nodeId, content);
-            showMessage(`Node updated: ${node.id}`, 'success');
-            renderDocmem();
-        } catch (error) {
-            showMessage('Error: ' + error.message, 'error');
-        }
-    });
+    updateBtn.addEventListener('click', () => handleUpdateContent());
 
     const summaryBtn = document.getElementById('summary-btn');
-    summaryBtn.addEventListener('click', () => {
-        const startNodeId = document.getElementById('summary-start-node-id').value.trim();
-        const endNodeId = document.getElementById('summary-end-node-id').value.trim();
-        const content = document.getElementById('summary-content').value.trim();
-        const contextType = document.getElementById('summary-context-type').value.trim();
-        const contextName = document.getElementById('summary-context-name').value.trim();
-        const contextValue = document.getElementById('summary-context-value').value.trim();
-        
-        if (!startNodeId || !endNodeId || !content || !contextType || !contextName || !contextValue) {
-            showMessage('Start node ID, end node ID, summary content, and all context fields are required', 'error');
-            return;
-        }
-        
-        try {
-            const node = currentDocmem.addSummary(startNodeId, endNodeId, content, contextType, contextName, contextValue);
-            showMessage(`Summary created: ${node.id}`, 'success');
-            renderDocmem();
-        } catch (error) {
-            showMessage('Error: ' + error.message, 'error');
-        }
-    });
+    summaryBtn.addEventListener('click', () => handleAddSummary());
 }
 
-function renderTree(node, container, depth = 0) {
+function handleAppendChild() {
+    try {
+        const parentId = getInputValue('append-parent-id');
+        const { contextType, contextName, contextValue } = getContextFields('append');
+        const content = getInputValue('append-content');
+        
+        validateRequired(
+            [parentId, contextType, contextName, contextValue, content],
+            ['Parent ID', 'Context Type', 'Context Name', 'Context Value', 'Content']
+        );
+        
+        const node = currentDocmem.appendChild(parentId, contextType, contextName, contextValue, content);
+        showMessage(`Node created: ${node.id}`, 'success');
+        renderDocmem();
+    } catch (error) {
+        showMessage('Error: ' + error.message, 'error');
+    }
+}
+
+function handleInsertBefore() {
+    try {
+        const nodeId = getInputValue('insert-before-node-id');
+        const { contextType, contextName, contextValue } = getContextFields('insert-before');
+        const content = getInputValue('insert-before-content');
+        
+        validateRequired(
+            [nodeId, contextType, contextName, contextValue, content],
+            ['Node ID', 'Context Type', 'Context Name', 'Context Value', 'Content']
+        );
+        
+        const node = currentDocmem.insertBefore(nodeId, contextType, contextName, contextValue, content);
+        showMessage(`Node inserted before: ${node.id}`, 'success');
+        renderDocmem();
+    } catch (error) {
+        showMessage('Error: ' + error.message, 'error');
+    }
+}
+
+function handleInsertAfter() {
+    try {
+        const nodeId = getInputValue('insert-after-node-id');
+        const { contextType, contextName, contextValue } = getContextFields('insert-after');
+        const content = getInputValue('insert-after-content');
+        
+        validateRequired(
+            [nodeId, contextType, contextName, contextValue, content],
+            ['Node ID', 'Context Type', 'Context Name', 'Context Value', 'Content']
+        );
+        
+        const node = currentDocmem.insertAfter(nodeId, contextType, contextName, contextValue, content);
+        showMessage(`Node inserted after: ${node.id}`, 'success');
+        renderDocmem();
+    } catch (error) {
+        showMessage('Error: ' + error.message, 'error');
+    }
+}
+
+function handleUpdateContent() {
+    try {
+        const nodeId = getInputValue('update-node-id');
+        const content = getInputValue('update-content');
+        
+        validateRequired([nodeId, content], ['Node ID', 'Content']);
+        
+        const node = currentDocmem.updateContent(nodeId, content);
+        showMessage(`Node updated: ${node.id}`, 'success');
+        renderDocmem();
+    } catch (error) {
+        showMessage('Error: ' + error.message, 'error');
+    }
+}
+
+function handleAddSummary() {
+    try {
+        const startNodeId = getInputValue('summary-start-node-id');
+        const endNodeId = getInputValue('summary-end-node-id');
+        const content = getInputValue('summary-content');
+        const { contextType, contextName, contextValue } = getContextFields('summary');
+        
+        validateRequired(
+            [startNodeId, endNodeId, content, contextType, contextName, contextValue],
+            ['Start Node ID', 'End Node ID', 'Content', 'Context Type', 'Context Name', 'Context Value']
+        );
+        
+        const node = currentDocmem.addSummary(startNodeId, endNodeId, content, contextType, contextName, contextValue);
+        showMessage(`Summary created: ${node.id}`, 'success');
+        renderDocmem();
+    } catch (error) {
+        showMessage('Error: ' + error.message, 'error');
+    }
+}
+
+function handleDocmemExpand(rootId) {
+    const expandTokenLimit = document.getElementById('expand-token-limit');
+    const maxTokens = parseInt(expandTokenLimit.value) || 1000;
+    const expanded = currentDocmem.expandToLength(rootId, maxTokens);
+    renderExpanded(expanded);
+}
+
+function handleDocmemSerialize(rootId) {
+    const serialized = currentDocmem.getNodes(rootId);
+    renderExpanded(serialized);
+}
+
+function renderTree(node, container, depth) {
     const nodeDiv = document.createElement('div');
     nodeDiv.className = `docmem-node ${node.contextType}`;
     
     const children = currentDocmem.getChildren(node.id);
     const hasChildren = children.length > 0;
-    // Expand root node (no parent) or nodes at depth 0, or nodes with children
-    const isExpanded = node.parentId === null || depth === 0 || hasChildren;
+    const isExpanded = shouldExpandNode(node, depth, hasChildren);
 
-    nodeDiv.innerHTML = `
+    nodeDiv.innerHTML = createTreeNodeHtml(node, hasChildren, isExpanded);
+    container.appendChild(nodeDiv);
+
+    setupTreeNodeHandlers(nodeDiv, node, children, hasChildren, isExpanded, depth);
+}
+
+function shouldExpandNode(node, depth, hasChildren) {
+    return node.parentId === null || depth === 0 || hasChildren;
+}
+
+function createTreeNodeHtml(node, hasChildren, isExpanded) {
+    const expandIcon = hasChildren ? (isExpanded ? '▼' : '▶') : ' ';
+    const childrenHtml = isExpanded && hasChildren ? `<div class="docmem-node-children" data-parent-id="${node.id}"></div>` : '';
+    const textHtml = node.text ? `<div class="docmem-node-text">${escapeHtml(node.text)}</div>` : '';
+    
+    return `
         <div class="docmem-node-header" data-node-id="${node.id}">
-            ${hasChildren ? `<span class="docmem-expand-icon">${isExpanded ? '▼' : '▶'}</span>` : '<span class="docmem-expand-icon"> </span>'}
+            <span class="docmem-expand-icon">${expandIcon}</span>
             <span class="docmem-node-type">${escapeHtml(node.contextType)} ${escapeHtml(node.contextName)}:${escapeHtml(node.contextValue)} (<span class="node-id-copy" data-node-id="${node.id}">${node.id}</span>)</span>
             <span class="docmem-node-meta">(tokens: ${node.tokenCount}, order: ${node.order.toFixed(3)})</span>
             <button class="node-action-btn" data-action="append" data-node-id="${node.id}" title="Append child">+</button>
             <button class="node-action-btn" data-action="update" data-node-id="${node.id}" title="Update content">✎</button>
             <button class="node-action-btn delete-btn" data-action="delete" data-node-id="${node.id}" title="Delete node">X</button>
         </div>
-        ${node.text ? `<div class="docmem-node-text">${escapeHtml(node.text)}</div>` : ''}
-        ${isExpanded && hasChildren ? `<div class="docmem-node-children" data-parent-id="${node.id}"></div>` : ''}
+        ${textHtml}
+        ${childrenHtml}
     `;
+}
 
-    container.appendChild(nodeDiv);
+function setupTreeNodeHandlers(nodeDiv, node, children, hasChildren, isExpanded, depth) {
+    setupActionButtonHandlers(nodeDiv);
+    setupNodeIdCopyHandlerForTree(nodeDiv);
+    
+    if (hasChildren) {
+        setupTreeExpandHandlers(nodeDiv, children, depth, isExpanded);
+    }
+}
 
-    // Add click handlers for node action buttons
+function setupActionButtonHandlers(nodeDiv) {
     const actionButtons = nodeDiv.querySelectorAll('.node-action-btn');
     actionButtons.forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -362,56 +473,58 @@ function renderTree(node, container, depth = 0) {
             handleNodeAction(action, nodeId);
         });
     });
+}
 
-    // Add click handler to copy node ID
+function setupNodeIdCopyHandlerForTree(nodeDiv) {
     const nodeIdSpan = nodeDiv.querySelector('.node-id-copy');
     if (nodeIdSpan) {
-        nodeIdSpan.style.cursor = 'pointer';
-        nodeIdSpan.style.textDecoration = 'underline';
-        nodeIdSpan.addEventListener('click', (e) => {
-            e.stopPropagation();
-            navigator.clipboard.writeText(nodeIdSpan.getAttribute('data-node-id'));
-            showMessage('Node ID copied to clipboard', 'success');
-        });
+        setupNodeIdCopyHandler(nodeIdSpan);
     }
+}
 
-    if (hasChildren) {
-        const header = nodeDiv.querySelector('.docmem-node-header');
-        const childrenContainer = nodeDiv.querySelector('.docmem-node-children');
+function setupTreeExpandHandlers(nodeDiv, children, depth, isExpanded) {
+    const header = nodeDiv.querySelector('.docmem-node-header');
+    const childrenContainer = nodeDiv.querySelector('.docmem-node-children');
 
-        header.addEventListener('click', () => {
-            if (childrenContainer) {
-                const isCurrentlyExpanded = childrenContainer.style.display !== 'none';
-                if (isCurrentlyExpanded) {
-                    childrenContainer.style.display = 'none';
-                    header.querySelector('.docmem-expand-icon').textContent = '▶';
-                } else {
-                    childrenContainer.style.display = 'block';
-                    header.querySelector('.docmem-expand-icon').textContent = '▼';
-                    if (childrenContainer.children.length === 0) {
-                        const sortedChildren = [...children].sort((a, b) => a.order - b.order);
-                        sortedChildren.forEach(child => {
-                            renderTree(child, childrenContainer, depth + 1);
-                        });
-                    }
-                }
-            }
-        });
+    header.addEventListener('click', () => {
+        toggleTreeNode(header, childrenContainer, children, depth);
+    });
 
-        if (isExpanded && childrenContainer) {
-            const sortedChildren = [...children].sort((a, b) => a.order - b.order);
-            sortedChildren.forEach(child => {
-                renderTree(child, childrenContainer, depth + 1);
-            });
+    if (isExpanded && childrenContainer) {
+        renderSortedChildren(children, childrenContainer, depth);
+    }
+}
+
+function toggleTreeNode(header, childrenContainer, children, depth) {
+    if (!childrenContainer) {
+        return;
+    }
+    
+    const isCurrentlyExpanded = childrenContainer.style.display !== 'none';
+    if (isCurrentlyExpanded) {
+        childrenContainer.style.display = 'none';
+        header.querySelector('.docmem-expand-icon').textContent = '▶';
+    } else {
+        childrenContainer.style.display = 'block';
+        header.querySelector('.docmem-expand-icon').textContent = '▼';
+        if (childrenContainer.children.length === 0) {
+            renderSortedChildren(children, childrenContainer, depth);
         }
     }
+}
+
+function renderSortedChildren(children, container, parentDepth) {
+    const sortedChildren = [...children].sort((a, b) => a.order - b.order);
+    sortedChildren.forEach(child => {
+        renderTree(child, container, parentDepth + 1);
+    });
 }
 
 function renderExpanded(nodes) {
     const container = document.getElementById('expanded-content');
     container.style.display = 'block';
     
-    let totalTokens = 0;
+    const totalTokens = calculateTotalTokens(nodes);
     container.innerHTML = `
         <h3>Expanded Content (${nodes.length} nodes)</h3>
         <div id="expanded-nodes"></div>
@@ -420,14 +533,7 @@ function renderExpanded(nodes) {
     const nodesContainer = document.getElementById('expanded-nodes');
     
     nodes.forEach(node => {
-        totalTokens += node.tokenCount;
-        const nodeDiv = document.createElement('div');
-        nodeDiv.className = 'expanded-node';
-        nodeDiv.innerHTML = `
-            <div class="docmem-node-type">${escapeHtml(node.contextType)} ${escapeHtml(node.contextName)}:${escapeHtml(node.contextValue)}</div>
-            <div class="docmem-node-text">${escapeHtml(node.text)}</div>
-            <div class="docmem-node-meta">Tokens: ${node.tokenCount} | Order: ${node.order.toFixed(3)}</div>
-        `;
+        const nodeDiv = createExpandedNodeElement(node);
         nodesContainer.appendChild(nodeDiv);
     });
 
@@ -435,47 +541,66 @@ function renderExpanded(nodes) {
     header.textContent = `Expanded Content (${nodes.length} nodes, ${totalTokens} total tokens)`;
 }
 
+function createExpandedNodeElement(node) {
+    const nodeDiv = document.createElement('div');
+    nodeDiv.className = 'expanded-node';
+    nodeDiv.innerHTML = `
+        <div class="docmem-node-type">${escapeHtml(node.contextType)} ${escapeHtml(node.contextName)}:${escapeHtml(node.contextValue)}</div>
+        <div class="docmem-node-text">${escapeHtml(node.text)}</div>
+        <div class="docmem-node-meta">Tokens: ${node.tokenCount} | Order: ${node.order.toFixed(3)}</div>
+    `;
+    return nodeDiv;
+}
+
 function handleNodeAction(action, nodeId) {
     switch (action) {
         case 'append':
-            document.getElementById('append-parent-id').value = nodeId;
-            document.getElementById('append-parent-id').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            handleAppendNodeAction(nodeId);
             break;
         case 'update':
-            const node = currentDocmem.find(nodeId);
-            if (node) {
-                document.getElementById('update-node-id').value = nodeId;
-                document.getElementById('update-content').value = node.text;
-                document.getElementById('update-node-id').scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
+            handleUpdateNodeAction(nodeId);
             break;
         case 'delete':
-            const nodeToDelete = currentDocmem.find(nodeId);
-            if (!nodeToDelete) {
-                showMessage('Node not found', 'error');
-                return;
-            }
-            if (nodeToDelete.parentId === null) {
-                showMessage('Cannot delete root node', 'error');
-                return;
-            }
-            if (confirm(`Are you sure you want to delete node ${nodeId}? This will also delete all its children.`)) {
-                try {
-                    currentDocmem.delete(nodeId);
-                    showMessage(`Node deleted: ${nodeId}`, 'success');
-                    renderDocmem();
-                } catch (error) {
-                    showMessage('Error: ' + error.message, 'error');
-                }
-            }
+            handleDeleteNodeAction(nodeId);
             break;
     }
 }
 
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+function handleAppendNodeAction(nodeId) {
+    setInputValue('append-parent-id', nodeId);
+    scrollToElement('append-parent-id');
+}
+
+function handleUpdateNodeAction(nodeId) {
+    const node = currentDocmem.find(nodeId);
+    if (!node) {
+        return;
+    }
+    setInputValue('update-node-id', nodeId);
+    setInputValue('update-content', node.text);
+    scrollToElement('update-node-id');
+}
+
+function handleDeleteNodeAction(nodeId) {
+    const nodeToDelete = currentDocmem.find(nodeId);
+    if (!nodeToDelete) {
+        showMessage('Node not found', 'error');
+        return;
+    }
+    if (nodeToDelete.parentId === null) {
+        showMessage('Cannot delete root node', 'error');
+        return;
+    }
+    if (!confirm(`Are you sure you want to delete node ${nodeId}? This will also delete all its children.`)) {
+        return;
+    }
+    try {
+        currentDocmem.delete(nodeId);
+        showMessage(`Node deleted: ${nodeId}`, 'success');
+        renderDocmem();
+    } catch (error) {
+        showMessage('Error: ' + error.message, 'error');
+    }
 }
 
 function renderRootsList() {
@@ -506,15 +631,9 @@ function renderRootsList() {
             </div>
         `).join('<hr style="margin: 0.5rem 0;"/>');
 
-        // Add click handlers to copy node IDs and load docmem
+        // Add click handlers to load docmem
         rootsListDiv.querySelectorAll('.node-id-copy').forEach(span => {
-            span.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const docmemId = span.getAttribute('data-node-id');
-                navigator.clipboard.writeText(docmemId);
-                await loadDocmem(docmemId);
-                showMessage(`Docmem loaded: ${docmemId}`, 'success');
-            });
+            setupRootLoadHandler(span);
         });
     } catch (error) {
         rootsListDiv.innerHTML = `<div>Error loading roots: ${escapeHtml(error.message)}</div>`;
@@ -528,52 +647,58 @@ function initView() {
     const structureBtn = document.getElementById('view-structure-btn');
     
     if (expandBtn) {
-        expandBtn.addEventListener('click', () => {
-            if (!selectedViewRootId) {
-                showMessage('No root selected', 'error');
-                return;
-            }
-            const tokenInput = document.getElementById('view-token-limit');
-            const maxTokens = parseInt(tokenInput.value);
-            if (!maxTokens || maxTokens < 1) {
-                showMessage('Please enter a valid token limit', 'error');
-                return;
-            }
-            renderViewExpanded(selectedViewRootId, maxTokens);
-        });
+        expandBtn.addEventListener('click', () => handleViewExpand());
     }
     
     if (expandAllBtn) {
-        expandAllBtn.addEventListener('click', () => {
-            if (!selectedViewRootId) {
-                showMessage('No root selected', 'error');
-                return;
-            }
-            // Expand with a very large token limit to get all nodes
-            const maxTokens = 1000000;
-            renderViewExpanded(selectedViewRootId, maxTokens);
-        });
+        expandAllBtn.addEventListener('click', () => handleViewExpandAll());
     }
     
     if (serializeBtn) {
-        serializeBtn.addEventListener('click', async () => {
-            if (!selectedViewRootId) {
-                showMessage('No root selected', 'error');
-                return;
-            }
-            await renderViewSerialized(selectedViewRootId);
-        });
+        serializeBtn.addEventListener('click', () => handleViewSerialize());
     }
     
     if (structureBtn) {
-        structureBtn.addEventListener('click', async () => {
-            if (!selectedViewRootId) {
-                showMessage('No root selected', 'error');
-                return;
-            }
-            await renderViewStructure(selectedViewRootId);
-        });
+        structureBtn.addEventListener('click', () => handleViewStructure());
     }
+}
+
+function handleViewExpand() {
+    if (!selectedViewRootId) {
+        showMessage('No root selected', 'error');
+        return;
+    }
+    const tokenInput = document.getElementById('view-token-limit');
+    const maxTokens = parseInt(tokenInput.value);
+    if (!maxTokens || maxTokens < 1) {
+        showMessage('Please enter a valid token limit', 'error');
+        return;
+    }
+    renderViewExpanded(selectedViewRootId, maxTokens);
+}
+
+function handleViewExpandAll() {
+    if (!selectedViewRootId) {
+        showMessage('No root selected', 'error');
+        return;
+    }
+    renderViewExpanded(selectedViewRootId, 1000000);
+}
+
+async function handleViewSerialize() {
+    if (!selectedViewRootId) {
+        showMessage('No root selected', 'error');
+        return;
+    }
+    await renderViewSerialized(selectedViewRootId);
+}
+
+async function handleViewStructure() {
+    if (!selectedViewRootId) {
+        showMessage('No root selected', 'error');
+        return;
+    }
+    await renderViewStructure(selectedViewRootId);
 }
 
 function renderView() {
@@ -594,34 +719,13 @@ function renderView() {
             return;
         }
         
-        // Preserve selected root or default to first
-        if (!selectedViewRootId || !roots.find(r => r.id === selectedViewRootId)) {
-            selectedViewRootId = roots[0].id;
-        }
+        selectedViewRootId = ensureValidRootSelection(roots, selectedViewRootId);
         
-        // Render root links
-        rootsBar.innerHTML = roots.map((root) => `
-            <a href="#" class="view-root-link ${root.id === selectedViewRootId ? 'active' : ''}" data-root-id="${root.id}">
-                ${escapeHtml(root.id)}
-            </a>
-        `).join('');
-        
-        // Add click handlers
-        rootsBar.querySelectorAll('.view-root-link').forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                // Update active state
-                rootsBar.querySelectorAll('.view-root-link').forEach(l => l.classList.remove('active'));
-                link.classList.add('active');
-                
-                // Track selected root and display expanded content with large token limit
-                const rootId = link.getAttribute('data-root-id');
-                selectedViewRootId = rootId;
-                renderViewExpanded(rootId, 1000000);
-            });
+        renderRootLinks(rootsBar, roots, selectedViewRootId, 'view-root-link', (rootId) => {
+            selectedViewRootId = rootId;
+            renderViewExpanded(rootId, 1000000);
         });
         
-        // Load selected root with large token limit
         renderViewExpanded(selectedViewRootId, 1000000);
     } catch (error) {
         rootsBar.innerHTML = `<div class="view-error">Error loading roots: ${escapeHtml(error.message)}</div>`;
@@ -641,33 +745,30 @@ async function renderViewExpanded(rootId, maxTokens) {
         const docmem = new Docmem(rootId);
         await docmem.ready();
         
-        // Expand to token limit from the root node
         const expanded = docmem.expandToLength(rootId, maxTokens);
         
         if (expanded.length === 0) {
-            contentPanel.innerHTML = '<div class="view-no-content">No content to display</div>';
+            renderEmptyState(contentPanel, 'No content to display');
             return;
         }
         
-        // Render expanded content as contiguous text
-        const textContent = expanded.map(node => {
-            const header = `${node.id} ${node.contextType} ${node.contextName}:${node.contextValue} ${node.createdAt}`;
-            const content = node.text || '';
-            return `${header}\n${content}`;
-        }).join('\n\n');
+        const textContent = formatExpandedNodes(expanded);
+        const totalTokens = calculateTotalTokens(expanded);
         
-        // Calculate total tokens
-        const totalTokens = expanded.reduce((sum, node) => sum + (node.tokenCount || 0), 0);
-        
-        // Use a pre element to preserve formatting and display as plain text
-        const pre = document.createElement('pre');
-        pre.className = 'view-serialized-text';
-        pre.textContent = textContent;
+        const pre = createPreElement('view-serialized-text', textContent);
         contentPanel.innerHTML = `<div class="view-stats">${expanded.length} nodes, ${totalTokens} tokens (expanded to ${maxTokens})</div>`;
         contentPanel.appendChild(pre);
     } catch (error) {
-        contentPanel.innerHTML = `<div class="view-error">Error loading content: ${escapeHtml(error.message)}</div>`;
+        renderErrorState(contentPanel, error);
     }
+}
+
+function formatExpandedNodes(nodes) {
+    return nodes.map(node => {
+        const header = `${node.id} ${node.contextType} ${node.contextName}:${node.contextValue} ${node.createdAt}`;
+        const content = node.text || '';
+        return `${header}\n${content}`;
+    }).join('\n\n');
 }
 
 async function renderViewSerialized(rootId) {
@@ -681,26 +782,21 @@ async function renderViewSerialized(rootId) {
         const docmem = new Docmem(rootId);
         await docmem.ready();
         
-        // Serialize in preorder traversal
         const serializedContent = docmem.serialize(rootId);
         
         if (!serializedContent || serializedContent.length === 0) {
-            contentPanel.innerHTML = '<div class="view-no-content">No content to display</div>';
+            renderEmptyState(contentPanel, 'No content to display');
             return;
         }
         
-        // Calculate total tokens
         const nodes = docmem.getNodes(rootId);
-        const totalTokens = nodes.reduce((sum, node) => sum + (node.tokenCount || 0), 0);
+        const totalTokens = calculateTotalTokens(nodes);
         
-        // Use a pre element to preserve formatting and display as plain text
-        const pre = document.createElement('pre');
-        pre.className = 'view-serialized-text';
-        pre.textContent = serializedContent;
+        const pre = createPreElement('view-serialized-text', serializedContent);
         contentPanel.innerHTML = `<div class="view-stats">${nodes.length} nodes, ${totalTokens} tokens (serialized)</div>`;
         contentPanel.appendChild(pre);
     } catch (error) {
-        contentPanel.innerHTML = `<div class="view-error">Error serializing content: ${escapeHtml(error.message)}</div>`;
+        renderErrorState(contentPanel, error);
     }
 }
 
@@ -715,26 +811,21 @@ async function renderViewStructure(rootId) {
         const docmem = new Docmem(rootId);
         await docmem.ready();
         
-        // Use the structure method which now returns markdown tree format
         const structureContent = docmem.structure(rootId);
         
         if (!structureContent || structureContent.length === 0) {
-            contentPanel.innerHTML = '<div class="view-no-content">No structure to display</div>';
+            renderEmptyState(contentPanel, 'No structure to display');
             return;
         }
         
-        // Calculate total tokens and node count
         const nodes = docmem.getNodes(rootId);
-        const totalTokens = nodes.reduce((sum, node) => sum + (node.tokenCount || 0), 0);
+        const totalTokens = calculateTotalTokens(nodes);
         
-        // Use a pre element to preserve formatting and display as plain text
-        const pre = document.createElement('pre');
-        pre.className = 'view-serialized-text';
-        pre.textContent = structureContent;
+        const pre = createPreElement('view-serialized-text', structureContent);
         contentPanel.innerHTML = `<div class="view-stats">${nodes.length} nodes, ${totalTokens} tokens (structure)</div>`;
         contentPanel.appendChild(pre);
     } catch (error) {
-        contentPanel.innerHTML = `<div class="view-error">Error getting structure: ${escapeHtml(error.message)}</div>`;
+        renderErrorState(contentPanel, error);
     }
 }
 
@@ -749,31 +840,7 @@ function initPersist() {
     const paragraphFileInput = document.getElementById('persist-paragraph-file-input');
 
     if (saveBtn) {
-        saveBtn.addEventListener('click', async () => {
-            try {
-                const roots = Docmem.getAllRoots();
-                if (roots.length === 0) {
-                    showMessage('No docmem roots found to save', 'error');
-                    return;
-                }
-
-                let selectedRootId = selectedPersistRootId;
-                if (!selectedRootId || !roots.find(r => r.id === selectedRootId)) {
-                    selectedRootId = roots[0].id;
-                    selectedPersistRootId = selectedRootId;
-                }
-                const docmem = new Docmem(selectedRootId);
-                await docmem.ready();
-                
-                const tomlSerializer = new TomlSerializer();
-                const filename = `${selectedRootId}.toml`;
-                await tomlSerializer.saveToFile(docmem, selectedRootId, filename);
-                showMessage(`Saved ${filename}`, 'success');
-            } catch (error) {
-                console.error('Error saving TOML:', error);
-                showMessage('Error saving TOML: ' + error.message, 'error');
-            }
-        });
+        saveBtn.addEventListener('click', () => handlePersistSave());
     }
 
     if (loadBtn) {
@@ -785,35 +852,7 @@ function initPersist() {
     }
 
     if (fileInput) {
-        fileInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) {
-                return;
-            }
-
-            try {
-                const tomlSerializer = new TomlSerializer();
-                const tomlText = await tomlSerializer.loadFromFile(file);
-                const nodeData = tomlSerializer.parseToml(tomlText);
-                
-                if (nodeData.length === 0) {
-                    showMessage('No nodes found in TOML file', 'error');
-                    return;
-                }
-
-                const docmem = await tomlSerializer.deserializeFromToml(tomlText);
-                const docmemId = docmem.docmemId;
-                
-                showMessage(`Loaded docmem: ${docmemId}`, 'success');
-                await loadDocmem(docmemId);
-                renderPersist();
-            } catch (error) {
-                console.error('Error loading TOML:', error);
-                showMessage('Error loading TOML: ' + error.message, 'error');
-            } finally {
-                fileInput.value = '';
-            }
-        });
+        fileInput.addEventListener('change', (e) => handleTomlFileUpload(e, fileInput));
     }
 
     if (uploadTextBtn) {
@@ -825,28 +864,7 @@ function initPersist() {
     }
 
     if (textFileInput) {
-        textFileInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) {
-                return;
-            }
-
-            try {
-                const lineImporter = new LineImporter();
-                const { docmem, selectedRootId, createdCount } = await lineImporter.createDocmemFromFile(file);
-
-                showMessage(`Created ${createdCount} nodes from ${file.name}`, 'success');
-                renderPersist();
-                if (currentDocmem && currentDocmem.docmemId === selectedRootId) {
-                    renderDocmem();
-                }
-            } catch (error) {
-                console.error('Error uploading text file:', error);
-                showMessage('Error uploading text file: ' + error.message, 'error');
-            } finally {
-                textFileInput.value = '';
-            }
-        });
+        textFileInput.addEventListener('change', (e) => handleTextFileUpload(e, textFileInput));
     }
 
     if (uploadParagraphBtn) {
@@ -858,28 +876,107 @@ function initPersist() {
     }
 
     if (paragraphFileInput) {
-        paragraphFileInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) {
-                return;
-            }
+        paragraphFileInput.addEventListener('change', (e) => handleParagraphFileUpload(e, paragraphFileInput));
+    }
+}
 
-            try {
-                const paragraphImporter = new ParagraphImporter();
-                const { docmem, selectedRootId, createdCount } = await paragraphImporter.createDocmemFromFile(file);
+async function handlePersistSave() {
+    try {
+        const roots = Docmem.getAllRoots();
+        if (roots.length === 0) {
+            showMessage('No docmem roots found to save', 'error');
+            return;
+        }
 
-                showMessage(`Created ${createdCount} nodes from ${file.name}`, 'success');
-                renderPersist();
-                if (currentDocmem && currentDocmem.docmemId === selectedRootId) {
-                    renderDocmem();
-                }
-            } catch (error) {
-                console.error('Error uploading paragraph file:', error);
-                showMessage('Error uploading paragraph file: ' + error.message, 'error');
-            } finally {
-                paragraphFileInput.value = '';
-            }
-        });
+        const selectedRootId = ensureValidRootSelection(roots, selectedPersistRootId);
+        selectedPersistRootId = selectedRootId;
+        
+        const docmem = new Docmem(selectedRootId);
+        await docmem.ready();
+        
+        const tomlSerializer = new TomlSerializer();
+        const filename = `${selectedRootId}.toml`;
+        await tomlSerializer.saveToFile(docmem, selectedRootId, filename);
+        showMessage(`Saved ${filename}`, 'success');
+    } catch (error) {
+        console.error('Error saving TOML:', error);
+        showMessage('Error saving TOML: ' + error.message, 'error');
+    }
+}
+
+async function handleTomlFileUpload(event, fileInput) {
+    const file = event.target.files[0];
+    if (!file) {
+        return;
+    }
+
+    try {
+        const tomlSerializer = new TomlSerializer();
+        const tomlText = await tomlSerializer.loadFromFile(file);
+        const nodeData = tomlSerializer.parseToml(tomlText);
+        
+        if (nodeData.length === 0) {
+            showMessage('No nodes found in TOML file', 'error');
+            return;
+        }
+
+        const docmem = await tomlSerializer.deserializeFromToml(tomlText);
+        const docmemId = docmem.docmemId;
+        
+        showMessage(`Loaded docmem: ${docmemId}`, 'success');
+        await loadDocmem(docmemId);
+        renderPersist();
+    } catch (error) {
+        console.error('Error loading TOML:', error);
+        showMessage('Error loading TOML: ' + error.message, 'error');
+    } finally {
+        fileInput.value = '';
+    }
+}
+
+async function handleTextFileUpload(event, fileInput) {
+    const file = event.target.files[0];
+    if (!file) {
+        return;
+    }
+
+    try {
+        const lineImporter = new LineImporter();
+        const { docmem, selectedRootId, createdCount } = await lineImporter.createDocmemFromFile(file);
+
+        showMessage(`Created ${createdCount} nodes from ${file.name}`, 'success');
+        renderPersist();
+        if (currentDocmem && currentDocmem.docmemId === selectedRootId) {
+            renderDocmem();
+        }
+    } catch (error) {
+        console.error('Error uploading text file:', error);
+        showMessage('Error uploading text file: ' + error.message, 'error');
+    } finally {
+        fileInput.value = '';
+    }
+}
+
+async function handleParagraphFileUpload(event, fileInput) {
+    const file = event.target.files[0];
+    if (!file) {
+        return;
+    }
+
+    try {
+        const paragraphImporter = new ParagraphImporter();
+        const { docmem, selectedRootId, createdCount } = await paragraphImporter.createDocmemFromFile(file);
+
+        showMessage(`Created ${createdCount} nodes from ${file.name}`, 'success');
+        renderPersist();
+        if (currentDocmem && currentDocmem.docmemId === selectedRootId) {
+            renderDocmem();
+        }
+    } catch (error) {
+        console.error('Error uploading paragraph file:', error);
+        showMessage('Error uploading paragraph file: ' + error.message, 'error');
+    } finally {
+        fileInput.value = '';
     }
 }
 
@@ -898,31 +995,41 @@ function renderPersist() {
             return;
         }
         
-        let currentRootId = selectedPersistRootId;
-        if (!currentRootId || !roots.find(r => r.id === currentRootId)) {
-            currentRootId = roots[0].id;
-            selectedPersistRootId = currentRootId;
-        }
+        const currentRootId = ensureValidRootSelection(roots, selectedPersistRootId);
+        selectedPersistRootId = currentRootId;
         
-        rootsBar.innerHTML = roots.map((root, index) => {
-            const isActive = root.id === currentRootId;
-            return `
-                <a href="#" class="persist-root-link ${isActive ? 'active' : ''}" data-root-id="${root.id}">
-                    ${escapeHtml(root.id)}
-                </a>
-            `;
-        }).join('');
-        
-        rootsBar.querySelectorAll('.persist-root-link').forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                const rootId = link.getAttribute('data-root-id');
-                selectedPersistRootId = rootId;
-                renderPersist();
-            });
+        renderRootLinks(rootsBar, roots, currentRootId, 'persist-root-link', (rootId) => {
+            selectedPersistRootId = rootId;
+            renderPersist();
         });
     } catch (error) {
         rootsBar.innerHTML = `<div class="persist-error">Error loading roots: ${escapeHtml(error.message)}</div>`;
     }
+}
+
+function ensureValidRootSelection(roots, selectedRootId) {
+    if (!selectedRootId || !roots.find(r => r.id === selectedRootId)) {
+        return roots[0].id;
+    }
+    return selectedRootId;
+}
+
+function renderRootLinks(container, roots, activeRootId, linkClassName, onClickHandler) {
+    container.innerHTML = roots.map((root) => {
+        const isActive = root.id === activeRootId;
+        return `
+            <a href="#" class="${linkClassName} ${isActive ? 'active' : ''}" data-root-id="${root.id}">
+                ${escapeHtml(root.id)}
+            </a>
+        `;
+    }).join('');
+    
+    container.querySelectorAll(`.${linkClassName}`).forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const rootId = link.getAttribute('data-root-id');
+            onClickHandler(rootId);
+        });
+    });
 }
 
