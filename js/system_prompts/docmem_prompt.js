@@ -130,17 +130,11 @@ Deletes a node and its entire subtree (all descendants).
 
 ### Query Operations
 
-#### docmem-find <node-id>
-Retrieves a single node by its ID.
-- **Parameters:**
-  - \`node-id\`: Node ID to find (must exist)
-- **Returns:** \`result> docmem-find:\\n<JSON>\` - Complete node object with all fields including text, context, metadata
-
 #### docmem-structure <node-id>
 Returns the hierarchical structure and metadata without text content (efficient for navigation).
 - **Parameters:**
   - \`node-id\`: Starting node ID (must exist)
-- **Returns:** \`result> docmem-structure:\\n<JSON>\` - Array of node objects with all fields EXCEPT text (includes id, parentId, order, tokenCount, context fields, timestamps)
+- **Returns:** \`result> docmem-structure:\\n\` - Array of node objects with all fields EXCEPT text (includes id, parentId, order, tokenCount, context fields, timestamps)
 - **Use case:** Inspect tree structure without loading full text content
 
 ### Summary Operations
@@ -173,6 +167,11 @@ Returns a list of all root node IDs in the system.
 `;
 
 const DOCMEM_EXTRA_COMMANDS = `
+#### docmem-find <node-id>
+Retrieves a single node by its ID.
+- **Parameters:**
+  - \`node-id\`: Node ID to find (must exist)
+- **Returns:** \`result> docmem-find:\\n<JSON>\` - Complete node object with all fields including text, context, metadata
 
 #### docmem-expand-to-length <node-id> <maxTokens>
 Returns nodes from the subtree up to a maximum token count, using breadth-first expansion.

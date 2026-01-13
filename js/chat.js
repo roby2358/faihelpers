@@ -45,6 +45,20 @@ function ensureChatSessionActive() {
 }
 
 /**
+ * Append text to the chat display area
+ */
+function appendToChatDisplay(text) {
+    const chatMessages = document.getElementById('chat-messages');
+    if (chatMessages.value) {
+        chatMessages.value += '\n' + text;
+    } else {
+        chatMessages.value = text;
+    }
+    // Scroll to bottom
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+/**
  * Record user message to chat session and display
  */
 async function recordUserMessage(message) {
@@ -573,20 +587,6 @@ async function processCommands(responseText, depth = 0) {
     }
     
     return results;
-}
-
-/**
- * Append text to the chat display area
- */
-function appendToChatDisplay(text) {
-    const chatMessages = document.getElementById('chat-messages');
-    if (chatMessages.value) {
-        chatMessages.value += '\n' + text;
-    } else {
-        chatMessages.value = text;
-    }
-    // Scroll to bottom
-    chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
 // Initialize when DOM is ready
