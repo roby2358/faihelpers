@@ -5,11 +5,6 @@ Integrate LLM API calls for generating summaries and processing content. Impleme
 ---
 Priority:   70
 Status: ToDo
-ID: prompt-cache-7kad
-Configure provider calls for prompt caching. Set up caching mechanisms for LLM API calls to reduce costs and improve response times by caching prompt prefixes and reusing them across requests. This includes configuring cache settings in the OpenRouter API integration and managing cache invalidation strategies.
----
-Priority:   70
-Status: ToDo
 ID: copy-rule-z59k
 Remove the "same parent" rule for copying nodes
 ---
@@ -38,6 +33,11 @@ Status: ToDo
 ID: chat-ui-q4w8
 Implement the chat interface UI components and interaction flow. Create the chat tab interface with message display, input handling, and user interaction patterns. Set up the basic structure for sending and receiving messages, formatting conversation history, and managing chat state within the application.
 ---
+Priority:   60
+Status: ToDo
+ID: fts-3633
+Implement full-text search for docmem using SQLite FTS5. Create FTS5 virtual tables for docmem nodes to enable powerful search capabilities including boolean queries, phrase queries, prefix matching, BM25 ranking, and result highlighting. This will allow users to search across docmem content efficiently using the existing sql.js infrastructure.
+---
 Priority:   50
 Status: ToDo
 ID: persist-bzb3
@@ -53,10 +53,25 @@ Status: ToDo
 ID: persist-bzb3
 Implement persistence for the SQLite database using IndexedDB so that docmem data survives page reloads and browser sessions. Serialize the database state to IndexedDB on save operations and restore it when loading a docmem instance.
 ---
+Priority:   50
+Status: ToDo
+ID: wiki-toc-5cps
+Add a table of contents feature for docmem wiki pages. Generate and display a hierarchical table of contents based on the structure of wiki page nodes, allowing users to navigate through sections and subsections of the wiki content. The TOC should be auto-generated from the docmem node hierarchy.
+---
+Priority:   50
+Status: ToDo
+ID: wiki-view-atq9
+Display a docmem as a wiki page with proper formatting and navigation. Render docmem content as a readable wiki page with formatted text, headers, sections, and navigation elements. This includes styling the content appropriately and providing a user-friendly interface for browsing docmem content as wiki documentation.
+---
 Priority:   45
 Status: ToDo
 ID: ctx-schema-85zu
 Define a context schema scheme that specifies the structure and validation rules for context metadata (context_type, context_name, context_value) used across docmem nodes
+---
+Priority:   45
+Status: ToDo
+ID: arch-ann-i2di
+Architect fast cosine similarity search for semantic search in docmem using approximate nearest neighbor algorithms like HNSW. Evaluate options: (1) custom sql.js build with sqlite-vec extension, (2) separate HNSW library (vectra, hnswlib-wasm) alongside SQLite, (3) hybrid approach. Consider performance requirements, build complexity, storage integration, and scalability for large document collections. Document the chosen approach and implementation strategy.
 ---
 Priority:   40
 Status: ToDo
@@ -73,6 +88,11 @@ Status: ToDo
 ID: doc-cmds-3s3a
 Enable document creation and editing through parsed command interface. Allow models to create new docmem documents and modify existing ones using structured commands. Implement command handlers that translate parsed commands into docmem operations like creating nodes, updating content, organizing structure, and managing document hierarchy.
 ---
+Priority:   40
+Status: ToDo
+ID: ro-cache-wj6d
+Support caching read-only docmems by ordering them first in the system messages and marking them with cache_control ephemeral. Read-only docmems should be placed before dynamic docmems in the message list, with cache control applied, so they can be cached separately from frequently-changing docmem contexts.
+---
 Priority:   30
 Status: ToDo
 ID: db-mgmt-fayc
@@ -87,3 +107,8 @@ Priority:   30
 Status: ToDo
 ID: db-mgmt-fayc
 Implement database management functions for docmem instances. Add operations to clear/delete docmem documents, list all available docmem instances, view metadata about stored documents, and perform maintenance tasks. This will provide users with tools to manage their collection of docmem documents and clean up unused or outdated instances.
+---
+Priority:    0
+Status: Done
+ID: prompt-cache-7kad
+Configure provider calls for prompt caching. Set up caching mechanisms for LLM API calls to reduce costs and improve response times by caching prompt prefixes and reusing them across requests. This includes configuring cache settings in the OpenRouter API integration and managing cache invalidation strategies.
