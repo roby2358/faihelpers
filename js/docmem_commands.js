@@ -37,7 +37,7 @@ export class DocmemCommands {
         const nodeRoot = this.docmem.getRootOfNode(nodeId);
         const targetRoot = this.docmem.getRootOfNode(targetId);
         if (nodeRoot.id !== targetRoot.id) {
-            throw new Error(`${commandName} requires node-id and target-id to have the same root node. Node root: ${nodeRoot.id}, Target root: ${targetRoot.id}`);
+            throw new Error(`${commandName} requires node-id and target-id to have the same root node. You can only move nodes within a docmem. Node root: ${nodeRoot.id}, Target root: ${targetRoot.id}`);
         }
     }
 
@@ -176,7 +176,6 @@ export class DocmemCommands {
     }
 
     async copyNode(mode, nodeId, targetId) {
-        this.validateSameRoot(nodeId, targetId, 'docmem-copy-node');
         const result = await this.executeWithMode(mode, nodeId, targetId, {
             appendChild: async (nId, tId) => await this.docmem.copyAppendChild(nId, tId),
             before: async (nId, tId) => await this.docmem.copyBefore(nId, tId),

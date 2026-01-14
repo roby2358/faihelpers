@@ -117,7 +117,6 @@ Copies a node (and its entire subtree) to a new position relative to a target no
   - \`--before\`: Copy becomes a sibling immediately before target-id (same parent as target)
   - \`--after\`: Copy becomes a sibling immediately after target-id (same parent as target)
 - **Returns:** \`result> docmem-copy-node <action>: <new-node-id>\`
-- **Requirements:** node-id and target-id MUST belong to the same docmem root (same tree)
 
 ### Deletion
 
