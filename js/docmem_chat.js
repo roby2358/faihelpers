@@ -147,11 +147,15 @@ export class DocmemChat {
             return null;
         }
 
-        return this.systemMsg(serialized);
+        const message = this.systemMsg(serialized);
+        message.cache_control = { type: 'ephemeral' };
+        return message;
     }
 
     buildPromptsSystemMessage() {
-        return this.systemMsg(BASH_PROMPT + SYSTEM_PROMPT + DOCMEM_PROMPT);
+        const message = this.systemMsg(BASH_PROMPT + SYSTEM_PROMPT + DOCMEM_PROMPT);
+        message.cache_control = { type: 'ephemeral' };
+        return message;
     }
 
     expandDocmemNodes(docmemId, maxTokens) {
