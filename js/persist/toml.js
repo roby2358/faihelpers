@@ -1,4 +1,4 @@
-import { Node, Docmem, NodeHasher } from '../docmem/docmem.js';
+import { Node, Docmem, NodeHasher } from '../docmem_tools/docmem.js';
 
 export class TomlSerializer {
 
