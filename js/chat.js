@@ -4,7 +4,7 @@
 import { OpenRouterAPI } from './OpenRouterAPI.js';
 import { parse as parseCommand } from './bash/command_parser.js';
 import { DocmemCommands } from './docmem/docmem_commands.js';
-import { SystemCommands } from './system_commands.js';
+import { SystemCommands } from './system_tools/system_commands.js';
 import { DocmemChat } from './docmem_chat.js';
 import { showMessage } from './index.js';
 import { Key } from './key.js';

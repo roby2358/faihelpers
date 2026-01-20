@@ -4,8 +4,8 @@
 import { Docmem, Node, NodeHasher } from './docmem/docmem.js';
 import { ROOT_PROMPT_DOCMEM_ID } from './system_prompts/root_prompt.js';
 import { BASH_PROMPT } from './system_prompts/bash_prompt.js';
-import { SYSTEM_PROMPT } from './system_prompts/system_prompt.js';
-import { DOCMEM_PROMPT } from './system_prompts/docmem_prompt.js';
+import { SYSTEM_PROMPT } from './system_tools/system_prompt.js';
+import { DOCMEM_PROMPT } from './docmem/docmem_prompt.js';
 
 const DEFAULT_EXPAND_MAX_TOKENS = 10000;
 const VALID_CHAT_ROLES = ['user', 'assistant'];
