@@ -1,4 +1,4 @@
-import { Docmem } from '../docmem.js';
+import { Docmem } from '../docmem/docmem.js';
 
 export class LineImporter {
     async importFromFile(file) {

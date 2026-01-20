@@ -1,4 +1,4 @@
-import { randomString } from './tools.js';
+import { randomString } from '../tools.js';
 import { DocmemSQLite } from './docmem_sqlite.js';
 import { Node, NodeHasher, OptimisticLockError } from './docmem_types.js';
 

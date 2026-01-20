@@ -1,4 +1,4 @@
-import { Docmem } from '../docmem.js';
+import { Docmem } from '../docmem/docmem.js';
 
 export class ParagraphImporter {
     async importFromFile(file) {

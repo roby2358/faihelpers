@@ -192,4 +192,3 @@ export class DocmemCommands {
         return { success: true, result: `docmem-get-all-roots:\n${JSON.stringify(roots, null, 2)}` };
     }
 }
-

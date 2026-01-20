@@ -1,4 +1,4 @@
-import { Docmem } from './docmem.js';
+import { Docmem } from './docmem/docmem.js';
 import { seedAllDocmems } from './system_prompts/seed.js';
 import { LineImporter } from './persist/line.js';
 import { ParagraphImporter } from './persist/paragraph.js';
