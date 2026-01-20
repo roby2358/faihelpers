@@ -3,7 +3,7 @@
  */
 import { Docmem, Node, NodeHasher } from './docmem/docmem.js';
 import { ROOT_PROMPT_DOCMEM_ID } from './system_prompts/root_prompt.js';
-import { BASH_PROMPT } from './system_prompts/bash_prompt.js';
+import { BASH_PROMPT } from './bash/bash_prompt.js';
 import { SYSTEM_PROMPT } from './system_tools/system_prompt.js';
 import { DOCMEM_PROMPT } from './docmem/docmem_prompt.js';
 
