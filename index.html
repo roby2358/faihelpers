@@ -18,9 +18,9 @@
     <div id="app">
         <div id="chat-tab" class="tab-content active">
             <div class="chat-controls">
-                <div class="chat-settings">
-                    <input type="password" id="chat-api-key" placeholder="OpenRouter API Key" />
-                    <select id="chat-model">
+                <div class="toolbar chat-settings">
+                    <input type="password" id="chat-api-key" class="input" placeholder="OpenRouter API Key" />
+                    <select id="chat-model" class="input">
                         <option value="anthropic/claude-haiku-4.5" selected>Claude Haiku 4.5</option>
                         <option value="anthropic/claude-sonnet-4.5">Claude Sonnet 4.5</option>
                         <option value="anthropic/claude-opus-4.5">Claude Opus 4.5</option>
@@ -41,25 +41,25 @@
                         <option value="gryphe/mythomax-l2-13b:extended">Mythomax l2 13B extended</option>
                         <option value="nvidia/llama-3.1-nemotron-70b-instruct">Nemotron 70b</option>
                     </select>
-                    <button id="chat-start-btn">Start Chat</button>
+                    <button id="chat-start-btn" class="btn">Start Chat</button>
                 </div>
             </div>
             <div id="chat-container" class="chat-container" style="display: none;">
                 <textarea id="chat-messages" class="chat-messages" readonly></textarea>
                 <div class="chat-input-area">
                     <input type="text" id="chat-input" class="chat-input" placeholder="Type your message..." />
-                    <button id="chat-send-btn" class="chat-send-btn">Send</button>
-                    <button id="chat-continue-btn" class="chat-continue-btn">Continue</button>
+                    <button id="chat-send-btn" class="btn btn-primary chat-send-btn">Send</button>
+                    <button id="chat-continue-btn" class="btn btn-primary chat-continue-btn">Continue</button>
                 </div>
             </div>
         </div>
         
         <div id="docmem-tab" class="tab-content">
             <h1>Docmem</h1>
-            <div class="docmem-controls">
-                <button id="create-docmem-btn">Create New Docmem</button>
-                <input type="text" id="docmem-id-input" placeholder="Docmem ID" />
-                <button id="refresh-roots-btn">Refresh Roots</button>
+            <div class="toolbar docmem-controls">
+                <button id="create-docmem-btn" class="btn">Create New Docmem</button>
+                <input type="text" id="docmem-id-input" class="input" placeholder="Docmem ID" />
+                <button id="refresh-roots-btn" class="btn">Refresh Roots</button>
             </div>
             <div id="docmem-container" class="docmem-container">
                 <p>Create or load a docmem to begin</p>
@@ -69,30 +69,34 @@
         <div id="view-tab" class="tab-content">
             <div class="view-container">
                 <div id="view-roots-bar" class="view-roots-bar"></div>
-                <div class="view-token-controls">
-                    <label for="view-token-limit">Expand to tokens:</label>
-                    <input type="number" id="view-token-limit" placeholder="e.g. 1000" min="1" />
-                    <button id="view-expand-btn">Expand</button>
-                    <button id="view-expand-all-btn">Expand All</button>
-                    <button id="view-structure-btn">Structure</button>
-                    <button id="view-serialize-btn">Serialize</button>
+                <div class="view-main">
+                    <div class="view-token-controls">
+                        <label for="view-token-limit">Expand to tokens:</label>
+                        <input type="number" id="view-token-limit" class="input" placeholder="e.g. 1000" min="1" />
+                        <button id="view-expand-btn" class="btn btn-primary">Expand</button>
+                        <button id="view-expand-all-btn" class="btn btn-primary">Expand All</button>
+                        <button id="view-structure-btn" class="btn">Structure</button>
+                        <button id="view-serialize-btn" class="btn">Serialize</button>
+                    </div>
+                    <div id="view-content-panel" class="view-content-panel"></div>
                 </div>
-                <div id="view-content-panel" class="view-content-panel"></div>
             </div>
         </div>
         
         <div id="persist-tab" class="tab-content">
             <div class="persist-container">
                 <div id="persist-roots-bar" class="persist-roots-bar"></div>
-                <div class="persist-controls">
-                    <button id="persist-save-btn">Save .toml</button>
-                    <button id="persist-load-btn">Load .toml</button>
-                    <input type="file" id="persist-file-input" accept=".toml" style="display: none;" />
-                    <button id="persist-upload-text-btn">Upload Text File</button>
-                    <input type="file" id="persist-text-file-input" accept=".txt,text/plain" style="display: none;" />
-                    <button id="persist-upload-paragraph-btn">Upload Paragraph File</button>
-                    <input type="file" id="persist-paragraph-file-input" accept=".txt,text/plain" style="display: none;" />
-                    <button id="persist-remove-btn">Remove</button>
+                <div class="persist-main">
+                    <div class="persist-controls">
+                        <button id="persist-save-btn" class="btn">Save .toml</button>
+                        <button id="persist-load-btn" class="btn">Load .toml</button>
+                        <input type="file" id="persist-file-input" accept=".toml" style="display: none;" />
+                        <button id="persist-upload-text-btn" class="btn">Upload Text File</button>
+                        <input type="file" id="persist-text-file-input" accept=".txt,text/plain" style="display: none;" />
+                        <button id="persist-upload-paragraph-btn" class="btn">Upload Paragraph File</button>
+                        <input type="file" id="persist-paragraph-file-input" accept=".txt,text/plain" style="display: none;" />
+                        <button id="persist-remove-btn" class="btn">Remove</button>
+                    </div>
                 </div>
             </div>
         </div>

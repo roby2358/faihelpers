@@ -100,11 +100,11 @@ function createPreElement(className, textContent) {
 }
 
 function renderEmptyState(container, message) {
-    container.innerHTML = `<div class="view-no-content">${escapeHtml(message)}</div>`;
+    container.innerHTML = `<div class="empty-state">${escapeHtml(message)}</div>`;
 }
 
 function renderErrorState(container, error) {
-    container.innerHTML = `<div class="view-error">Error: ${escapeHtml(error.message)}</div>`;
+    container.innerHTML = `<div class="error-state">Error: ${escapeHtml(error.message)}</div>`;
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -219,72 +219,72 @@ async function renderDocmem() {
             <h3>All Docmem Roots</h3>
             <div id="roots-list"></div>
         </div>
-        <div class="expand-controls">
+        <div class="toolbar expand-controls">
             <label>Expand to token limit:</label>
-            <input type="number" id="expand-token-limit" value="1000" min="1" />
-            <button id="expand-btn">Expand</button>
-            <button id="serialize-btn">Serialize</button>
+            <input type="number" id="expand-token-limit" class="input" value="1000" min="1" />
+            <button id="expand-btn" class="btn">Expand</button>
+            <button id="serialize-btn" class="btn">Serialize</button>
         </div>
         <div class="operation-controls">
             <h3>Operations</h3>
             <div class="operation-section">
                 <h4>Append Child</h4>
                 <div class="input-row">
-                    <input type="text" id="append-parent-id" placeholder="Parent Node ID" />
-                    <input type="text" id="append-context-type" placeholder="Context Type" />
-                    <input type="text" id="append-context-name" placeholder="Context Name" />
-                    <input type="text" id="append-context-value" placeholder="Context Value" />
+                    <input type="text" id="append-parent-id" class="input" placeholder="Parent Node ID" />
+                    <input type="text" id="append-context-type" class="input" placeholder="Context Type" />
+                    <input type="text" id="append-context-name" class="input" placeholder="Context Name" />
+                    <input type="text" id="append-context-value" class="input" placeholder="Context Value" />
                 </div>
                 <textarea id="append-content" placeholder="Content"></textarea>
-                <button id="append-btn">Append</button>
+                <button id="append-btn" class="btn">Append</button>
             </div>
             <div class="operation-section">
                 <h4>Insert Before</h4>
                 <div class="input-row">
-                    <input type="text" id="insert-before-node-id" placeholder="Node ID" />
+                    <input type="text" id="insert-before-node-id" class="input" placeholder="Node ID" />
                 </div>
                 <div class="input-row">
-                    <input type="text" id="insert-before-context-type" placeholder="Context Type" />
-                    <input type="text" id="insert-before-context-name" placeholder="Context Name" />
-                    <input type="text" id="insert-before-context-value" placeholder="Context Value" />
+                    <input type="text" id="insert-before-context-type" class="input" placeholder="Context Type" />
+                    <input type="text" id="insert-before-context-name" class="input" placeholder="Context Name" />
+                    <input type="text" id="insert-before-context-value" class="input" placeholder="Context Value" />
                 </div>
                 <textarea id="insert-before-content" placeholder="Content"></textarea>
-                <button id="insert-before-btn">Insert Before</button>
+                <button id="insert-before-btn" class="btn">Insert Before</button>
             </div>
             <div class="operation-section">
                 <h4>Insert After</h4>
                 <div class="input-row">
-                    <input type="text" id="insert-after-node-id" placeholder="Node ID" />
+                    <input type="text" id="insert-after-node-id" class="input" placeholder="Node ID" />
                 </div>
                 <div class="input-row">
-                    <input type="text" id="insert-after-context-type" placeholder="Context Type" />
-                    <input type="text" id="insert-after-context-name" placeholder="Context Name" />
-                    <input type="text" id="insert-after-context-value" placeholder="Context Value" />
+                    <input type="text" id="insert-after-context-type" class="input" placeholder="Context Type" />
+                    <input type="text" id="insert-after-context-name" class="input" placeholder="Context Name" />
+                    <input type="text" id="insert-after-context-value" class="input" placeholder="Context Value" />
                 </div>
                 <textarea id="insert-after-content" placeholder="Content"></textarea>
-                <button id="insert-after-btn">Insert After</button>
+                <button id="insert-after-btn" class="btn">Insert After</button>
             </div>
             <div class="operation-section">
                 <h4>Update Content</h4>
                 <div class="input-row">
-                    <input type="text" id="update-node-id" placeholder="Node ID" />
+                    <input type="text" id="update-node-id" class="input" placeholder="Node ID" />
                 </div>
                 <textarea id="update-content" placeholder="New Content"></textarea>
-                <button id="update-btn">Update</button>
+                <button id="update-btn" class="btn">Update</button>
             </div>
             <div class="operation-section">
                 <h4>Add Summary</h4>
                 <div class="input-row">
-                    <input type="text" id="summary-start-node-id" placeholder="Start Node ID" />
-                    <input type="text" id="summary-end-node-id" placeholder="End Node ID" />
+                    <input type="text" id="summary-start-node-id" class="input" placeholder="Start Node ID" />
+                    <input type="text" id="summary-end-node-id" class="input" placeholder="End Node ID" />
                 </div>
                 <div class="input-row">
-                    <input type="text" id="summary-context-type" placeholder="Context Type" />
-                    <input type="text" id="summary-context-name" placeholder="Context Name" />
-                    <input type="text" id="summary-context-value" placeholder="Context Value" />
+                    <input type="text" id="summary-context-type" class="input" placeholder="Context Type" />
+                    <input type="text" id="summary-context-name" class="input" placeholder="Context Name" />
+                    <input type="text" id="summary-context-value" class="input" placeholder="Context Value" />
                 </div>
                 <textarea id="summary-content" placeholder="Summary Content"></textarea>
-                <button id="summary-btn">Add Summary</button>
+                <button id="summary-btn" class="btn">Add Summary</button>
             </div>
         </div>
         <div id="docmem-tree" class="docmem-tree"></div>
@@ -717,8 +717,8 @@ async function renderView() {
         const roots = await Docmem.getAllRoots();
 
         if (roots.length === 0) {
-            rootsBar.innerHTML = '<div class="view-no-roots">No root nodes found</div>';
-            contentPanel.innerHTML = '<div class="view-no-content">Select a root node to view its expanded content</div>';
+            rootsBar.innerHTML = '<div class="empty-state">No root nodes found</div>';
+            contentPanel.innerHTML = '<div class="empty-state">Select a root node to view its expanded content</div>';
             selectedViewRootId = null;
             return;
         }
@@ -732,7 +732,7 @@ async function renderView() {
 
         await renderViewExpanded(selectedViewRootId, 1000000);
     } catch (error) {
-        rootsBar.innerHTML = `<div class="view-error">Error loading roots: ${escapeHtml(error.message)}</div>`;
+        rootsBar.innerHTML = `<div class="error-state">Error loading roots: ${escapeHtml(error.message)}</div>`;
         contentPanel.innerHTML = '';
     }
 }
@@ -1031,7 +1031,7 @@ async function renderPersist() {
         const roots = await Docmem.getAllRoots();
 
         if (roots.length === 0) {
-            rootsBar.innerHTML = '<div class="persist-no-roots">No root nodes found</div>';
+            rootsBar.innerHTML = '<div class="empty-state">No root nodes found</div>';
             selectedPersistRootId = null;
             return;
         }
@@ -1044,7 +1044,7 @@ async function renderPersist() {
             renderPersist();
         });
     } catch (error) {
-        rootsBar.innerHTML = `<div class="persist-error">Error loading roots: ${escapeHtml(error.message)}</div>`;
+        rootsBar.innerHTML = `<div class="error-state">Error loading roots: ${escapeHtml(error.message)}</div>`;
     }
 }
 
@@ -1059,7 +1059,7 @@ function renderRootLinks(container, roots, activeRootId, linkClassName, onClickH
     container.innerHTML = roots.map((root) => {
         const isActive = root.id === activeRootId;
         return `
-            <a href="#" class="${linkClassName} ${isActive ? 'active' : ''}" data-root-id="${root.id}">
+            <a href="#" class="root-link ${linkClassName} ${isActive ? 'active' : ''}" data-root-id="${root.id}" title="${escapeHtml(root.id)}">
                 ${escapeHtml(root.id)}
             </a>
         `;
@@ -1068,6 +1068,8 @@ function renderRootLinks(container, roots, activeRootId, linkClassName, onClickH
     container.querySelectorAll(`.${linkClassName}`).forEach(link => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
+            container.querySelectorAll(`.${linkClassName}`).forEach(l => l.classList.remove('active'));
+            link.classList.add('active');
             const rootId = link.getAttribute('data-root-id');
             onClickHandler(rootId);
         });
