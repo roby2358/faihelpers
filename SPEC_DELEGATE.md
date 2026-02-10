@@ -208,7 +208,7 @@ The delegation system message provided to the child agent MUST contain the follo
 ## Implementation Notes
 
 - The current loop logic lives in `chat.js` functions: `sendMessage`, `invokeModelAndRecordResponse`, `processCommands`, `extractRunSections`, `executeCommand`, `executeDocmemCommand`, `executeSystemCommand`. These MUST be factored into the AgentLoop class.
-- The chat UI (`chat.js`) MUST become a thin wrapper that creates an AgentLoop for the user-facing agent and bridges UI events (send button, continue button) to AgentLoop method calls.
+- The chat UI (`chat.js`) MUST become a thin wrapper that creates an AgentLoop for the user-facing agent and bridges UI events to AgentLoop method calls. The Send button passes the user's input as the initial message. The Continue button passes "Please continue" as the initial message.
 - DocmemChat already handles message list construction (`buildMessageList`). The AgentLoop MUST reuse this rather than reimplementing it.
 - The delegation system message MUST be stored as a node in the child's chat docmem, so the standard DocmemChat message list construction picks it up automatically.
 - The `delegate` command is itself a command handler, so it participates in the same `processCommands` cycle as docmem commands. When the handler runs, it blocks the parent's loop by awaiting the child's entire AgentLoop run.
