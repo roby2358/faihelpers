@@ -44,7 +44,7 @@ A node MUST contain the following fields:
 - `id`: Unique identifier (TEXT, PRIMARY KEY)
 - `parent_id`: Reference to parent node (TEXT, NULLABLE, FOREIGN KEY)
 - `text`: Text content (TEXT, NOT NULL)
-- `order_value`: Ordering within parent (REAL, NOT NULL)
+- `order_value`: Ordering within parent (DOUBLE, NOT NULL)
 - `token_count`: Token count (INTEGER, NOT NULL)
 - `created_at`: Creation timestamp (TEXT, NOT NULL, ISO8601 format)
 - `updated_at`: Update timestamp (TEXT, NOT NULL, ISO8601 format)
@@ -88,15 +88,15 @@ A node MUST contain the following fields:
 ## Database
 
 ### Storage Implementation
-- The implementation MUST use SQLite (via sql.js) running in the browser.
-- All docmem instances MUST share a single database instance.
+- The implementation MUST use DuckDB WASM running in the browser.
+- All docmem instances MUST share a single database connection.
 
 ### Schema Requirements
 The database schema MUST include a `nodes` table with the following columns:
 - `id TEXT PRIMARY KEY`
 - `parent_id TEXT`
 - `text TEXT NOT NULL`
-- `order_value REAL NOT NULL`
+- `order_value DOUBLE NOT NULL`
 - `token_count INTEGER NOT NULL`
 - `created_at TEXT NOT NULL`
 - `updated_at TEXT NOT NULL`
@@ -105,11 +105,8 @@ The database schema MUST include a `nodes` table with the following columns:
 - `context_value TEXT NOT NULL`
 - `readonly INTEGER NOT NULL`
 - `hash TEXT`
-- `FOREIGN KEY (parent_id) REFERENCES nodes(id) ON DELETE CASCADE`
-
 ### Database Constraints
-- Foreign key constraints MUST ensure referential integrity.
-- CASCADE delete MUST be used for orphan cleanup.
+- DuckDB does not enforce CASCADE delete; manual recursive deletion MUST be used for orphan cleanup (see `deleteDescendantsBottomUp`).
 - Indexes MUST be created on `parent_id` and `(parent_id, order_value)` for performance.
 
 ### Database Updates
@@ -209,7 +206,7 @@ The database schema MUST include a `nodes` table with the following columns:
 ### Delete
 - `delete(nodeId)` MUST remove a node and all its descendants.
 - The operation MUST collect all descendants first, then delete them in post-order (children before parents) to ensure safe deletion.
-- The operation MUST use SQL CASCADE delete for referential integrity (though explicit deletion is performed for safety).
+- The operation MUST use manual recursive deletion (`deleteDescendantsBottomUp`) to remove all descendants bottom-up before deleting the node itself.
 - When vector DB is implemented, embeddings MUST be removed for deleted nodes.
 
 ### Update Content

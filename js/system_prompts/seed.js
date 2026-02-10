@@ -24,9 +24,9 @@ function isRootNode(parentId) {
  * @param {string} parentId - The parent node ID
  */
 async function deleteExistingChildren(docmem, parentId) {
-    const children = docmem.getChildren(parentId);
+    const children = await docmem.getChildren(parentId);
     for (const child of children) {
-        await docmem.sqlite.deleteNode(child.id);
+        await docmem.sqlite.deleteNodeById(child.id);
     }
 }
 
@@ -69,18 +69,18 @@ async function hashAndInsertNode(docmem, node) {
 async function seedDocmem(docmemId, data) {
     const docmem = new Docmem(docmemId);
     await docmem.ready();
-    
+
     await deleteExistingChildren(docmem, docmemId);
-    
+
     for (const nodeData of data) {
         if (isRootNode(nodeData[1])) {
             continue;
         }
-        
+
         const node = createNodeFromData(nodeData);
         await hashAndInsertNode(docmem, node);
     }
-    
+
     console.log(`Seeded docmem: ${docmemId}`);
 }
 
@@ -95,7 +95,7 @@ export async function seedAllDocmems() {
         { docmemId: TO_DO_PROMPT_DOCMEM_ID, data: TO_DO_PROMPT_DATA },
         { docmemId: IDEAS_PROMPT_DOCMEM_ID, data: IDEAS_PROMPT_DATA },
     ];
-    
+
     for (const { docmemId, data } of docmemList) {
         try {
             await seedDocmem(docmemId, data);

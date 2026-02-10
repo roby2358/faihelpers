@@ -33,9 +33,9 @@ export class DocmemCommands {
         };
     }
 
-    validateSameRoot(nodeId, targetId, commandName) {
-        const nodeRoot = this.docmem.getRootOfNode(nodeId);
-        const targetRoot = this.docmem.getRootOfNode(targetId);
+    async validateSameRoot(nodeId, targetId, commandName) {
+        const nodeRoot = await this.docmem.getRootOfNode(nodeId);
+        const targetRoot = await this.docmem.getRootOfNode(targetId);
         if (nodeRoot.id !== targetRoot.id) {
             throw new Error(`${commandName} requires node-id and target-id to have the same root node. You can only move nodes within a docmem. Node root: ${nodeRoot.id}, Target root: ${targetRoot.id}`);
         }
@@ -106,35 +106,35 @@ export class DocmemCommands {
         return { success: true, result: `docmem-update-context updated node: ${node.id}` };
     }
 
-    find(nodeId) {
-        const node = this.docmem.find(nodeId);
+    async find(nodeId) {
+        const node = await this.docmem.find(nodeId);
         if (!node) {
             return { success: false, result: `docmem-find node not found: ${nodeId}` };
         }
         return { success: true, result: `docmem-find:\n${JSON.stringify(node.toDict(), null, 2)}` };
     }
 
-    delete(nodeId) {
-        this.docmem.delete(nodeId);
+    async delete(nodeId) {
+        await this.docmem.delete(nodeId);
         return { success: true, result: `docmem-delete deleted node: ${nodeId}` };
     }
 
-    serialize(nodeId) {
-        const content = this.docmem.serialize(nodeId);
+    async serialize(nodeId) {
+        const content = await this.docmem.serialize(nodeId);
         return { success: true, result: `docmem-serialize:\n${content}` };
     }
 
-    structure(nodeId) {
-        const structure = this.docmem.structure(nodeId);
+    async structure(nodeId) {
+        const structure = await this.docmem.structure(nodeId);
         return { success: true, result: `docmem-structure:\n${JSON.stringify(structure, null, 2)}` };
     }
 
-    expandToLength(nodeId, maxTokens) {
+    async expandToLength(nodeId, maxTokens) {
         const maxTokensNum = parseInt(maxTokens, 10);
         if (isNaN(maxTokensNum)) {
             throw new Error(`maxTokens must be a number, got: ${maxTokens}`);
         }
-        const nodes = this.docmem.expandToLength(nodeId, maxTokensNum);
+        const nodes = await this.docmem.expandToLength(nodeId, maxTokensNum);
         return { success: true, result: `docmem-expand-to-length:\n${JSON.stringify(nodes.map(n => n.toDict()), null, 2)}` };
     }
 
@@ -163,7 +163,7 @@ export class DocmemCommands {
     }
 
     async moveNode(mode, nodeId, targetId) {
-        this.validateSameRoot(nodeId, targetId, 'docmem-move-node');
+        await this.validateSameRoot(nodeId, targetId, 'docmem-move-node');
         const result = await this.executeWithMode(mode, nodeId, targetId, {
             appendChild: async (nId, tId) => await this.docmem.moveAppendChild(nId, tId),
             before: async (nId, tId) => await this.docmem.moveBefore(nId, tId),
@@ -187,8 +187,8 @@ export class DocmemCommands {
         return { success: true, result: `docmem-copy-node ${result.action}: ${result.node.id}` };
     }
 
-    getAllRoots() {
-        const roots = Docmem.getAllRoots();
+    async getAllRoots() {
+        const roots = await Docmem.getAllRoots();
         return { success: true, result: `docmem-get-all-roots:\n${JSON.stringify(roots, null, 2)}` };
     }
 }

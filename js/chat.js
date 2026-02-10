@@ -406,32 +406,32 @@ async function executeDocmemCommand(args, docmem) {
             case 'docmem-find': {
                 requireArgs(restArgs, 1, 'docmem-find', '<node_id>');
                 const nodeId = restArgs[0];
-                return commands.find(nodeId);
+                return await commands.find(nodeId);
             }
-            
+
             case 'docmem-delete': {
                 requireArgs(restArgs, 1, 'docmem-delete', '<node_id>');
                 const nodeId = restArgs[0];
-                return commands.delete(nodeId);
+                return await commands.delete(nodeId);
             }
-            
+
             case 'docmem-serialize': {
                 requireArgs(restArgs, 1, 'docmem-serialize', '<node_id>');
                 const nodeId = restArgs[0];
-                return commands.serialize(nodeId);
+                return await commands.serialize(nodeId);
             }
-            
+
             case 'docmem-structure': {
                 requireArgs(restArgs, 1, 'docmem-structure', '<node_id>');
                 const nodeId = restArgs[0];
-                return commands.structure(nodeId);
+                return await commands.structure(nodeId);
             }
-            
+
             case 'docmem-expand-to-length': {
                 requireArgs(restArgs, 2, 'docmem-expand-to-length', '<node_id> <maxTokens>');
                 const nodeId = restArgs[0];
                 const maxTokensArg = restArgs[1];
-                return commands.expandToLength(nodeId, maxTokensArg);
+                return await commands.expandToLength(nodeId, maxTokensArg);
             }
             
             case 'docmem-add-summary': {
@@ -464,7 +464,7 @@ async function executeDocmemCommand(args, docmem) {
             }
             
             case 'docmem-get-all-roots': {
-                return commands.getAllRoots();
+                return await commands.getAllRoots();
             }
             
             default:

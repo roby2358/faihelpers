@@ -13,18 +13,18 @@ Fai Helpers is a browser-based agent framework centered around **Docmem**, a hie
 This is a pure browser-based JavaScript application with no build step:
 
 1. Open `index.html` in a web browser
-2. The application uses external CDN dependencies (sql.js, gpt-tokenizer)
+2. The application uses external CDN dependencies (DuckDB WASM, gpt-tokenizer)
 3. No npm, webpack, or build tooling is required
 
 ## Architecture
 
 ### Core System: Docmem
 
-The docmem system stores information in a hierarchical tree structure backed by SQLite (sql.js running in browser). All docmem instances share a single in-memory database.
+The docmem system stores information in a hierarchical tree structure backed by DuckDB WASM running in browser. All docmem instances share a single in-memory database connection.
 
 **Key files:**
 - `js/docmem_tools/docmem.js` - Main Docmem class and operations
-- `js/docmem_tools/docmem_sqlite.js` - SQLite database interface
+- `js/docmem_tools/docmem_sqlite.js` - DuckDB WASM database interface
 - `js/docmem_tools/docmem_types.js` - Node class, hash computation, optimistic locking
 
 **Node structure:**

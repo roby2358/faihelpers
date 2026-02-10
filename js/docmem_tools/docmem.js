@@ -15,7 +15,7 @@ export class Docmem {
     async init() {
         await this.sqlite.ready();
         // Check if root already exists, if not create it
-        const existingRoot = this.getRootById(this.docmemId);
+        const existingRoot = await this.getRootById(this.docmemId);
         if (!existingRoot) {
             await this.createRoot();
         }
@@ -25,17 +25,17 @@ export class Docmem {
         await this.initPromise;
     }
 
-    getRootById(rootId) {
-        return this.sqlite.getRootById(rootId);
+    async getRootById(rootId) {
+        return await this.sqlite.getRootById(rootId);
     }
 
     async createRoot(contextType = 'root', contextName = 'purpose', contextValue = 'document') {
         // Check if root already exists
-        const existingRoot = this.getRootById(this.docmemId);
+        const existingRoot = await this.getRootById(this.docmemId);
         if (existingRoot) {
             return existingRoot;
         }
-        
+
         const root = new Node(
             this.docmemId,
             null,
@@ -66,66 +66,66 @@ export class Docmem {
 
     async updateNode(node, expectedHash) {
         this.updateTimestamp(node);
-        this.sqlite.updateNodeContent(node, expectedHash);
+        await this.sqlite.updateNodeContent(node, expectedHash);
     }
 
     async updateNodeContext(node, expectedHash) {
         this.updateTimestamp(node);
-        this.sqlite.updateNodeContext(node, expectedHash);
+        await this.sqlite.updateNodeContext(node, expectedHash);
     }
 
-    getNode(nodeId) {
-        return this.sqlite.getNode(nodeId);
+    async getNode(nodeId) {
+        return await this.sqlite.getNode(nodeId);
     }
 
-    getChildren(parentId) {
-        return this.sqlite.getChildren(parentId);
+    async getChildren(parentId) {
+        return await this.sqlite.getChildren(parentId);
     }
 
     async insertNode(node) {
         await this.sqlite.insertNode(node);
     }
 
-    getRoot() {
-        const root = this.getRootById(this.docmemId);
+    async getRoot() {
+        const root = await this.getRootById(this.docmemId);
         if (!root) {
             throw new Error(`Root node not found for docmem: ${this.docmemId}`);
         }
         return root;
     }
 
-    getAllRoots() {
-        return this.sqlite.getAllRoots();
+    async getAllRoots() {
+        return await this.sqlite.getAllRoots();
     }
 
-    static getAllRoots() {
-        return DocmemSQLite.getAllRoots();
+    static async getAllRoots() {
+        return await DocmemSQLite.getAllRoots();
     }
 
-    requireNode(nodeId) {
-        const node = this.getNode(nodeId);
+    async requireNode(nodeId) {
+        const node = await this.getNode(nodeId);
         if (!node) {
             throw new Error(`Node ${nodeId} not found`);
         }
         return node;
     }
 
-    getRootOfNode(nodeId) {
-        let node = this.requireNode(nodeId);
+    async getRootOfNode(nodeId) {
+        let node = await this.requireNode(nodeId);
         while (node.parentId !== null) {
-            node = this.requireNode(node.parentId);
+            node = await this.requireNode(node.parentId);
         }
         return node;
     }
 
-    getSortedChildren(parentId) {
-        const children = this.getChildren(parentId);
+    async getSortedChildren(parentId) {
+        const children = await this.getChildren(parentId);
         return [...children].sort((a, b) => a.order - b.order);
     }
 
-    calculateOrderForAppend(parentId) {
-        const children = this.getChildren(parentId);
-        const maxOrder = children.length > 0 
+    async calculateOrderForAppend(parentId) {
+        const children = await this.getChildren(parentId);
+        const maxOrder = children.length > 0
             ? Math.max(...children.map(c => c.order))
             : 0.0;
         return maxOrder + 1.0;
@@ -176,10 +176,10 @@ export class Docmem {
         }
     }
 
-    getOrderForSiblingOperation(targetNodeId, position) {
-        const targetNode = this.requireNode(targetNodeId);
+    async getOrderForSiblingOperation(targetNodeId, position) {
+        const targetNode = await this.requireNode(targetNodeId);
         const parentId = this.requireParent(targetNode, `${position} sibling of`);
-        const sortedChildren = this.getSortedChildren(parentId);
+        const sortedChildren = await this.getSortedChildren(parentId);
         const targetIdx = this.findTargetIndexInSorted(sortedChildren, targetNodeId);
         const newOrder = this.calculateOrderRelativeToTarget(targetNode, sortedChildren, targetIdx, position);
         return { parentId, newOrder };
@@ -207,8 +207,8 @@ export class Docmem {
         return parentId;
     }
 
-    findSiblingRange(parentId, startNodeId, endNodeId) {
-        const sortedSiblings = this.getSortedChildren(parentId);
+    async findSiblingRange(parentId, startNodeId, endNodeId) {
+        const sortedSiblings = await this.getSortedChildren(parentId);
         const startIndex = sortedSiblings.findIndex(n => n.id === startNodeId);
         const endIndex = sortedSiblings.findIndex(n => n.id === endNodeId);
 
@@ -225,10 +225,17 @@ export class Docmem {
         return sortedSiblings.slice(startIndex, endIndex + 1);
     }
 
-    validateLeafNodes(nodes) {
-        const nodesWithChildren = nodes.filter(n => this.getChildren(n.id).length > 0);
-        if (nodesWithChildren.length > 0) {
-            throw new Error(`All nodes to summarize must be leaf nodes (have no children). Nodes with children: ${nodesWithChildren.map(n => n.id).join(', ')}`);
+    async validateLeafNodes(nodes) {
+        for (const n of nodes) {
+            const children = await this.getChildren(n.id);
+            if (children.length > 0) {
+                const nodesWithChildren = [];
+                for (const node of nodes) {
+                    const ch = await this.getChildren(node.id);
+                    if (ch.length > 0) nodesWithChildren.push(node);
+                }
+                throw new Error(`All nodes to summarize must be leaf nodes (have no children). Nodes with children: ${nodesWithChildren.map(n => n.id).join(', ')}`);
+            }
         }
     }
 
@@ -238,13 +245,13 @@ export class Docmem {
         return (minOrder + maxOrder) / 2;
     }
 
-    validateCycleBeforeMove(nodeId, targetParentId) {
+    async validateCycleBeforeMove(nodeId, targetParentId) {
         if (nodeId === targetParentId) {
             throw new Error('Cannot move a node to be a child of itself');
         }
 
         const descendants = [];
-        this.getAllDescendants(nodeId, descendants);
+        await this.getAllDescendants(nodeId, descendants);
         const descendantIds = new Set(descendants.map(n => n.id));
 
         if (descendantIds.has(targetParentId)) {
@@ -252,7 +259,7 @@ export class Docmem {
         }
     }
 
-    validateCycleBeforeMoveSibling(nodeId, targetNode, operation) {
+    async validateCycleBeforeMoveSibling(nodeId, targetNode, operation) {
         if (nodeId === targetNode.id) {
             throw new Error(`Cannot move a node to be ${operation} itself`);
         }
@@ -262,7 +269,7 @@ export class Docmem {
         }
 
         const descendants = [];
-        this.getAllDescendants(nodeId, descendants);
+        await this.getAllDescendants(nodeId, descendants);
         const descendantIds = new Set(descendants.map(n => n.id));
 
         if (descendantIds.has(targetNode.parentId)) {
@@ -272,8 +279,8 @@ export class Docmem {
 
     async updateNodeParentAndOrder(node, expectedHash) {
         this.updateTimestamp(node);
-        this.sqlite.updateNodeParentAndOrder(node, expectedHash);
-        return this.getNode(node.id);
+        await this.sqlite.updateNodeParentAndOrder(node, expectedHash);
+        return await this.getNode(node.id);
     }
 
     createNodeWithContext(parentId, content, order, contextType, contextName, contextValue, readonly = 0) {
@@ -294,40 +301,40 @@ export class Docmem {
     }
 
     async appendChild(nodeId, contextType, contextName, contextValue, content) {
-        this.requireNode(nodeId);
-        const newOrder = this.calculateOrderForAppend(nodeId);
+        await this.requireNode(nodeId);
+        const newOrder = await this.calculateOrderForAppend(nodeId);
         return await this.createAndInsertNode(nodeId, content, newOrder, contextType, contextName, contextValue);
     }
 
     async insertBefore(nodeId, contextType, contextName, contextValue, content) {
-        this.requireNode(nodeId);
-        const { parentId, newOrder } = this.getOrderForSiblingOperation(nodeId, 'before');
+        await this.requireNode(nodeId);
+        const { parentId, newOrder } = await this.getOrderForSiblingOperation(nodeId, 'before');
         return await this.createAndInsertNode(parentId, content, newOrder, contextType, contextName, contextValue);
     }
 
     async insertAfter(nodeId, contextType, contextName, contextValue, content) {
-        this.requireNode(nodeId);
-        const { parentId, newOrder } = this.getOrderForSiblingOperation(nodeId, 'after');
+        await this.requireNode(nodeId);
+        const { parentId, newOrder } = await this.getOrderForSiblingOperation(nodeId, 'after');
         return await this.createAndInsertNode(parentId, content, newOrder, contextType, contextName, contextValue);
     }
 
-    deleteDescendantsBottomUp(nodeId) {
+    async deleteDescendantsBottomUp(nodeId) {
         const descendants = [];
-        this.getAllDescendants(nodeId, descendants);
-        
+        await this.getAllDescendants(nodeId, descendants);
+
         // Delete all descendants bottom-up (children before parents)
         // getAllDescendants returns nodes in pre-order (parent before children)
         // Reversing gives us post-order (children before parents) for safe deletion
         const descendantIds = descendants.map(n => n.id).reverse();
         for (const descendantId of descendantIds) {
-            this.sqlite.deleteNodeById(descendantId);
+            await this.sqlite.deleteNodeById(descendantId);
         }
     }
 
-    delete(nodeId) {
-        this.requireNode(nodeId);
-        this.deleteDescendantsBottomUp(nodeId);
-        this.sqlite.deleteNodeById(nodeId);
+    async delete(nodeId) {
+        await this.requireNode(nodeId);
+        await this.deleteDescendantsBottomUp(nodeId);
+        await this.sqlite.deleteNodeById(nodeId);
     }
 
     requireWritable(node) {
@@ -337,80 +344,80 @@ export class Docmem {
     }
 
     async updateContent(nodeId, content) {
-        const node = this.requireNode(nodeId);
+        const node = await this.requireNode(nodeId);
         this.requireWritable(node);
-        
+
         // Create a temporary node to calculate token count
         const tempNode = new Node(nodeId, node.parentId, content, node.order, null, null, null, node.contextType, node.contextName, node.contextValue, node.readonly);
         node.text = content;
         node.tokenCount = tempNode.tokenCount;
-        
+
         return await this.withOptimisticLock(node, async (n, expectedHash) => {
             await this.updateNode(n, expectedHash);
         });
     }
 
     async updateContext(nodeId, contextType, contextName, contextValue) {
-        const node = this.requireNode(nodeId);
+        const node = await this.requireNode(nodeId);
         this.requireWritable(node);
-        
+
         node.contextType = contextType;
         node.contextName = contextName;
         node.contextValue = contextValue;
-        
+
         return await this.withOptimisticLock(node, async (n, expectedHash) => {
             await this.updateNodeContext(n, expectedHash);
         });
     }
 
-    find(nodeId) {
-        return this.getNode(nodeId);
+    async find(nodeId) {
+        return await this.getNode(nodeId);
     }
 
     async moveAppendChild(nodeId, targetParentId) {
-        const node = this.requireNode(nodeId);
-        this.requireNode(targetParentId);
-        this.validateCycleBeforeMove(nodeId, targetParentId);
+        const node = await this.requireNode(nodeId);
+        await this.requireNode(targetParentId);
+        await this.validateCycleBeforeMove(nodeId, targetParentId);
 
-        const newOrder = this.calculateOrderForAppend(targetParentId);
+        const newOrder = await this.calculateOrderForAppend(targetParentId);
         node.parentId = targetParentId;
         node.order = newOrder;
-        
+
         return await this.withOptimisticLock(node, async (n, expectedHash) => {
             return await this.updateNodeParentAndOrder(n, expectedHash);
         });
     }
 
     async moveBefore(nodeId, targetNodeId) {
-        const node = this.requireNode(nodeId);
-        const targetNode = this.requireNode(targetNodeId);
-        this.validateCycleBeforeMoveSibling(nodeId, targetNode, 'before');
+        const node = await this.requireNode(nodeId);
+        const targetNode = await this.requireNode(targetNodeId);
+        await this.validateCycleBeforeMoveSibling(nodeId, targetNode, 'before');
 
-        const { parentId, newOrder } = this.getOrderForSiblingOperation(targetNodeId, 'before');
+        const { parentId, newOrder } = await this.getOrderForSiblingOperation(targetNodeId, 'before');
         node.parentId = parentId;
         node.order = newOrder;
-        
+
         return await this.withOptimisticLock(node, async (n, expectedHash) => {
             return await this.updateNodeParentAndOrder(n, expectedHash);
         });
     }
 
     async moveAfter(nodeId, targetNodeId) {
-        const node = this.requireNode(nodeId);
-        const targetNode = this.requireNode(targetNodeId);
-        this.validateCycleBeforeMoveSibling(nodeId, targetNode, 'after');
+        const node = await this.requireNode(nodeId);
+        const targetNode = await this.requireNode(targetNodeId);
+        await this.validateCycleBeforeMoveSibling(nodeId, targetNode, 'after');
 
-        const { parentId, newOrder } = this.getOrderForSiblingOperation(targetNodeId, 'after');
+        const { parentId, newOrder } = await this.getOrderForSiblingOperation(targetNodeId, 'after');
         node.parentId = parentId;
         node.order = newOrder;
-        
+
         return await this.withOptimisticLock(node, async (n, expectedHash) => {
             return await this.updateNodeParentAndOrder(n, expectedHash);
         });
     }
 
     async copyNodeRecursive(sourceNodeId, newParentId, newOrder) {
-        const sourceNode = this.requireNode(sourceNodeId);
+        const sourceNode = await this.requireNode(sourceNodeId);
         const newNodeId = randomString(8);
         const newNode = new Node(
             newNodeId,
@@ -427,116 +434,117 @@ export class Docmem {
         );
         await NodeHasher.hash(newNode);
         await this.sqlite.insertNode(newNode);
-        
+
         // Recursively copy all children
-        const children = this.getChildren(sourceNodeId);
-        let childOrder = this.calculateOrderForAppend(newNodeId);
+        const children = await this.getChildren(sourceNodeId);
+        let childOrder = await this.calculateOrderForAppend(newNodeId);
         for (const child of children) {
             await this.copyNodeRecursive(child.id, newNodeId, childOrder);
             childOrder += 1.0;
         }
-        
+
         return newNode;
     }
 
     async copyAppendChild(nodeId, targetParentId) {
-        this.requireNode(nodeId);
-        this.requireNode(targetParentId);
-        
-        const newOrder = this.calculateOrderForAppend(targetParentId);
+        await this.requireNode(nodeId);
+        await this.requireNode(targetParentId);
+
+        const newOrder = await this.calculateOrderForAppend(targetParentId);
         return await this.copyNodeRecursive(nodeId, targetParentId, newOrder);
     }
 
     async copyBefore(nodeId, targetNodeId) {
-        this.requireNode(nodeId);
-        const { parentId, newOrder } = this.getOrderForSiblingOperation(targetNodeId, 'before');
+        await this.requireNode(nodeId);
+        const { parentId, newOrder } = await this.getOrderForSiblingOperation(targetNodeId, 'before');
         return await this.copyNodeRecursive(nodeId, parentId, newOrder);
     }
 
     async copyAfter(nodeId, targetNodeId) {
-        this.requireNode(nodeId);
-        const { parentId, newOrder } = this.getOrderForSiblingOperation(targetNodeId, 'after');
+        await this.requireNode(nodeId);
+        const { parentId, newOrder } = await this.getOrderForSiblingOperation(targetNodeId, 'after');
         return await this.copyNodeRecursive(nodeId, parentId, newOrder);
     }
 
-    getAllDescendants(nodeId, result) {
-        const children = this.getChildren(nodeId);
+    async getAllDescendants(nodeId, result) {
+        const children = await this.getChildren(nodeId);
         for (const child of children) {
             result.push(child);
-            this.getAllDescendants(child.id, result);
+            await this.getAllDescendants(child.id, result);
         }
     }
 
-    getNodesRecursive(node, result) {
+    async getNodesRecursive(node, result) {
         result.push(node);
-        const sortedChildren = this.getSortedChildren(node.id);
+        const sortedChildren = await this.getSortedChildren(node.id);
         for (const child of sortedChildren) {
-            this.getNodesRecursive(child, result);
+            await this.getNodesRecursive(child, result);
         }
     }
 
-    getNodes(nodeId) {
+    async getNodes(nodeId) {
         if (!nodeId) {
             throw new Error('nodeId is required');
         }
         const nodes = [];
-        const startNode = this.requireNode(nodeId);
-        this.getNodesRecursive(startNode, nodes);
+        const startNode = await this.requireNode(nodeId);
+        await this.getNodesRecursive(startNode, nodes);
         return nodes;
     }
 
-    serialize(nodeId) {
-        return this.getNodes(nodeId)
+    async serialize(nodeId) {
+        const nodes = await this.getNodes(nodeId);
+        return nodes
             .filter(node => node.parentId !== null)
             .map(node => node.text)
             .filter(text => text && text.trim().length > 0)
             .join('\n\n');
     }
 
-    structure(nodeId) {
+    async structure(nodeId) {
         if (!nodeId) {
             throw new Error('nodeId is required');
         }
         const result = [];
-        const startNode = this.requireNode(nodeId);
-        this.structureRecursive(startNode, result, 0);
+        const startNode = await this.requireNode(nodeId);
+        await this.structureRecursive(startNode, result, 0);
         return result.join('\n');
     }
 
-    structureRecursive(node, result, depth) {
+    async structureRecursive(node, result, depth) {
         const indent = '  '.repeat(depth);
         const line = `${indent}- ${node.id} ${node.contextType} ${node.contextName}:${node.contextValue} ${node.createdAt}`;
         result.push(line);
-        
-        const sortedChildren = this.getSortedChildren(node.id);
+
+        const sortedChildren = await this.getSortedChildren(node.id);
         for (const child of sortedChildren) {
-            this.structureRecursive(child, result, depth + 1);
+            await this.structureRecursive(child, result, depth + 1);
         }
     }
 
     /**
      * Expand a node to fit within a token budget.
-     * 
+     *
      * Algorithm:
      * 1. Reverse BFS to build priority list (level-by-level, last children first within each level)
      * 2. Iterate through priority list, consuming budget until it's spent (no holes - stop on first failure)
      * 3. Preorder DFS traversal, rendering only nodes in the included set
-     * 
+     *
      * The priority order guarantees parents come before children, so stopping
      * on budget exhaustion naturally prevents orphans. Last children (most recent)
      * have higher priority than earlier children.
-     * 
+     *
      * Example: For tree ROOT -> A(C,D), B(E):
      * - Priority list: ROOT, B, A, E, D, C
      * - Budget consumed until exhausted, list truncated
      * - DFS render: ROOT, A, ..., B, ... (only included nodes)
      */
-    expandToLength(nodeId, maxTokens) {
+    async expandToLength(nodeId, maxTokens) {
         if (!nodeId) {
             throw new Error('nodeId is required');
         }
 
-        const startNode = this.requireNode(nodeId);
+        const startNode = await this.requireNode(nodeId);
 
         // Step 1: Build priority list via reverse BFS
         // Level-by-level, but within each level, reverse order (last/most recent children first)
@@ -552,7 +560,7 @@ export class Docmem {
             // Collect children for next level
             const nextLevel = [];
             for (const node of currentLevel) {
-                const children = this.getSortedChildren(node.id);
+                const children = await this.getSortedChildren(node.id);
                 nextLevel.push(...children);
             }
 
@@ -577,19 +585,19 @@ export class Docmem {
         // Step 3: Preorder DFS traversal, rendering only included nodes
         const result = [];
 
-        const renderDfs = (node) => {
+        const renderDfs = async (node) => {
             if (!includedIds.has(node.id)) {
                 // Node not included - skip entire subtree
                 return;
             }
             result.push(node);
-            const children = this.getSortedChildren(node.id);
+            const children = await this.getSortedChildren(node.id);
             for (const child of children) {
-                renderDfs(child);
+                await renderDfs(child);
             }
         };
 
-        renderDfs(startNode);
+        await renderDfs(startNode);
 
         return result;
     }
@@ -599,13 +607,13 @@ export class Docmem {
             throw new Error('Must provide both start-node-id and end-node-id');
         }
 
-        const startNode = this.requireNode(startNodeId);
-        const endNode = this.requireNode(endNodeId);
+        const startNode = await this.requireNode(startNodeId);
+        const endNode = await this.requireNode(endNodeId);
         const parentId = this.validateSameParent(startNode, endNode);
-        this.requireNode(parentId);
+        await this.requireNode(parentId);
 
-        const memoryNodesSorted = this.findSiblingRange(parentId, startNodeId, endNodeId);
-        this.validateLeafNodes(memoryNodesSorted);
+        const memoryNodesSorted = await this.findSiblingRange(parentId, startNodeId, endNodeId);
+        await this.validateLeafNodes(memoryNodesSorted);
 
         const summaryOrder = this.calculateSummaryOrder(memoryNodesSorted);
         const summaryNode = await this.createAndInsertNode(parentId, content, summaryOrder, contextType, contextName, contextValue);
@@ -622,12 +630,12 @@ export class Docmem {
             }
             const expectedHash = node.hash;
             const oldParentId = node.parentId;
-            
+
             try {
                 node.parentId = newParentId;
                 await NodeHasher.hash(node);
                 this.updateTimestamp(node);
-                this.sqlite.updateNodeParent(node.id, node.parentId, node.hash, node.updatedAt, expectedHash);
+                await this.sqlite.updateNodeParent(node.id, node.parentId, node.hash, node.updatedAt, expectedHash);
             } catch (error) {
                 node.parentId = oldParentId;
                 throw error;
@@ -635,7 +643,7 @@ export class Docmem {
         }
     }
 
-    close() {
-        this.sqlite.close();
+    async close() {
+        await this.sqlite.close();
     }
 }

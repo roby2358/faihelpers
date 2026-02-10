@@ -11,7 +11,7 @@ let selectedViewRootId = null;
 export function showMessage(text, type) {
     const messageBar = document.getElementById('message-bar');
     const messageText = document.getElementById('message-text');
-    
+
     messageText.textContent = text;
     messageBar.className = `message-bar ${type}`;
 }
@@ -112,16 +112,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     initDocmem();
     initView();
     initPersist();
-    
+
     // Seed all registered docmems
     try {
         await seedAllDocmems();
     } catch (error) {
         console.warn('Error seeding docmems:', error);
     }
-    
+
     // Initial render to show roots list
-    renderDocmem();
+    await renderDocmem();
 });
 
 function initTabs() {
@@ -129,7 +129,7 @@ function initTabs() {
     const tabContents = document.querySelectorAll('.tab-content');
 
     tabButtons.forEach(button => {
-        button.addEventListener('click', () => {
+        button.addEventListener('click', async () => {
             const targetTab = button.getAttribute('data-tab');
 
             // Update button states
@@ -139,15 +139,15 @@ function initTabs() {
             // Update content visibility
             tabContents.forEach(content => content.classList.remove('active'));
             document.getElementById(`${targetTab}-tab`).classList.add('active');
-            
+
             // Refresh view tab when switching to it
             if (targetTab === 'view') {
-                renderView();
+                await renderView();
                 initView();
             }
             // Refresh persist tab when switching to it
             if (targetTab === 'persist') {
-                renderPersist();
+                await renderPersist();
             }
         });
     });
@@ -163,8 +163,8 @@ function initDocmem() {
         await createDocmem(docmemId);
     });
 
-    refreshBtn.addEventListener('click', () => {
-        renderDocmem();
+    refreshBtn.addEventListener('click', async () => {
+        await renderDocmem();
     });
 }
 
@@ -172,7 +172,7 @@ async function createDocmem(docmemId) {
     try {
         currentDocmem = new Docmem(docmemId);
         await currentDocmem.ready();
-        renderDocmem();
+        await renderDocmem();
         showMessage(`Docmem created: ${docmemId}`, 'success');
     } catch (error) {
         console.error('Error creating docmem:', error);
@@ -184,7 +184,7 @@ async function loadDocmem(docmemId) {
     try {
         currentDocmem = new Docmem(docmemId);
         await currentDocmem.ready();
-        renderDocmem();
+        await renderDocmem();
         const docmemIdInput = document.getElementById('docmem-id-input');
         if (docmemIdInput) {
             docmemIdInput.value = docmemId;
@@ -195,9 +195,9 @@ async function loadDocmem(docmemId) {
     }
 }
 
-function renderDocmem() {
+async function renderDocmem() {
     const container = document.getElementById('docmem-container');
-    
+
     if (!currentDocmem) {
         // Show only roots list when no docmem is loaded
         container.innerHTML = `
@@ -208,12 +208,12 @@ function renderDocmem() {
                 </div>
             </div>
         `;
-        renderRootsList();
+        await renderRootsList();
         return;
     }
 
-    const root = currentDocmem.getRoot();
-    
+    const root = await currentDocmem.getRoot();
+
     container.innerHTML = `
         <div class="operation-section" style="margin-bottom: 2rem;">
             <h3>All Docmem Roots</h3>
@@ -291,8 +291,8 @@ function renderDocmem() {
         <div id="expanded-content" class="expanded-content" style="display: none;"></div>
     `;
 
-    renderTree(root, document.getElementById('docmem-tree'), 0);
-    renderRootsList();
+    await renderTree(root, document.getElementById('docmem-tree'), 0);
+    await renderRootsList();
 
     const expandBtn = document.getElementById('expand-btn');
     const serializeBtn = document.getElementById('serialize-btn');
@@ -317,122 +317,122 @@ function renderDocmem() {
     summaryBtn.addEventListener('click', () => handleAddSummary());
 }
 
-function handleAppendChild() {
+async function handleAppendChild() {
     try {
         const parentId = getInputValue('append-parent-id');
         const { contextType, contextName, contextValue } = getContextFields('append');
         const content = getInputValue('append-content');
-        
+
         validateRequired(
             [parentId, contextType, contextName, contextValue, content],
             ['Parent ID', 'Context Type', 'Context Name', 'Context Value', 'Content']
         );
-        
-        const node = currentDocmem.appendChild(parentId, contextType, contextName, contextValue, content);
+
+        const node = await currentDocmem.appendChild(parentId, contextType, contextName, contextValue, content);
         showMessage(`Node created: ${node.id}`, 'success');
-        renderDocmem();
+        await renderDocmem();
     } catch (error) {
         showMessage('Error: ' + error.message, 'error');
     }
 }
 
-function handleInsertBefore() {
+async function handleInsertBefore() {
     try {
         const nodeId = getInputValue('insert-before-node-id');
         const { contextType, contextName, contextValue } = getContextFields('insert-before');
         const content = getInputValue('insert-before-content');
-        
+
         validateRequired(
             [nodeId, contextType, contextName, contextValue, content],
             ['Node ID', 'Context Type', 'Context Name', 'Context Value', 'Content']
         );
-        
-        const node = currentDocmem.insertBefore(nodeId, contextType, contextName, contextValue, content);
+
+        const node = await currentDocmem.insertBefore(nodeId, contextType, contextName, contextValue, content);
         showMessage(`Node inserted before: ${node.id}`, 'success');
-        renderDocmem();
+        await renderDocmem();
     } catch (error) {
         showMessage('Error: ' + error.message, 'error');
     }
 }
 
-function handleInsertAfter() {
+async function handleInsertAfter() {
     try {
         const nodeId = getInputValue('insert-after-node-id');
         const { contextType, contextName, contextValue } = getContextFields('insert-after');
         const content = getInputValue('insert-after-content');
-        
+
         validateRequired(
             [nodeId, contextType, contextName, contextValue, content],
             ['Node ID', 'Context Type', 'Context Name', 'Context Value', 'Content']
         );
-        
-        const node = currentDocmem.insertAfter(nodeId, contextType, contextName, contextValue, content);
+
+        const node = await currentDocmem.insertAfter(nodeId, contextType, contextName, contextValue, content);
         showMessage(`Node inserted after: ${node.id}`, 'success');
-        renderDocmem();
+        await renderDocmem();
     } catch (error) {
         showMessage('Error: ' + error.message, 'error');
     }
 }
 
-function handleUpdateContent() {
+async function handleUpdateContent() {
     try {
         const nodeId = getInputValue('update-node-id');
         const content = getInputValue('update-content');
-        
+
         validateRequired([nodeId, content], ['Node ID', 'Content']);
-        
-        const node = currentDocmem.updateContent(nodeId, content);
+
+        const node = await currentDocmem.updateContent(nodeId, content);
         showMessage(`Node updated: ${node.id}`, 'success');
-        renderDocmem();
+        await renderDocmem();
     } catch (error) {
         showMessage('Error: ' + error.message, 'error');
     }
 }
 
-function handleAddSummary() {
+async function handleAddSummary() {
     try {
         const startNodeId = getInputValue('summary-start-node-id');
         const endNodeId = getInputValue('summary-end-node-id');
         const content = getInputValue('summary-content');
         const { contextType, contextName, contextValue } = getContextFields('summary');
-        
+
         validateRequired(
             [startNodeId, endNodeId, content, contextType, contextName, contextValue],
             ['Start Node ID', 'End Node ID', 'Content', 'Context Type', 'Context Name', 'Context Value']
         );
-        
-        const node = currentDocmem.addSummary(startNodeId, endNodeId, content, contextType, contextName, contextValue);
+
+        const node = await currentDocmem.addSummary(startNodeId, endNodeId, content, contextType, contextName, contextValue);
         showMessage(`Summary created: ${node.id}`, 'success');
-        renderDocmem();
+        await renderDocmem();
     } catch (error) {
         showMessage('Error: ' + error.message, 'error');
     }
 }
 
-function handleDocmemExpand(rootId) {
+async function handleDocmemExpand(rootId) {
     const expandTokenLimit = document.getElementById('expand-token-limit');
     const maxTokens = parseInt(expandTokenLimit.value) || 1000;
-    const expanded = currentDocmem.expandToLength(rootId, maxTokens);
+    const expanded = await currentDocmem.expandToLength(rootId, maxTokens);
     renderExpanded(expanded);
 }
 
-function handleDocmemSerialize(rootId) {
-    const serialized = currentDocmem.getNodes(rootId);
+async function handleDocmemSerialize(rootId) {
+    const serialized = await currentDocmem.getNodes(rootId);
     renderExpanded(serialized);
 }
 
-function renderTree(node, container, depth) {
+async function renderTree(node, container, depth) {
     const nodeDiv = document.createElement('div');
     nodeDiv.className = `docmem-node ${node.contextType}`;
-    
-    const children = currentDocmem.getChildren(node.id);
+
+    const children = await currentDocmem.getChildren(node.id);
     const hasChildren = children.length > 0;
     const isExpanded = shouldExpandNode(node, depth, hasChildren);
 
     nodeDiv.innerHTML = createTreeNodeHtml(node, hasChildren, isExpanded);
     container.appendChild(nodeDiv);
 
-    setupTreeNodeHandlers(nodeDiv, node, children, hasChildren, isExpanded, depth);
+    await setupTreeNodeHandlers(nodeDiv, node, children, hasChildren, isExpanded, depth);
 }
 
 function shouldExpandNode(node, depth, hasChildren) {
@@ -443,7 +443,7 @@ function createTreeNodeHtml(node, hasChildren, isExpanded) {
     const expandIcon = hasChildren ? (isExpanded ? '▼' : '▶') : ' ';
     const childrenHtml = isExpanded && hasChildren ? `<div class="docmem-node-children" data-parent-id="${node.id}"></div>` : '';
     const textHtml = node.text ? `<div class="docmem-node-text">${escapeHtml(node.text)}</div>` : '';
-    
+
     return `
         <div class="docmem-node-header" data-node-id="${node.id}">
             <span class="docmem-expand-icon">${expandIcon}</span>
@@ -458,12 +458,12 @@ function createTreeNodeHtml(node, hasChildren, isExpanded) {
     `;
 }
 
-function setupTreeNodeHandlers(nodeDiv, node, children, hasChildren, isExpanded, depth) {
+async function setupTreeNodeHandlers(nodeDiv, node, children, hasChildren, isExpanded, depth) {
     setupActionButtonHandlers(nodeDiv);
     setupNodeIdCopyHandlerForTree(nodeDiv);
-    
+
     if (hasChildren) {
-        setupTreeExpandHandlers(nodeDiv, children, depth, isExpanded);
+        await setupTreeExpandHandlers(nodeDiv, children, depth, isExpanded);
     }
 }
 
@@ -486,24 +486,24 @@ function setupNodeIdCopyHandlerForTree(nodeDiv) {
     }
 }
 
-function setupTreeExpandHandlers(nodeDiv, children, depth, isExpanded) {
+async function setupTreeExpandHandlers(nodeDiv, children, depth, isExpanded) {
     const header = nodeDiv.querySelector('.docmem-node-header');
     const childrenContainer = nodeDiv.querySelector('.docmem-node-children');
 
-    header.addEventListener('click', () => {
-        toggleTreeNode(header, childrenContainer, children, depth);
+    header.addEventListener('click', async () => {
+        await toggleTreeNode(header, childrenContainer, children, depth);
     });
 
     if (isExpanded && childrenContainer) {
-        renderSortedChildren(children, childrenContainer, depth);
+        await renderSortedChildren(children, childrenContainer, depth);
     }
 }
 
-function toggleTreeNode(header, childrenContainer, children, depth) {
+async function toggleTreeNode(header, childrenContainer, children, depth) {
     if (!childrenContainer) {
         return;
     }
-    
+
     const isCurrentlyExpanded = childrenContainer.style.display !== 'none';
     if (isCurrentlyExpanded) {
         childrenContainer.style.display = 'none';
@@ -512,22 +512,22 @@ function toggleTreeNode(header, childrenContainer, children, depth) {
         childrenContainer.style.display = 'block';
         header.querySelector('.docmem-expand-icon').textContent = '▼';
         if (childrenContainer.children.length === 0) {
-            renderSortedChildren(children, childrenContainer, depth);
+            await renderSortedChildren(children, childrenContainer, depth);
         }
     }
 }
 
-function renderSortedChildren(children, container, parentDepth) {
+async function renderSortedChildren(children, container, parentDepth) {
     const sortedChildren = [...children].sort((a, b) => a.order - b.order);
-    sortedChildren.forEach(child => {
-        renderTree(child, container, parentDepth + 1);
-    });
+    for (const child of sortedChildren) {
+        await renderTree(child, container, parentDepth + 1);
+    }
 }
 
 function renderExpanded(nodes) {
     const container = document.getElementById('expanded-content');
     container.style.display = 'block';
-    
+
     const totalTokens = calculateTotalTokens(nodes);
     container.innerHTML = `
         <h3>Expanded Content (${nodes.length} nodes)</h3>
@@ -535,7 +535,7 @@ function renderExpanded(nodes) {
     `;
 
     const nodesContainer = document.getElementById('expanded-nodes');
-    
+
     nodes.forEach(node => {
         const nodeDiv = createExpandedNodeElement(node);
         nodesContainer.appendChild(nodeDiv);
@@ -575,8 +575,8 @@ function handleAppendNodeAction(nodeId) {
     scrollToElement('append-parent-id');
 }
 
-function handleUpdateNodeAction(nodeId) {
-    const node = currentDocmem.find(nodeId);
+async function handleUpdateNodeAction(nodeId) {
+    const node = await currentDocmem.find(nodeId);
     if (!node) {
         return;
     }
@@ -585,8 +585,8 @@ function handleUpdateNodeAction(nodeId) {
     scrollToElement('update-node-id');
 }
 
-function handleDeleteNodeAction(nodeId) {
-    const nodeToDelete = currentDocmem.find(nodeId);
+async function handleDeleteNodeAction(nodeId) {
+    const nodeToDelete = await currentDocmem.find(nodeId);
     if (!nodeToDelete) {
         showMessage('Node not found', 'error');
         return;
@@ -599,23 +599,23 @@ function handleDeleteNodeAction(nodeId) {
         return;
     }
     try {
-        currentDocmem.delete(nodeId);
+        await currentDocmem.delete(nodeId);
         showMessage(`Node deleted: ${nodeId}`, 'success');
-        renderDocmem();
+        await renderDocmem();
     } catch (error) {
         showMessage('Error: ' + error.message, 'error');
     }
 }
 
-function renderRootsList() {
+async function renderRootsList() {
     const rootsListDiv = document.getElementById('roots-list');
     if (!rootsListDiv) {
         return;
     }
 
     try {
-        const roots = Docmem.getAllRoots();
-        
+        const roots = await Docmem.getAllRoots();
+
         if (roots.length === 0) {
             rootsListDiv.innerHTML = '<div>No root nodes found</div>';
             return;
@@ -649,19 +649,19 @@ function initView() {
     const expandAllBtn = document.getElementById('view-expand-all-btn');
     const serializeBtn = document.getElementById('view-serialize-btn');
     const structureBtn = document.getElementById('view-structure-btn');
-    
+
     if (expandBtn) {
         expandBtn.addEventListener('click', () => handleViewExpand());
     }
-    
+
     if (expandAllBtn) {
         expandAllBtn.addEventListener('click', () => handleViewExpandAll());
     }
-    
+
     if (serializeBtn) {
         serializeBtn.addEventListener('click', () => handleViewSerialize());
     }
-    
+
     if (structureBtn) {
         structureBtn.addEventListener('click', () => handleViewStructure());
     }
@@ -705,32 +705,32 @@ async function handleViewStructure() {
     await renderViewStructure(selectedViewRootId);
 }
 
-function renderView() {
+async function renderView() {
     const rootsBar = document.getElementById('view-roots-bar');
     const contentPanel = document.getElementById('view-content-panel');
-    
+
     if (!rootsBar || !contentPanel) {
         return;
     }
-    
+
     try {
-        const roots = Docmem.getAllRoots();
-        
+        const roots = await Docmem.getAllRoots();
+
         if (roots.length === 0) {
             rootsBar.innerHTML = '<div class="view-no-roots">No root nodes found</div>';
             contentPanel.innerHTML = '<div class="view-no-content">Select a root node to view its expanded content</div>';
             selectedViewRootId = null;
             return;
         }
-        
+
         selectedViewRootId = ensureValidRootSelection(roots, selectedViewRootId);
-        
+
         renderRootLinks(rootsBar, roots, selectedViewRootId, 'view-root-link', (rootId) => {
             selectedViewRootId = rootId;
             renderViewExpanded(rootId, 1000000);
         });
-        
-        renderViewExpanded(selectedViewRootId, 1000000);
+
+        await renderViewExpanded(selectedViewRootId, 1000000);
     } catch (error) {
         rootsBar.innerHTML = `<div class="view-error">Error loading roots: ${escapeHtml(error.message)}</div>`;
         contentPanel.innerHTML = '';
@@ -740,25 +740,25 @@ function renderView() {
 
 async function renderViewExpanded(rootId, maxTokens) {
     const contentPanel = document.getElementById('view-content-panel');
-    
+
     if (!contentPanel) {
         return;
     }
-    
+
     try {
         const docmem = new Docmem(rootId);
         await docmem.ready();
-        
-        const expanded = docmem.expandToLength(rootId, maxTokens);
-        
+
+        const expanded = await docmem.expandToLength(rootId, maxTokens);
+
         if (expanded.length === 0) {
             renderEmptyState(contentPanel, 'No content to display');
             return;
         }
-        
+
         const textContent = formatExpandedNodes(expanded);
         const totalTokens = calculateTotalTokens(expanded);
-        
+
         const pre = createPreElement('view-serialized-text', textContent);
         contentPanel.innerHTML = `<div class="view-stats">${expanded.length} nodes, ${totalTokens} tokens (expanded to ${maxTokens})</div>`;
         contentPanel.appendChild(pre);
@@ -777,25 +777,25 @@ function formatExpandedNodes(nodes) {
 
 async function renderViewSerialized(rootId) {
     const contentPanel = document.getElementById('view-content-panel');
-    
+
     if (!contentPanel) {
         return;
     }
-    
+
     try {
         const docmem = new Docmem(rootId);
         await docmem.ready();
-        
-        const serializedContent = docmem.serialize(rootId);
-        
+
+        const serializedContent = await docmem.serialize(rootId);
+
         if (!serializedContent || serializedContent.length === 0) {
             renderEmptyState(contentPanel, 'No content to display');
             return;
         }
-        
-        const nodes = docmem.getNodes(rootId);
+
+        const nodes = await docmem.getNodes(rootId);
         const totalTokens = calculateTotalTokens(nodes);
-        
+
         const pre = createPreElement('view-serialized-text', serializedContent);
         contentPanel.innerHTML = `<div class="view-stats">${nodes.length} nodes, ${totalTokens} tokens (serialized)</div>`;
         contentPanel.appendChild(pre);
@@ -806,25 +806,25 @@ async function renderViewSerialized(rootId) {
 
 async function renderViewStructure(rootId) {
     const contentPanel = document.getElementById('view-content-panel');
-    
+
     if (!contentPanel) {
         return;
     }
-    
+
     try {
         const docmem = new Docmem(rootId);
         await docmem.ready();
-        
-        const structureContent = docmem.structure(rootId);
-        
+
+        const structureContent = await docmem.structure(rootId);
+
         if (!structureContent || structureContent.length === 0) {
             renderEmptyState(contentPanel, 'No structure to display');
             return;
         }
-        
-        const nodes = docmem.getNodes(rootId);
+
+        const nodes = await docmem.getNodes(rootId);
         const totalTokens = calculateTotalTokens(nodes);
-        
+
         const pre = createPreElement('view-serialized-text', structureContent);
         contentPanel.innerHTML = `<div class="view-stats">${nodes.length} nodes, ${totalTokens} tokens (structure)</div>`;
         contentPanel.appendChild(pre);
@@ -891,7 +891,7 @@ function initPersist() {
 
 async function handlePersistSave() {
     try {
-        const roots = Docmem.getAllRoots();
+        const roots = await Docmem.getAllRoots();
         if (roots.length === 0) {
             showMessage('No docmem roots found to save', 'error');
             return;
@@ -899,10 +899,10 @@ async function handlePersistSave() {
 
         const selectedRootId = ensureValidRootSelection(roots, selectedPersistRootId);
         selectedPersistRootId = selectedRootId;
-        
+
         const docmem = new Docmem(selectedRootId);
         await docmem.ready();
-        
+
         const tomlSerializer = new TomlSerializer();
         const filename = `${selectedRootId}.toml`;
         await tomlSerializer.saveToFile(docmem, selectedRootId, filename);
@@ -923,7 +923,7 @@ async function handleTomlFileUpload(event, fileInput) {
         const tomlSerializer = new TomlSerializer();
         const tomlText = await tomlSerializer.loadFromFile(file);
         const nodeData = tomlSerializer.parseToml(tomlText);
-        
+
         if (nodeData.length === 0) {
             showMessage('No nodes found in TOML file', 'error');
             return;
@@ -931,10 +931,10 @@ async function handleTomlFileUpload(event, fileInput) {
 
         const docmem = await tomlSerializer.deserializeFromToml(tomlText);
         const docmemId = docmem.docmemId;
-        
+
         showMessage(`Loaded docmem: ${docmemId}`, 'success');
         await loadDocmem(docmemId);
-        renderPersist();
+        await renderPersist();
     } catch (error) {
         console.error('Error loading TOML:', error);
         showMessage('Error loading TOML: ' + error.message, 'error');
@@ -954,9 +954,9 @@ async function handleTextFileUpload(event, fileInput) {
         const { docmem, selectedRootId, createdCount } = await lineImporter.createDocmemFromFile(file);
 
         showMessage(`Created ${createdCount} nodes from ${file.name}`, 'success');
-        renderPersist();
+        await renderPersist();
         if (currentDocmem && currentDocmem.docmemId === selectedRootId) {
-            renderDocmem();
+            await renderDocmem();
         }
     } catch (error) {
         console.error('Error uploading text file:', error);
@@ -977,9 +977,9 @@ async function handleParagraphFileUpload(event, fileInput) {
         const { docmem, selectedRootId, createdCount } = await paragraphImporter.createDocmemFromFile(file);
 
         showMessage(`Created ${createdCount} nodes from ${file.name}`, 'success');
-        renderPersist();
+        await renderPersist();
         if (currentDocmem && currentDocmem.docmemId === selectedRootId) {
-            renderDocmem();
+            await renderDocmem();
         }
     } catch (error) {
         console.error('Error uploading paragraph file:', error);
@@ -1002,43 +1002,43 @@ async function handlePersistRemove() {
     try {
         const docmem = new Docmem(selectedPersistRootId);
         await docmem.ready();
-        
-        docmem.delete(selectedPersistRootId);
-        
+
+        await docmem.delete(selectedPersistRootId);
+
         if (currentDocmem && currentDocmem.docmemId === selectedPersistRootId) {
             currentDocmem = null;
         }
-        
+
         selectedPersistRootId = null;
-        
+
         showMessage('Docmem removed successfully', 'success');
-        renderPersist();
-        renderDocmem();
+        await renderPersist();
+        await renderDocmem();
     } catch (error) {
         console.error('Error removing docmem:', error);
         showMessage('Error removing docmem: ' + error.message, 'error');
     }
 }
 
-function renderPersist() {
+async function renderPersist() {
     const rootsBar = document.getElementById('persist-roots-bar');
-    
+
     if (!rootsBar) {
         return;
     }
-    
+
     try {
-        const roots = Docmem.getAllRoots();
-        
+        const roots = await Docmem.getAllRoots();
+
         if (roots.length === 0) {
             rootsBar.innerHTML = '<div class="persist-no-roots">No root nodes found</div>';
             selectedPersistRootId = null;
             return;
         }
-        
+
         const currentRootId = ensureValidRootSelection(roots, selectedPersistRootId);
         selectedPersistRootId = currentRootId;
-        
+
         renderRootLinks(rootsBar, roots, currentRootId, 'persist-root-link', (rootId) => {
             selectedPersistRootId = rootId;
             renderPersist();
@@ -1064,7 +1064,7 @@ function renderRootLinks(container, roots, activeRootId, linkClassName, onClickH
             </a>
         `;
     }).join('');
-    
+
     container.querySelectorAll(`.${linkClassName}`).forEach(link => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
@@ -1073,4 +1073,3 @@ function renderRootLinks(container, roots, activeRootId, linkClassName, onClickH
         });
     });
 }
-

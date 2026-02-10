@@ -64,8 +64,8 @@ export class DocmemChat {
     // Children Helpers
     // ─────────────────────────────────────────────────────────────────────────
 
-    getSortedChildren(parentId) {
-        const children = this.docmem.getChildren(parentId);
+    async getSortedChildren(parentId) {
+        const children = await this.docmem.getChildren(parentId);
         return [...children].sort((a, b) => a.order - b.order);
     }
 
@@ -119,8 +119,8 @@ export class DocmemChat {
         return this.systemMsg(`${docmemId}\n\n${this.formatNodesExpanded(nodes)}`);
     }
 
-    validateRootPromptExists() {
-        const rootPromptRoot = this.docmem.find(ROOT_PROMPT_DOCMEM_ID);
+    async validateRootPromptExists() {
+        const rootPromptRoot = await this.docmem.find(ROOT_PROMPT_DOCMEM_ID);
         if (!rootPromptRoot) {
             console.warn('Root-prompt docmem not found');
             return false;
@@ -128,8 +128,8 @@ export class DocmemChat {
         return true;
     }
 
-    serializeRootPrompt() {
-        const serialized = this.docmem.serialize(ROOT_PROMPT_DOCMEM_ID);
+    async serializeRootPrompt() {
+        const serialized = await this.docmem.serialize(ROOT_PROMPT_DOCMEM_ID);
         if (!serialized || serialized.length === 0) {
             console.warn('Root-prompt docmem is empty');
             return null;
@@ -137,12 +137,12 @@ export class DocmemChat {
         return serialized;
     }
 
-    buildRootPromptSystemMessage() {
-        if (!this.validateRootPromptExists()) {
+    async buildRootPromptSystemMessage() {
+        if (!await this.validateRootPromptExists()) {
             return null;
         }
 
-        const serialized = this.serializeRootPrompt();
+        const serialized = await this.serializeRootPrompt();
         if (!serialized) {
             return null;
         }
@@ -158,12 +158,12 @@ export class DocmemChat {
         return message;
     }
 
-    expandDocmemNodes(docmemId, maxTokens) {
-        return this.docmem.expandToLength(docmemId, maxTokens);
+    async expandDocmemNodes(docmemId, maxTokens) {
+        return await this.docmem.expandToLength(docmemId, maxTokens);
     }
 
-    tryBuildExpandedDocmemMessage(docmemId) {
-        const expandedNodes = this.expandDocmemNodes(docmemId, DEFAULT_EXPAND_MAX_TOKENS);
+    async tryBuildExpandedDocmemMessage(docmemId) {
+        const expandedNodes = await this.expandDocmemNodes(docmemId, DEFAULT_EXPAND_MAX_TOKENS);
         if (expandedNodes.length === 0) {
             console.warn(`Could not expand docmem ${docmemId}, skipping`);
             return null;
@@ -173,19 +173,24 @@ export class DocmemChat {
         return this.buildExpandedSystemMessage(docmemId, expandedNodes);
     }
 
-    collectIncludableDocmems() {
-        const allRoots = Docmem.getAllRoots();
+    async collectIncludableDocmems() {
+        const allRoots = await Docmem.getAllRoots();
         return allRoots.filter(r => this.isIncludableDocmem(r));
     }
 
-    buildNonChatDocmemSystemMessages() {
-        const includable = this.collectIncludableDocmems();
+    async buildNonChatDocmemSystemMessages() {
+        const includable = await this.collectIncludableDocmems();
 
         console.log(`=== INCLUDING ${includable.length} NON-CHAT DOCMEMS ===`);
 
-        return includable
-            .map(r => this.tryBuildExpandedDocmemMessage(r.id))
-            .filter(msg => msg !== null);
+        const messages = [];
+        for (const r of includable) {
+            const msg = await this.tryBuildExpandedDocmemMessage(r.id);
+            if (msg !== null) {
+                messages.push(msg);
+            }
+        }
+        return messages;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -292,10 +297,10 @@ export class DocmemChat {
     // Chat Session Operations
     // ─────────────────────────────────────────────────────────────────────────
 
-    deleteExistingRoot() {
-        const existingRoot = this.docmem.getRootById(this.docmemId);
+    async deleteExistingRoot() {
+        const existingRoot = await this.docmem.getRootById(this.docmemId);
         if (existingRoot) {
-            this.docmem.delete(existingRoot.id);
+            await this.docmem.delete(existingRoot.id);
         }
     }
 
@@ -316,7 +321,7 @@ export class DocmemChat {
 
     async createChatSession() {
         await this.ready();
-        this.deleteExistingRoot();
+        await this.deleteExistingRoot();
 
         const rootNode = this.createChatRootNode(this.docmemId);
         await NodeHasher.hash(rootNode);
@@ -338,22 +343,22 @@ export class DocmemChat {
     // Build Message List
     // ─────────────────────────────────────────────────────────────────────────
 
-    buildSystemMessages() {
+    async buildSystemMessages() {
         return [
-            this.buildRootPromptSystemMessage(),
+            await this.buildRootPromptSystemMessage(),
             this.buildPromptsSystemMessage(),
-            ...this.buildNonChatDocmemSystemMessages()
+            ...await this.buildNonChatDocmemSystemMessages()
         ].filter(msg => msg !== null);
     }
 
-    buildChatMessages() {
-        const sortedChildren = this.getSortedChildren(this.docmemId);
+    async buildChatMessages() {
+        const sortedChildren = await this.getSortedChildren(this.docmemId);
         return sortedChildren.flatMap(node => this.convertChatNodeToMessages(node));
     }
 
     async buildMessageList() {
-        const systemMessages = this.buildSystemMessages();
-        const chatMessages = this.buildChatMessages();
+        const systemMessages = await this.buildSystemMessages();
+        const chatMessages = await this.buildChatMessages();
         return [...systemMessages, ...chatMessages];
     }
 
@@ -361,16 +366,16 @@ export class DocmemChat {
     // Public API
     // ─────────────────────────────────────────────────────────────────────────
 
-    getRoot() {
-        return this.docmem.find(this.docmemId);
+    async getRoot() {
+        return await this.docmem.find(this.docmemId);
     }
 
-    close() {
-        this.docmem.close();
+    async close() {
+        await this.docmem.close();
     }
 
-    find(nodeId) {
-        return this.docmem.find(nodeId);
+    async find(nodeId) {
+        return await this.docmem.find(nodeId);
     }
 
     async update_content(nodeId, content) {

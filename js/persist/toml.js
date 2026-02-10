@@ -57,8 +57,8 @@ export class TomlSerializer {
         return lines.join('\n');
     }
 
-    serializeToToml(docmem, rootId) {
-        const nodes = docmem.getNodes(rootId);
+    async serializeToToml(docmem, rootId) {
+        const nodes = await docmem.getNodes(rootId);
         if (nodes.length === 0) {
             return '';
         }
@@ -127,12 +127,12 @@ export class TomlSerializer {
                 }
 
                 if (processed.has(data.parentId)) {
-                    const parentNode = docmem.find(data.parentId);
+                    const parentNode = await docmem.find(data.parentId);
                     if (!parentNode) {
                         throw new Error(`Parent node ${data.parentId} not found`);
                     }
-                    
-                    const children = docmem.getChildren(data.parentId);
+
+                    const children = await docmem.getChildren(data.parentId);
                     const maxOrder = children.length > 0 
                         ? Math.max(...children.map(c => c.order))
                         : 0.0;
@@ -171,9 +171,9 @@ export class TomlSerializer {
         const docmem = new Docmem(docmemId);
         await docmem.ready();
 
-        const existingRoot = docmem.getRootById(docmemId);
+        const existingRoot = await docmem.getRootById(docmemId);
         if (existingRoot) {
-            docmem.delete(docmemId);
+            await docmem.delete(docmemId);
         }
 
         await this.buildNodeGraph(docmem, nodeMap, rootData);
@@ -345,7 +345,7 @@ export class TomlSerializer {
     }
 
     async saveToFile(docmem, rootId, filename) {
-        const tomlContent = this.serializeToToml(docmem, rootId);
+        const tomlContent = await this.serializeToToml(docmem, rootId);
         const blob = new Blob([tomlContent], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');

@@ -3,10 +3,10 @@ import { Docmem } from '../docmem_tools/docmem.js';
 export class LineImporter {
     async importFromFile(file) {
         const text = await file.text();
-        
+
         const lines = text.split('\n');
         const trimmedLines = [];
-        
+
         for (const line of lines) {
             const trimmed = line.trim();
             if (trimmed.length > 0) {
@@ -23,18 +23,18 @@ export class LineImporter {
 
     async createDocmemFromFile(file) {
         const lines = await this.importFromFile(file);
-        
+
         const filenameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const selectedRootId = `${filenameWithoutExt}.${timestamp}`;
         const docmem = new Docmem(selectedRootId);
         await docmem.ready();
 
-        const rootNode = docmem.getRoot();
+        const rootNode = await docmem.getRoot();
         let createdCount = 0;
 
         for (const line of lines) {
-            const order = docmem.calculateOrderForAppend(rootNode.id);
+            const order = await docmem.calculateOrderForAppend(rootNode.id);
             await docmem.createAndInsertNode(rootNode.id, line, order, 'line', 'source', 'upload', 0);
             createdCount++;
         }
