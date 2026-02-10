@@ -33,13 +33,33 @@ The AgentLoop MUST encapsulate the following concerns:
 
 ### Lifecycle
 
-- An AgentLoop MUST be constructed with a DocmemChat instance and an API client instance.
+- An AgentLoop MUST be constructed with a DocmemChat instance, an API client instance, and a `summaryLine` string.
 - An AgentLoop MUST accept an initial message that seeds the first user-role turn.
 - An AgentLoop MUST run until one of the following termination conditions:
   - The model produces a response containing no command blocks.
   - The model issues a `complete` command.
   - The depth limit is reached.
 - The AgentLoop MUST return a result object when it terminates (see Termination Result below).
+
+### Docmem Structure
+
+Each AgentLoop creates the following tree structure in its chat docmem:
+
+```
+root (text = summaryLine)
+└── summary node       (contextType='summary', contextName='status', contextValue='working')
+    ├── message node   (user — initial message with delegation context if delegated)
+    ├── message node   (assistant)
+    ├── message node   (user — command results)
+    ├── message node   (assistant)
+    └── ...
+```
+
+- The `summaryLine` is a short descriptive label stored in the root node's text field. It describes what the agent was asked to do.
+- The summary node is created at the start of the loop with text `"working"`.
+- All user and assistant message nodes MUST be appended as children of the summary node, NOT of the root node.
+- When the loop terminates, the summary node's text MUST be updated from `"working"` to the final summary (from `complete`, or the final assistant response for `no_commands`/`depth_limit`).
+- When building the message list, DocmemChat MUST identify summary nodes used as run containers (`contextName='status'`) and expand them by reading their children, not by including the summary node itself as a message. This is distinct from chat-history summary nodes (created by `addSummary`), which are converted to tool-call message pairs.
 
 ### Message List Construction
 
@@ -68,12 +88,17 @@ A single turn MUST proceed as follows:
 
 ### Termination Result
 
-When the loop terminates, the AgentLoop MUST return a result containing:
+When the loop terminates, the AgentLoop MUST:
 
-- The reason for termination: `complete`, `no_commands`, or `depth_limit`.
-- The summary text from the `complete` command (if termination reason is `complete`).
-- The final assistant response text (returned for all termination reasons).
-- The chat docmem root ID (the agent's identity).
+1. Update the run node's text to the final summary. The summary text is:
+   - The `complete` command's summary argument (if termination reason is `complete`).
+   - The final assistant response text (if termination reason is `no_commands`).
+   - A depth-limit indicator prepended to the final response (if termination reason is `depth_limit`).
+2. Return a result containing:
+   - The reason for termination: `complete`, `no_commands`, or `depth_limit`.
+   - The summary text from the `complete` command (if termination reason is `complete`).
+   - The final assistant response text (returned for all termination reasons).
+   - The chat docmem root ID (the agent's identity).
 
 The `no_commands` termination MUST be treated equivalently to `complete` — the final assistant response serves as the result. This covers cases where the model finishes its work without explicitly issuing `complete`.
 
@@ -102,23 +127,18 @@ When the delegate command is executed, the system MUST:
 1. Generate a unique chat docmem root ID for the child agent (prefixed with `chat_`).
 2. Create a new chat docmem with that root ID.
 3. Create a new DocmemChat instance bound to the child's chat docmem.
-4. Record the parent agent's chat docmem root ID as the child's predecessor.
-5. Create a new AgentLoop for the child with the same API client and model as the parent.
+4. Create a new AgentLoop for the child with the same API client and model as the parent.
 
 ### Child Agent Context
 
 The child agent's chat docmem is a fresh docmem that the child owns. It is visible in the View and Persist panels like any other docmem.
 
-The delegation system message MUST be stored as a node in the child's chat docmem. The child's message list is then built through the standard DocmemChat mechanism, which MUST include:
+The delegation context (task prompt, parent identity, `complete` instruction) MUST be included in the initial user message passed to the child's AgentLoop. The child's message list is then built through the standard DocmemChat mechanism, which MUST include:
 
 - The same root system prompt as the parent (the shared root prompt docmem).
 - The same tool prompts (bash prompt, system prompt, docmem prompt) as the parent.
-- The delegation system message (stored in the child's chat docmem) containing:
-  - The task prompt provided by the parent.
-  - The parent agent's identity (chat docmem root ID).
-  - An instruction that the agent MUST issue `complete` with a summary when the task is done.
 - Non-chat docmems, included via the existing system message mechanism (SPEC_CHAT.md).
-- The child's own chat history.
+- The child's own chat history (starting with the initial delegation message as the first user turn).
 
 The child agent MUST NOT receive the parent's chat history as context.
 
@@ -162,13 +182,13 @@ complete <summary>
 - The summary MUST be included in the termination result returned to the parent.
 - If the complete command is issued by the root agent (the user-facing chat), it MUST be treated as a no-op with a warning, since there is no parent to return to.
 
-## Delegation System Message
+## Delegation Initial Message
 
-The delegation system message provided to the child agent MUST contain the following information:
+The initial user message passed to the child's AgentLoop MUST contain:
 
 - A header identifying this as a delegated task.
 - The task prompt exactly as provided by the parent.
-- The parent agent's identity.
+- The parent agent's identity (chat docmem root ID).
 - An instruction that the agent MUST issue `complete` with a summary when the task is done.
 
 ## Recursive Delegation
@@ -210,7 +230,7 @@ The delegation system message provided to the child agent MUST contain the follo
 - The current loop logic lives in `chat.js` functions: `sendMessage`, `invokeModelAndRecordResponse`, `processCommands`, `extractRunSections`, `executeCommand`, `executeDocmemCommand`, `executeSystemCommand`. These MUST be factored into the AgentLoop class.
 - The chat UI (`chat.js`) MUST become a thin wrapper that creates an AgentLoop for the user-facing agent and bridges UI events to AgentLoop method calls. The Send button passes the user's input as the initial message. The Continue button passes "Please continue" as the initial message.
 - DocmemChat already handles message list construction (`buildMessageList`). The AgentLoop MUST reuse this rather than reimplementing it.
-- The delegation system message MUST be stored as a node in the child's chat docmem, so the standard DocmemChat message list construction picks it up automatically.
+- The delegation context (task prompt, parent identity, `complete` instruction) is included in the initial user message, not as a separate docmem node.
 - The `delegate` command is itself a command handler, so it participates in the same `processCommands` cycle as docmem commands. When the handler runs, it blocks the parent's loop by awaiting the child's entire AgentLoop run.
 
 ## Current Limitations

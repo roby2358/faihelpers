@@ -14,6 +14,7 @@ export class DocmemChat {
     constructor(docmemId) {
         this.docmem = new Docmem(docmemId);
         this.docmemId = docmemId;
+        this.messageParentId = null;
     }
 
     async ready() {
@@ -39,6 +40,10 @@ export class DocmemChat {
     // ─────────────────────────────────────────────────────────────────────────
     // Node Predicates
     // ─────────────────────────────────────────────────────────────────────────
+
+    isRunNode(node) {
+        return node.contextType === 'summary' && node.contextName === 'status';
+    }
 
     isSummaryToolNode(node) {
         return node.contextType === 'summary';
@@ -328,15 +333,19 @@ export class DocmemChat {
         await this.docmem.insertNode(rootNode);
     }
 
+    get effectiveMessageParent() {
+        return this.messageParentId || this.docmemId;
+    }
+
     async appendUserMessage(content) {
-        return await this.docmem.appendChild(this.docmemId, 'message', 'role', 'user', content);
+        return await this.docmem.appendChild(this.effectiveMessageParent, 'message', 'role', 'user', content);
     }
 
     async appendAssistantMessage(content) {
         console.log('=== ASSISTANT RESPONSE ===');
         console.log(content);
         console.log('==========================');
-        return await this.docmem.appendChild(this.docmemId, 'message', 'role', 'assistant', content);
+        return await this.docmem.appendChild(this.effectiveMessageParent, 'message', 'role', 'assistant', content);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -353,7 +362,18 @@ export class DocmemChat {
 
     async buildChatMessages() {
         const sortedChildren = await this.getSortedChildren(this.docmemId);
-        return sortedChildren.flatMap(node => this.convertChatNodeToMessages(node));
+        const messages = [];
+        for (const node of sortedChildren) {
+            if (this.isRunNode(node)) {
+                const runChildren = await this.getSortedChildren(node.id);
+                for (const child of runChildren) {
+                    messages.push(...this.convertChatNodeToMessages(child));
+                }
+            } else {
+                messages.push(...this.convertChatNodeToMessages(node));
+            }
+        }
+        return messages;
     }
 
     async buildMessageList() {
