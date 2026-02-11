@@ -77,6 +77,14 @@ export class Node {
         return Math.ceil(text.length / 4);
     }
 
+    contextString() {
+        return `${this.contextType}:${this.contextName}:${this.contextValue}`;
+    }
+
+    metadataString() {
+        return `${this.id} ${this.contextString()} ${this.updatedAt}`;
+    }
+
     toDict() {
         return {
             id: this.id,

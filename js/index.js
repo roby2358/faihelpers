@@ -447,7 +447,7 @@ function createTreeNodeHtml(node, hasChildren, isExpanded) {
     return `
         <div class="docmem-node-header" data-node-id="${node.id}">
             <span class="docmem-expand-icon">${expandIcon}</span>
-            <span class="docmem-node-type">${escapeHtml(node.contextType)} ${escapeHtml(node.contextName)}:${escapeHtml(node.contextValue)} (<span class="node-id-copy" data-node-id="${node.id}">${node.id}</span>)</span>
+            <span class="docmem-node-type">${escapeHtml(node.contextString())} (<span class="node-id-copy" data-node-id="${node.id}">${node.id}</span>)</span>
             <span class="docmem-node-meta">(tokens: ${node.tokenCount}, order: ${node.order.toFixed(3)})</span>
             <button class="node-action-btn" data-action="append" data-node-id="${node.id}" title="Append child">+</button>
             <button class="node-action-btn" data-action="update" data-node-id="${node.id}" title="Update content">✎</button>
@@ -549,7 +549,7 @@ function createExpandedNodeElement(node) {
     const nodeDiv = document.createElement('div');
     nodeDiv.className = 'expanded-node';
     nodeDiv.innerHTML = `
-        <div class="docmem-node-type">${escapeHtml(node.contextType)} ${escapeHtml(node.contextName)}:${escapeHtml(node.contextValue)}</div>
+        <div class="docmem-node-type">${escapeHtml(node.contextString())}</div>
         <div class="docmem-node-text">${escapeHtml(node.text)}</div>
         <div class="docmem-node-meta">Tokens: ${node.tokenCount} | Order: ${node.order.toFixed(3)}</div>
     `;
@@ -629,9 +629,7 @@ async function renderRootsList() {
                 Tokens: ${root.tokenCount}<br/>
                 Order: ${root.order.toFixed(3)}<br/>
                 Created: ${root.createdAt}<br/>
-                Context Type: ${escapeHtml(root.contextType)}<br/>
-                Context Name: ${escapeHtml(root.contextName)}<br/>
-                Context Value: ${escapeHtml(root.contextValue)}
+                Context: ${escapeHtml(root.contextType)}:${escapeHtml(root.contextName)}:${escapeHtml(root.contextValue)}
             </div>
         `).join('<hr style="margin: 0.5rem 0;"/>');
 
@@ -769,7 +767,7 @@ async function renderViewExpanded(rootId, maxTokens) {
 
 function formatExpandedNodes(nodes) {
     return nodes.map(node => {
-        const header = `${node.id} ${node.contextType} ${node.contextName}:${node.contextValue} ${node.createdAt}`;
+        const header = node.metadataString();
         const content = node.text || '';
         return `${header}\n${content}`;
     }).join('\n\n');

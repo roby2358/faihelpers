@@ -513,7 +513,7 @@ export class Docmem {
 
     async structureRecursive(node, result, depth) {
         const indent = '  '.repeat(depth);
-        const line = `${indent}- ${node.id} ${node.contextType} ${node.contextName}:${node.contextValue} ${node.createdAt}`;
+        const line = `${indent}- ${node.metadataString()}`;
         result.push(line);
 
         const sortedChildren = await this.getSortedChildren(node.id);
