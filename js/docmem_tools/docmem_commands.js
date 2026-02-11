@@ -3,6 +3,22 @@
  */
 import { Docmem } from './docmem.js';
 
+export const KNOWN_DOCMEM_COMMANDS = new Set([
+    'docmem_create',
+    'docmem_create_node',
+    'docmem_update_content',
+    'docmem_update_context',
+    'docmem_find',
+    'docmem_delete',
+    'docmem_serialize',
+    'docmem_structure',
+    'docmem_expand_to_length',
+    'docmem_add_summary',
+    'docmem_move_node',
+    'docmem_copy_node',
+    'docmem_get_all_roots',
+]);
+
 export class DocmemCommands {
     constructor(docmem) {
         this.docmem = docmem;
@@ -42,17 +58,17 @@ export class DocmemCommands {
     }
 
     async executeWithMode(mode, nodeId, targetId, operations, commandName) {
-        if (mode === '--append-child') {
+        if (mode === 'append-child') {
             const node = await operations.appendChild(nodeId, targetId);
             return { node, action: operations.appendChildAction(nodeId, targetId) };
-        } else if (mode === '--before') {
+        } else if (mode === 'before') {
             const node = await operations.before(nodeId, targetId);
             return { node, action: operations.beforeAction(nodeId, targetId) };
-        } else if (mode === '--after') {
+        } else if (mode === 'after') {
             const node = await operations.after(nodeId, targetId);
             return { node, action: operations.afterAction(nodeId, targetId) };
         } else {
-            throw new Error(`${commandName} requires mode to be --append-child, --before, or --after, got: ${mode}`);
+            throw new Error(`${commandName} requires mode to be append-child, before, or after, got: ${mode}`);
         }
     }
 

@@ -3,7 +3,7 @@
  */
 import { Docmem, Node, NodeHasher } from './docmem_tools/docmem.js';
 import { ROOT_PROMPT_DOCMEM_ID } from './system_prompts/root_prompt.js';
-import { BASH_PROMPT } from './bash/bash_prompt.js';
+import { PYTOOL_PROMPT } from './pytool/pytool_prompt.js';
 import { SYSTEM_PROMPT } from './system_tools/system_prompt.js';
 import { DOCMEM_PROMPT } from './docmem_tools/docmem_prompt.js';
 
@@ -21,9 +21,7 @@ export class DocmemChat {
         await this.docmem.ready();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
     // Message Helpers
-    // ─────────────────────────────────────────────────────────────────────────
 
     msg(role, content) {
         return { role, content };
@@ -37,9 +35,7 @@ export class DocmemChat {
         return this.msg('tool', content);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
     // Node Predicates
-    // ─────────────────────────────────────────────────────────────────────────
 
     isRunNode(node) {
         return node.contextType === 'summary' && node.contextName === 'status';
@@ -65,18 +61,14 @@ export class DocmemChat {
         return !rootInfo.id.startsWith('chat_');
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
     // Children Helpers
-    // ─────────────────────────────────────────────────────────────────────────
 
     async getSortedChildren(parentId) {
         const children = await this.docmem.getChildren(parentId);
         return [...children].sort((a, b) => a.order - b.order);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
     // Node Formatting
-    // ─────────────────────────────────────────────────────────────────────────
 
     buildNodeMetadataFields(node) {
         return [
@@ -116,9 +108,7 @@ export class DocmemChat {
         return nodes.map(node => this.formatNodeWithMetadata(node)).join('\n\n---\n\n');
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
     // System Message Builders
-    // ─────────────────────────────────────────────────────────────────────────
 
     buildExpandedSystemMessage(docmemId, nodes) {
         return this.systemMsg(`${docmemId}\n\n${this.formatNodesExpanded(nodes)}`);
@@ -158,7 +148,7 @@ export class DocmemChat {
     }
 
     buildPromptsSystemMessage() {
-        const message = this.systemMsg(BASH_PROMPT + SYSTEM_PROMPT + DOCMEM_PROMPT);
+        const message = this.systemMsg(PYTOOL_PROMPT + SYSTEM_PROMPT + DOCMEM_PROMPT);
         message.cache_control = { type: 'ephemeral' };
         return message;
     }
@@ -198,9 +188,7 @@ export class DocmemChat {
         return messages;
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
     // Chat Node Converters
-    // ─────────────────────────────────────────────────────────────────────────
 
     generateToolCallId(nodeId) {
         return `call_${nodeId}`;
@@ -298,9 +286,7 @@ export class DocmemChat {
         return this.handleMessageNode(node);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
     // Chat Session Operations
-    // ─────────────────────────────────────────────────────────────────────────
 
     async deleteExistingRoot() {
         const existingRoot = await this.docmem.getRootById(this.docmemId);
@@ -348,9 +334,7 @@ export class DocmemChat {
         return await this.docmem.appendChild(this.effectiveMessageParent, 'message', 'role', 'assistant', content);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
     // Build Message List
-    // ─────────────────────────────────────────────────────────────────────────
 
     async buildSystemMessages() {
         return [
@@ -382,9 +366,7 @@ export class DocmemChat {
         return [...systemMessages, ...chatMessages];
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
     // Public API
-    // ─────────────────────────────────────────────────────────────────────────
 
     async getRoot() {
         return await this.docmem.find(this.docmemId);

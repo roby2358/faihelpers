@@ -4,11 +4,10 @@
  * Encapsulates: message list construction, LLM invocation, command extraction,
  * command routing, and turn cycling. Free of UI dependencies.
  */
-import { parse as parseCommand } from './bash/command_parser.js';
+import { parse as parsePytool } from './pytool/pytool_parser.js';
 
-/**
- * Format a delegation system message for a child agent
- */
+const PYTOOL_BLOCK = /```pytool\s*\n([\s\S]*?)```/gi;
+
 export function formatDelegationMessage(taskPrompt, parentDocmemId) {
     return [
         '# Delegated Task',
@@ -27,53 +26,33 @@ export function formatDelegationMessage(taskPrompt, parentDocmemId) {
         '',
         'When you have completed the task, you MUST issue a `complete` command with a summary of the work you performed. Example:',
         '',
-        '# Run',
-        '```bash',
-        'complete "I finished the task. Here is what I did..."',
+        '```pytool',
+        'complete("I finished the task. Here is what I did...")',
         '```'
     ].join('\n');
 }
 
 export class AgentLoop {
-    /**
-     * @param {object} opts
-     * @param {import('./docmem_chat.js').DocmemChat} opts.chatSession
-     * @param {import('./OpenRouterAPI.js').OpenRouterAPI} opts.api
-     * @param {function} opts.commandRouter - async (args, docmem) => { success, result, complete?, summary? }
-     * @param {string} opts.summaryLine - Short descriptive label stored in the docmem root node
-     * @param {number} [opts.maxDepth=100]
-     * @param {function} [opts.onUserMessage] - callback(text)
-     * @param {function} [opts.onAssistantMessage] - callback(text)
-     */
-    constructor({ chatSession, api, commandRouter, summaryLine, maxDepth = 100, onUserMessage, onAssistantMessage }) {
+    constructor(chatSession, api, commandRouter, knownCommands, summaryLine, maxDepth, onUserMessage, onAssistantMessage) {
         this.chatSession = chatSession;
         this.api = api;
         this.commandRouter = commandRouter;
-        this.summaryLine = summaryLine || '';
+        this.knownCommands = knownCommands;
+        this.summaryLine = summaryLine;
         this.maxDepth = maxDepth;
-        this.onUserMessage = onUserMessage || (() => {});
-        this.onAssistantMessage = onAssistantMessage || (() => {});
-        this._completeSignaled = false;
-        this._completeSummary = null;
+        this.onUserMessage = onUserMessage;
+        this.onAssistantMessage = onAssistantMessage;
     }
 
-    /**
-     * Run the agent loop with an initial message
-     * @param {string} initialMessage
-     * @returns {{ reason: string, summary: string|null, finalResponse: string, chatDocmemRootId: string }}
-     */
+    // Run
+
     async run(initialMessage) {
         const docmem = this.chatSession.docmem;
         const docmemId = this.chatSession.docmemId;
 
-        // Store summary line in the chat docmem root node
-        if (this.summaryLine) {
-            await docmem.updateContent(docmemId, this.summaryLine);
-        }
+        await docmem.updateContent(docmemId, this.summaryLine);
 
-        // Create summary node as child of root; messages will be appended under it
         const runNode = await docmem.appendChild(docmemId, 'summary', 'status', 'working', 'working');
-        this._runNodeId = runNode.id;
         this.chatSession.messageParentId = runNode.id;
 
         await this.recordUserMessage(initialMessage);
@@ -81,48 +60,31 @@ export class AgentLoop {
         let finalResponse = '';
 
         for (let depth = 0; depth < this.maxDepth; depth++) {
-            const response = await this.invokeModelAndRecordResponse();
-            finalResponse = response;
+            finalResponse = await this.invokeModelAndRecord();
 
-            const commands = this.extractRunSections(response);
-            if (commands.length === 0) {
-                await this.finalizeRunNode(finalResponse);
-                return {
-                    reason: 'no_commands',
-                    summary: null,
-                    finalResponse,
-                    chatDocmemRootId: docmemId
-                };
+            const calls = this.extractPytoolCalls(finalResponse);
+            if (calls.length === 0) {
+                return this.finalize(runNode.id, docmemId, 'no_commands', null, finalResponse);
             }
 
-            await this.executeCommandBatch(commands);
-
-            if (this._completeSignaled) {
-                await this.finalizeRunNode(this._completeSummary || finalResponse);
-                return {
-                    reason: 'complete',
-                    summary: this._completeSummary,
-                    finalResponse,
-                    chatDocmemRootId: docmemId
-                };
+            const completion = await this.executeCallList(calls);
+            if (completion.complete) {
+                return this.finalize(runNode.id, docmemId, 'complete', completion.summary, finalResponse);
             }
         }
 
-        await this.finalizeRunNode('(depth limit reached) ' + finalResponse);
-        return {
-            reason: 'depth_limit',
-            summary: null,
-            finalResponse,
-            chatDocmemRootId: docmemId
-        };
+        return this.finalize(runNode.id, docmemId, 'depth_limit', null, finalResponse);
     }
 
-    /**
-     * Update the run node text with the final summary
-     */
-    async finalizeRunNode(summaryText) {
-        await this.chatSession.docmem.updateContent(this._runNodeId, summaryText || '');
+    async finalize(runNodeId, docmemId, reason, summary, finalResponse) {
+        const text = reason === 'depth_limit'
+            ? '(depth limit reached) ' + finalResponse
+            : summary || finalResponse;
+        await this.chatSession.docmem.updateContent(runNodeId, text || '');
+        return { reason, summary, finalResponse, chatDocmemRootId: docmemId };
     }
+
+    // Message Recording
 
     async recordUserMessage(msg) {
         await this.chatSession.appendUserMessage(msg);
@@ -134,68 +96,96 @@ export class AgentLoop {
         this.onAssistantMessage(msg);
     }
 
-    async invokeModelAndRecordResponse() {
+    async invokeModelAndRecord() {
         const messages = await this.chatSession.buildMessageList();
         const response = await this.api.chat(messages, 0.7, 2000);
         await this.recordAssistantMessage(response);
         return response;
     }
 
-    /**
-     * Extract # Run sections from text and return array of bash commands
-     */
-    extractRunSections(text) {
-        const commands = [];
-        const runSectionPattern = /#\s+Run\s*\n```bash\s*\n([\s\S]*?)```/gi;
+    // Pytool Extraction
 
+    extractPytoolCalls(text) {
+        const allCalls = [];
         let match;
-        while ((match = runSectionPattern.exec(text)) !== null) {
-            const commandText = match[1].trim();
-            if (commandText) {
-                commands.push(commandText);
+        while ((match = PYTOOL_BLOCK.exec(text)) !== null) {
+            try {
+                allCalls.push(...parsePytool(match[1]));
+            } catch (error) {
+                allCalls.push({ name: '__parse_error__', args: [error.message], _error: true });
             }
         }
-
-        return commands;
+        PYTOOL_BLOCK.lastIndex = 0;
+        return allCalls;
     }
 
-    /**
-     * Format a single command output line
-     */
-    appendCommandOutput(commandOutputText, commandText, outputType, outputMessage) {
-        const separator = commandOutputText ? '\n' : '';
-        return commandOutputText + separator + `command> ${commandText}\n\n${outputType}> ${outputMessage}`;
+    // Call Execution
+
+    formatCall(call) {
+        return `${call.name}(${call.args.map(a => JSON.stringify(a)).join(', ')})`;
     }
 
-    /**
-     * Execute a batch of commands, record results, check for complete signal
-     */
-    async executeCommandBatch(commands) {
+    formatOutput(commandText, outputType, message) {
+        return `command> ${commandText}\n\n${outputType}> ${message}`;
+    }
+
+    findUnknownCommands(calls) {
+        const unknown = calls
+            .filter(c => !c._error && !this.knownCommands.has(c.name))
+            .map(c => c.name);
+        return [...new Set(unknown)];
+    }
+
+    async executeCallList(calls) {
+        const parseErrors = calls.filter(c => c._error);
+        if (parseErrors.length > 0) {
+            const outputs = parseErrors.map(err =>
+                this.formatOutput('(parse error)', 'error', `Parse error: ${err.args[0]}`)
+            );
+            await this.recordUserMessage(outputs.join('\n'));
+            return { complete: false };
+        }
+
+        const unknowns = this.findUnknownCommands(calls);
+        if (unknowns.length > 0) {
+            const available = [...this.knownCommands].sort().join(', ');
+            const output = this.formatOutput(
+                calls.map(c => this.formatCall(c)).join('\n'),
+                'error',
+                `Unknown function(s): ${unknowns.join(', ')}. Available: ${available}`
+            );
+            await this.recordUserMessage(output);
+            return { complete: false };
+        }
+
+        return await this.executeCalls(calls);
+    }
+
+    async executeCalls(calls) {
         const docmem = this.chatSession.docmem;
-        let commandOutputText = '';
+        const outputs = [];
 
-        for (const commandText of commands) {
+        for (const call of calls) {
+            const callText = this.formatCall(call);
+
             try {
-                const args = parseCommand(commandText);
-                if (args.length === 0) continue;
-
-                const result = await this.commandRouter(args, docmem);
-
-                const outputType = result.success ? 'result' : 'error';
-                commandOutputText = this.appendCommandOutput(commandOutputText, commandText, outputType, result.result);
+                const result = await this.commandRouter([call.name, ...call.args], docmem);
+                outputs.push(this.formatOutput(callText, result.success ? 'result' : 'error', result.result));
 
                 if (result.complete) {
-                    this._completeSignaled = true;
-                    this._completeSummary = result.summary || null;
+                    await this.recordUserMessage(outputs.join('\n'));
+                    return { complete: true, summary: result.summary || null };
                 }
+                if (!result.success) break;
             } catch (error) {
-                const errorMessage = `Parse error: ${error.message}`;
-                commandOutputText = this.appendCommandOutput(commandOutputText, commandText, 'error', errorMessage);
+                outputs.push(this.formatOutput(callText, 'error', `Execution error: ${error.message}`));
+                break;
             }
         }
 
-        if (commandOutputText) {
-            await this.recordUserMessage(commandOutputText);
+        if (outputs.length > 0) {
+            await this.recordUserMessage(outputs.join('\n'));
         }
+        return { complete: false };
     }
 }

@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pytool Parser Tests</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { color: #333; }
+        h2 { color: #555; margin-top: 30px; }
+        .test {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+        }
+        .test.fail { border-left-color: #f44336; }
+        .test-name { font-weight: bold; margin-bottom: 5px; }
+        .test-result { color: #666; font-size: 0.9em; }
+        .pass { color: #4CAF50; font-weight: bold; }
+        .fail { color: #f44336; font-weight: bold; }
+        .summary {
+            background: #333;
+            color: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        pre {
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Pytool Parser Tests</h1>
+    <div id="results"></div>
+    <div class="summary" id="summary"></div>
+
+    <script type="module">
+        import { parse } from './pytool_parser.js';
+
+        const tests = [
+            // ─── Basic function calls ────────────────────────────────────
+            {
+                section: 'Basic Function Calls',
+                name: 'No-arg function call',
+                input: 'hello_world()',
+                expected: [{ name: 'hello_world', args: [] }]
+            },
+            {
+                name: 'Single string arg',
+                input: 'greet("hello")',
+                expected: [{ name: 'greet', args: ['hello'] }]
+            },
+            {
+                name: 'Multiple string args',
+                input: 'cmd("a", "b", "c")',
+                expected: [{ name: 'cmd', args: ['a', 'b', 'c'] }]
+            },
+            {
+                name: 'Trailing comma allowed',
+                input: 'cmd("a", "b",)',
+                expected: [{ name: 'cmd', args: ['a', 'b'] }]
+            },
+            {
+                name: 'Multiple function calls',
+                input: 'foo("x")\nbar("y")',
+                expected: [
+                    { name: 'foo', args: ['x'] },
+                    { name: 'bar', args: ['y'] }
+                ]
+            },
+            {
+                name: 'Empty input returns empty list',
+                input: '',
+                expected: []
+            },
+            {
+                name: 'Whitespace only returns empty list',
+                input: '   \n  \n  ',
+                expected: []
+            },
+
+            // ─── Function names ──────────────────────────────────────────
+            {
+                section: 'Function Names',
+                name: 'Underscore in name',
+                input: 'docmem_create("test")',
+                expected: [{ name: 'docmem_create', args: ['test'] }]
+            },
+            {
+                name: 'Hyphen in name',
+                input: 'append-child("node")',
+                expected: [{ name: 'append-child', args: ['node'] }]
+            },
+            {
+                name: 'Mixed hyphen and underscore',
+                input: 'docmem_create-node("a")',
+                expected: [{ name: 'docmem_create-node', args: ['a'] }]
+            },
+            {
+                name: 'Leading underscore',
+                input: '_private()',
+                expected: [{ name: '_private', args: [] }]
+            },
+            {
+                name: 'Name with digits',
+                input: 'step2_run()',
+                expected: [{ name: 'step2_run', args: [] }]
+            },
+
+            // ─── Double quoted strings ───────────────────────────────────
+            {
+                section: 'Double Quoted Strings',
+                name: 'Simple double quoted',
+                input: 'f("hello world")',
+                expected: [{ name: 'f', args: ['hello world'] }]
+            },
+            {
+                name: 'Empty double quoted',
+                input: 'f("")',
+                expected: [{ name: 'f', args: [''] }]
+            },
+            {
+                name: 'Escape sequences in double quotes',
+                input: 'f("line1\\nline2\\ttab")',
+                expected: [{ name: 'f', args: ['line1\nline2\ttab'] }]
+            },
+            {
+                name: 'Escaped quote in double quotes',
+                input: 'f("say \\"hello\\"")',
+                expected: [{ name: 'f', args: ['say "hello"'] }]
+            },
+            {
+                name: 'Escaped backslash',
+                input: 'f("path\\\\to\\\\file")',
+                expected: [{ name: 'f', args: ['path\\to\\file'] }]
+            },
+            {
+                name: 'All escape sequences',
+                input: 'f("\\n\\t\\r\\0\\a\\b\\f\\v\\\\\\\'\\"" )',
+                expected: [{ name: 'f', args: ['\n\t\r\0\x07\b\f\v\\\'\"'] }]
+            },
+            {
+                name: 'Unknown escape preserved',
+                input: 'f("\\x41")',
+                expected: [{ name: 'f', args: ['\\x41'] }]
+            },
+
+            // ─── Single quoted strings ───────────────────────────────────
+            {
+                section: 'Single Quoted Strings',
+                name: 'Simple single quoted',
+                input: "f('hello')",
+                expected: [{ name: 'f', args: ['hello'] }]
+            },
+            {
+                name: 'Empty single quoted',
+                input: "f('')",
+                expected: [{ name: 'f', args: [''] }]
+            },
+            {
+                name: 'Escapes in single quotes',
+                input: "f('line1\\nline2')",
+                expected: [{ name: 'f', args: ['line1\nline2'] }]
+            },
+            {
+                name: 'Escaped single quote',
+                input: "f('it\\'s')",
+                expected: [{ name: 'f', args: ["it's"] }]
+            },
+
+            // ─── Triple double quoted strings ────────────────────────────
+            {
+                section: 'Triple Double Quoted Strings',
+                name: 'Simple triple double',
+                input: 'f("""hello""")',
+                expected: [{ name: 'f', args: ['hello'] }]
+            },
+            {
+                name: 'Multi-line triple double',
+                input: 'f("""line1\nline2\nline3""")',
+                expected: [{ name: 'f', args: ['line1\nline2\nline3'] }]
+            },
+            {
+                name: 'Triple double with embedded double quotes',
+                input: 'f("""say "hello" world""")',
+                expected: [{ name: 'f', args: ['say "hello" world'] }]
+            },
+            {
+                name: 'Triple double with escapes',
+                input: 'f("""tab\\there""")',
+                expected: [{ name: 'f', args: ['tab\there'] }]
+            },
+            {
+                name: 'Empty triple double',
+                input: 'f("""""" )',
+                expected: [{ name: 'f', args: [''] }]
+            },
+
+            // ─── Triple single quoted strings ────────────────────────────
+            {
+                section: 'Triple Single Quoted Strings',
+                name: 'Simple triple single',
+                input: "f('''hello''')",
+                expected: [{ name: 'f', args: ['hello'] }]
+            },
+            {
+                name: "Triple single with embedded single quotes",
+                input: "f('''it's a test''')",
+                expected: [{ name: 'f', args: ["it's a test"] }]
+            },
+
+            // ─── Raw strings ─────────────────────────────────────────────
+            {
+                section: 'Raw Strings',
+                name: 'Raw double quoted',
+                input: 'f(r"hello\\nworld")',
+                expected: [{ name: 'f', args: ['hello\\nworld'] }]
+            },
+            {
+                name: 'Raw single quoted',
+                input: "f(r'path\\to\\file')",
+                expected: [{ name: 'f', args: ['path\\to\\file'] }]
+            },
+            {
+                name: 'Raw triple double quoted',
+                input: 'f(r"""back\\slash""")',
+                expected: [{ name: 'f', args: ['back\\slash'] }]
+            },
+            {
+                name: 'Raw triple single quoted',
+                input: "f(r'''raw\\ntext''')",
+                expected: [{ name: 'f', args: ['raw\\ntext'] }]
+            },
+            {
+                name: 'Raw empty string',
+                input: 'f(r"")',
+                expected: [{ name: 'f', args: [''] }]
+            },
+            {
+                name: 'Raw preserves all backslashes',
+                input: 'f(r"\\n\\t\\r\\\\")',
+                expected: [{ name: 'f', args: ['\\n\\t\\r\\\\'] }]
+            },
+
+            // ─── Comments ────────────────────────────────────────────────
+            {
+                section: 'Comments',
+                name: 'Standalone comment line',
+                input: '# this is a comment\nhello_world()',
+                expected: [{ name: 'hello_world', args: [] }]
+            },
+            {
+                name: 'Inline comment after call',
+                input: 'hello_world() # greeting',
+                expected: [{ name: 'hello_world', args: [] }]
+            },
+            {
+                name: 'Comment between calls',
+                input: 'foo()\n# middle comment\nbar()',
+                expected: [
+                    { name: 'foo', args: [] },
+                    { name: 'bar', args: [] }
+                ]
+            },
+            {
+                name: 'Comment between args',
+                input: 'f(\n  "a",\n  # comment\n  "b"\n)',
+                expected: [{ name: 'f', args: ['a', 'b'] }]
+            },
+            {
+                name: 'Only comments returns empty',
+                input: '# just a comment\n# another one',
+                expected: []
+            },
+
+            // ─── Whitespace handling ─────────────────────────────────────
+            {
+                section: 'Whitespace Handling',
+                name: 'Spaces around parens',
+                input: 'f(  "a"  ,  "b"  )',
+                expected: [{ name: 'f', args: ['a', 'b'] }]
+            },
+            {
+                name: 'Newlines between args',
+                input: 'f(\n"a",\n"b"\n)',
+                expected: [{ name: 'f', args: ['a', 'b'] }]
+            },
+            {
+                name: 'Space between name and paren',
+                input: 'f ("a")',
+                expected: [{ name: 'f', args: ['a'] }]
+            },
+            {
+                name: 'Leading and trailing whitespace',
+                input: '\n\n  foo()  \n\n',
+                expected: [{ name: 'foo', args: [] }]
+            },
+
+            // ─── Mixed string types ──────────────────────────────────────
+            {
+                section: 'Mixed String Types',
+                name: 'Double and single in same call',
+                input: 'f("double", \'single\')',
+                expected: [{ name: 'f', args: ['double', 'single'] }]
+            },
+            {
+                name: 'All string types',
+                input: 'f("a", \'b\', """c""", r"d")',
+                expected: [{ name: 'f', args: ['a', 'b', 'c', 'd'] }]
+            },
+
+            // ─── Error cases ─────────────────────────────────────────────
+            {
+                section: 'Error Cases',
+                name: 'Missing parens is a parse error',
+                input: 'hello_world',
+                shouldFail: true
+            },
+            {
+                name: 'Bare word arg fails',
+                input: 'f(bare)',
+                shouldFail: true
+            },
+            {
+                name: 'Kwarg fails',
+                input: 'f(key="value")',
+                shouldFail: true
+            },
+            {
+                name: 'Number arg fails',
+                input: 'f(42)',
+                shouldFail: true
+            },
+
+            // ─── Realistic usage ─────────────────────────────────────────
+            {
+                section: 'Realistic Usage',
+                name: 'docmem_create',
+                input: 'docmem_create("my-notes")',
+                expected: [{ name: 'docmem_create', args: ['my-notes'] }]
+            },
+            {
+                name: 'docmem_create_node with content',
+                input: 'docmem_create_node("append-child", "abc123", "note", "topic", "general", """This is\nsome content""")',
+                expected: [{ name: 'docmem_create_node', args: ['append-child', 'abc123', 'note', 'topic', 'general', 'This is\nsome content'] }]
+            },
+            {
+                name: 'delegate task',
+                input: 'delegate("Search all docmems for nodes related to authentication and summarize your findings.")',
+                expected: [{ name: 'delegate', args: ['Search all docmems for nodes related to authentication and summarize your findings.'] }]
+            },
+            {
+                name: 'complete with summary',
+                input: 'complete("I found 3 authentication-related nodes and created a summary.")',
+                expected: [{ name: 'complete', args: ['I found 3 authentication-related nodes and created a summary.'] }]
+            },
+            {
+                name: 'Multiple operations in sequence',
+                input: 'docmem_create("project")\ndocmem_create_node("append-child", "project", "section", "name", "intro", "Introduction")\ndocmem_create_node("append-child", "project", "section", "name", "body", "Main content")',
+                expected: [
+                    { name: 'docmem_create', args: ['project'] },
+                    { name: 'docmem_create_node', args: ['append-child', 'project', 'section', 'name', 'intro', 'Introduction'] },
+                    { name: 'docmem_create_node', args: ['append-child', 'project', 'section', 'name', 'body', 'Main content'] }
+                ]
+            }
+        ];
+
+        const resultsDiv = document.getElementById('results');
+        const summaryDiv = document.getElementById('summary');
+        let passed = 0;
+        let failed = 0;
+        let currentSection = '';
+
+        tests.forEach((test, index) => {
+            if (test.section && test.section !== currentSection) {
+                currentSection = test.section;
+                const header = document.createElement('h2');
+                header.textContent = currentSection;
+                resultsDiv.appendChild(header);
+            }
+
+            const testDiv = document.createElement('div');
+            testDiv.className = 'test';
+
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'test-name';
+            nameDiv.textContent = `Test ${index + 1}: ${test.name}`;
+            testDiv.appendChild(nameDiv);
+
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'test-result';
+
+            try {
+                const result = parse(test.input);
+
+                if (test.shouldFail) {
+                    failed++;
+                    testDiv.classList.add('fail');
+                    resultDiv.innerHTML = `<span class="fail">FAIL</span> - Expected parse error but got result<br>` +
+                        `Result: <pre>${JSON.stringify(result, null, 2)}</pre>`;
+                } else {
+                    const success = JSON.stringify(result) === JSON.stringify(test.expected);
+
+                    if (success) {
+                        passed++;
+                        resultDiv.innerHTML = `<span class="pass">PASS</span><br>` +
+                            `Result: <pre>${JSON.stringify(result, null, 2)}</pre>`;
+                    } else {
+                        failed++;
+                        testDiv.classList.add('fail');
+                        resultDiv.innerHTML = `<span class="fail">FAIL</span><br>` +
+                            `Expected: <pre>${JSON.stringify(test.expected, null, 2)}</pre>` +
+                            `Got: <pre>${JSON.stringify(result, null, 2)}</pre>`;
+                    }
+                }
+            } catch (error) {
+                if (test.shouldFail) {
+                    passed++;
+                    resultDiv.innerHTML = `<span class="pass">PASS</span> - Correctly threw error<br>` +
+                        `Error: ${error.message}`;
+                } else {
+                    failed++;
+                    testDiv.classList.add('fail');
+                    resultDiv.innerHTML = `<span class="fail">ERROR</span><br>` +
+                        `${error.message}`;
+                }
+            }
+
+            testDiv.appendChild(resultDiv);
+            resultsDiv.appendChild(testDiv);
+        });
+
+        summaryDiv.innerHTML = `
+            <h2>Test Summary</h2>
+            <p>Total: ${tests.length} tests</p>
+            <p style="color: #4CAF50;">Passed: ${passed}</p>
+            <p style="color: #f44336;">Failed: ${failed}</p>
+            <p><strong>${failed === 0 ? 'All tests passed!' : 'Some tests failed'}</strong></p>
+        `;
+    </script>
+</body>
+</html>
