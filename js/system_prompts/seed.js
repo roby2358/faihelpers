@@ -5,8 +5,6 @@
 
 import { Docmem, Node, NodeHasher } from '../docmem_tools/docmem.js';
 import { ROOT_PROMPT_DOCMEM_ID, ROOT_PROMPT_DATA } from './root_prompt.js';
-import { TO_DO_PROMPT_DOCMEM_ID, TO_DO_PROMPT_DATA } from './to_do_prompt.js';
-import { IDEAS_PROMPT_DOCMEM_ID, IDEAS_PROMPT_DATA } from './ideas_prompt.js';
 // import { STOOGES_DOCMEM_ID, STOOGES_DATA } from './stooges.js';
 
 /**
@@ -92,8 +90,6 @@ export async function seedAllDocmems() {
     const docmemList = [
 //        { docmemId: STOOGES_DOCMEM_ID, data: STOOGES_DATA },
         { docmemId: ROOT_PROMPT_DOCMEM_ID, data: ROOT_PROMPT_DATA },
-        { docmemId: TO_DO_PROMPT_DOCMEM_ID, data: TO_DO_PROMPT_DATA },
-        { docmemId: IDEAS_PROMPT_DOCMEM_ID, data: IDEAS_PROMPT_DATA },
     ];
 
     for (const { docmemId, data } of docmemList) {
