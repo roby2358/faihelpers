@@ -8,7 +8,13 @@ Fai Helpers is a browser-based agent framework centered around **Docmem**, a hie
 
 ## Running and Testing
 
-Pure browser JavaScript — open `index.html`, no build step. CDN dependencies: DuckDB WASM, gpt-tokenizer. Parser tests: `js/bash/test_command_parser.html`, `js/pytool/test_pytool_parser.html`. No automated test suite.
+Pure browser ES modules — open `index.html`, no build step or bundler. CDN dependencies: DuckDB WASM (dynamic import), gpt-tokenizer. Parser tests: `js/bash/test_command_parser.html`, `js/pytool/test_pytool_parser.html`. No automated test suite.
+
+**Regenerate parsers** after editing `.pegjs` grammars:
+```
+npx peggy --format es -o js/bash/command_parser.js js/bash/command.pegjs
+npx peggy --format es -o js/pytool/pytool_parser.js js/pytool/pytool.pegjs
+```
 
 ## Architecture
 
@@ -20,9 +26,13 @@ Hierarchical tree stored in DuckDB WASM (in-memory, single shared connection). E
 
 **Node fields:** `id`, `parentId`, `text`, `order`, `tokenCount`, `contextType`, `contextName`, `contextValue`, `readonly`, `hash`. Nodes are differentiated by context metadata, not explicit types. Ordering uses 20%-weighted decimal interpolation. Readonly nodes (imported files) cannot be modified — agents create sibling "note" nodes instead.
 
-### Agent System
+### Agent System & Chat Flow
 
 Agents delegate to sub-agents with separate context boundaries. Each agent identified by its chat docmem root ID. See `SPEC_AGENTS.md` and `SPEC_DELEGATE.md`.
+
+**Execution flow:** User input → `chat.js:sendMessage()` → `AgentLoop.run()` → `DocmemChat.buildMessageList()` (constructs messages from docmem tree) → `OpenRouterAPI.chat()` (OpenRouter.ai, OpenAI-compatible protocol) → extract `` ```pytool `` blocks → `parsePytool()` → `commandRouter()` dispatches to `DocmemCommands` or `SystemCommands`. Loop iterates until no more tool calls or `complete()` is called.
+
+**Special commands:** `delegate()` spawns a child agent with its own DocmemChat + AgentLoop. `complete()` signals task completion (delegated agents only).
 
 ### Command Parsers
 
