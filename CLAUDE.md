@@ -8,7 +8,7 @@ Fai Helpers is a browser-based agent framework centered around **Docmem**, a hie
 
 ## Running and Testing
 
-Pure browser ES modules — open `index.html`, no build step or bundler. CDN dependencies: DuckDB WASM (dynamic import), gpt-tokenizer. Parser tests: `js/bash/test_command_parser.html`, `js/pytool/test_pytool_parser.html`. No automated test suite.
+Pure browser ES modules, no build step or bundler. Serve the directory over HTTP and open `index.html` (`file://` won't work — ES modules require HTTP): e.g. `npx serve .`, `python3 -m http.server`, or `php -S localhost:8000`. CDN dependencies: DuckDB WASM (dynamic import), gpt-tokenizer. Parser tests: open `js/bash/test_command_parser.html` and `js/pytool/test_pytool_parser.html` in the browser. No automated test suite.
 
 **Regenerate parsers** after editing `.pegjs` grammars:
 ```
