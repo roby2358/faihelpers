@@ -23,7 +23,7 @@ When the response comes back from the LLM, we append it as a leaf node in the ab
 For each turn in the chat, the framework MUST include additional context from non-chat docmems as system messages:
 
 1. The framework MUST enumerate all existing docmem instances using `Docmem.getAllRoots()`
-2. For each docmem where the docmem ID does NOT start with "chat_" (i.e., excludes chat-related docmems):
+2. For each docmem where the docmem ID does NOT start with "chat_" (i.e., excludes chat-related docmems) and is NOT the root prompt docmem (which is already included, serialized, as the main system prompt):
    - The framework MUST run `expandToLength(docmemId, 20000)` to expand the docmem to a maximum of 20000 tokens
    - The framework MUST concatenate all returned nodes into a single string, formatting each node with its metadata and content
    - The concatenated string MUST include for each node: node ID, context metadata (context_type, context_name, context_value), timestamps (created_at, updated_at), order value, token count, and text content

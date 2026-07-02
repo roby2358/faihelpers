@@ -58,7 +58,9 @@ export class DocmemChat {
     }
 
     isIncludableDocmem(rootInfo) {
-        return !rootInfo.id.startsWith('chat_');
+        // Exclude chat docmems, and the root prompt — it is already included
+        // (serialized) by buildRootPromptSystemMessage
+        return !rootInfo.id.startsWith('chat_') && rootInfo.id !== ROOT_PROMPT_DOCMEM_ID;
     }
 
     // Children Helpers
