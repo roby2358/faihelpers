@@ -35,6 +35,13 @@ Implement full-text search for docmem using SQLite FTS5. Create FTS5 virtual tab
 ---
 Priority:   50
 Status: ToDo
+ID: sensory-3eiu
+Created: 2026-07-02T06:44:10Z
+Updated: 2026-07-02T06:44:10Z
+Add a "sensory" docmem to the chat context: ambient situational information such as current time, location, temperature/weather, and other random sensory details. It goes at the very end of the message list — after the recency-sorted docmem expansions — which fits the most-volatile-last ordering, since it changes every turn anyway (per SPEC_CHAT's cache-stability ordering; keeping it last means its churn invalidates nothing else).
+---
+Priority:   50
+Status: ToDo
 ID: persist-bzb3
 Implement persistence for the SQLite database using IndexedDB so that docmem data survives page reloads and browser sessions. Serialize the database state to IndexedDB on save operations and restore it when loading a docmem instance.
 ---

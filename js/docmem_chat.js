@@ -80,9 +80,7 @@ export class DocmemChat {
             ['context_name', node.contextName],
             ['context_value', node.contextValue],
             ['order', node.order],
-            ['token_count', node.tokenCount],
-            ['created_at', node.createdAt],
-            ['updated_at', node.updatedAt]
+            ['token_count', node.tokenCount]
         ];
     }
 
@@ -159,6 +157,10 @@ export class DocmemChat {
         return await this.docmem.expandToLength(docmemId, maxTokens);
     }
 
+    maxUpdatedAt(nodes) {
+        return nodes.reduce((max, node) => (node.updatedAt > max ? node.updatedAt : max), '');
+    }
+
     async tryBuildExpandedDocmemMessage(docmemId) {
         const expandedNodes = await this.expandDocmemNodes(docmemId, DEFAULT_EXPAND_MAX_TOKENS);
         if (expandedNodes.length === 0) {
@@ -167,7 +169,18 @@ export class DocmemChat {
         }
 
         console.log(`Added docmem ${docmemId} as system message (${expandedNodes.length} nodes)`);
-        return this.buildExpandedSystemMessage(docmemId, expandedNodes);
+        return {
+            message: this.buildExpandedSystemMessage(docmemId, expandedNodes),
+            lastUpdated: this.maxUpdatedAt(expandedNodes),
+            docmemId
+        };
+    }
+
+    compareByLastUpdated(a, b) {
+        if (a.lastUpdated !== b.lastUpdated) {
+            return a.lastUpdated < b.lastUpdated ? -1 : 1;
+        }
+        return a.docmemId.localeCompare(b.docmemId);
     }
 
     async collectIncludableDocmems() {
@@ -180,14 +193,20 @@ export class DocmemChat {
 
         console.log(`=== INCLUDING ${includable.length} NON-CHAT DOCMEMS ===`);
 
-        const messages = [];
+        const entries = [];
         for (const r of includable) {
-            const msg = await this.tryBuildExpandedDocmemMessage(r.id);
-            if (msg !== null) {
-                messages.push(msg);
+            const entry = await this.tryBuildExpandedDocmemMessage(r.id);
+            if (entry !== null) {
+                entries.push(entry);
             }
         }
-        return messages;
+        // Most recently updated last, so frequently edited docmems settle at
+        // the tail of the message list where their churn invalidates the
+        // least cacheable prefix. lastUpdated is the max updated_at over the
+        // included nodes only, so the sort key changes only when the
+        // serialized bytes do.
+        entries.sort((a, b) => this.compareByLastUpdated(a, b));
+        return entries.map(entry => entry.message);
     }
 
     // Chat Node Converters
@@ -341,8 +360,7 @@ export class DocmemChat {
     async buildSystemMessages() {
         return [
             await this.buildRootPromptSystemMessage(),
-            this.buildPromptsSystemMessage(),
-            ...await this.buildNonChatDocmemSystemMessages()
+            this.buildPromptsSystemMessage()
         ].filter(msg => msg !== null);
     }
 
@@ -365,7 +383,8 @@ export class DocmemChat {
     async buildMessageList() {
         const systemMessages = await this.buildSystemMessages();
         const chatMessages = await this.buildChatMessages();
-        return [...systemMessages, ...chatMessages];
+        const docmemMessages = await this.buildNonChatDocmemSystemMessages();
+        return [...systemMessages, ...chatMessages, ...docmemMessages];
     }
 
     // Public API

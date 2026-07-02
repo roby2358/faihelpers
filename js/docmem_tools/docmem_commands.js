@@ -142,7 +142,7 @@ export class DocmemCommands {
 
     async structure(nodeId) {
         const structure = await this.docmem.structure(nodeId);
-        return { success: true, result: `docmem-structure:\n${JSON.stringify(structure, null, 2)}` };
+        return { success: true, result: `docmem-structure:\n${structure}` };
     }
 
     async expandToLength(nodeId, maxTokens) {

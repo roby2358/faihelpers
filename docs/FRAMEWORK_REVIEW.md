@@ -22,19 +22,15 @@ The main open issues are: **a cluster of spec–implementation divergences** (th
 
 6. **Specs as source of truth.** The SPEC_*.md discipline is rare and valuable. Where code and spec agree (expand algorithm, ordering interpolation, delegation lifecycle, cycle prevention), they agree precisely.
 
-7. **Cost awareness exists.** `cache_control: ephemeral` breakpoints on the stable system messages (`docmem_chat.js`) show attention to prompt caching, the root prompt is included exactly once per turn, and the chat status line surfaces per-request context size and token limits.
+7. **Cost awareness exists.** `cache_control: ephemeral` breakpoints on the stable system messages (`docmem_chat.js`) show attention to prompt caching, the root prompt is included exactly once per turn, the message list is ordered most-stable-first (prompts, then the append-only conversation, then docmem expansions last, themselves sorted most-recently-updated last) so docmem churn only invalidates the tail, and the chat status line surfaces per-request context size and token limits.
 
 ## Correctness Findings
 
-### C1 (LOW) — `docmem_structure` returns a JSON-escaped blob instead of the indented tree
-
-`Docmem.structure()` returns a human-readable indented string, but `DocmemCommands.structure` (`docmem_commands.js`) wraps it in `JSON.stringify(..., null, 2)`, producing a single quoted line full of `\n` escapes. Three artifacts disagree: SPEC_DOCMEM says indented lines, `docmem_prompt.js` tells the model it gets "JSON array of node objects," and the code produces neither. The agent-facing output should be the raw indented string.
-
-### C2 (LOW) — `reparentNodes` rollback leaves in-memory node corrupted
+### C1 (LOW) — `reparentNodes` rollback leaves in-memory node corrupted
 
 On failure, `reparentNodes` (`docmem.js`) restores `node.parentId` but not `node.hash`, which was already recomputed for the new parent. The DB is fine (the update failed), but the caller-held Node object now has a hash that matches neither the DB nor its own fields; a retry using it will mislead. Recompute the hash in the catch, or hash into a temp until the write succeeds.
 
-### C3 (LOW) — Seeding and TOML import bypass `readonly` and validation paths
+### C2 (LOW) — Seeding and TOML import bypass `readonly` and validation paths
 
 `seed.js:deleteExistingChildren` and `TomlSerializer` call `docmem.sqlite.deleteNodeById`/`insertNode` directly, skipping the readonly check and the delete-descendants logic that `Docmem.delete` provides. Today the seeds are shallow so it works, but a two-level seed would orphan grandchildren. Prefer going through the `Docmem` API.
 
@@ -47,7 +43,6 @@ CLAUDE.md declares the specs authoritative; these should be reconciled in one di
 | S1 | Docmem context budget | `expandToLength(id, 20000)` (SPEC_CHAT.md) | `DEFAULT_EXPAND_MAX_TOKENS = 10000` (`docmem_chat.js`) |
 | S2 | Atomicity | Explicit transactions, WAL, rollback for all multi-node ops (SPEC_DOCMEM_ATOMICITY) | **No transactions anywhere.** Every statement auto-commits; `delete` subtree and `addSummary` reparenting can fail halfway and leave partial state. Spec also discusses SQLite/WAL while the implementation is DuckDB WASM in-memory — much of the spec is aspirational for a different engine |
 | S3 | Agent model | Read-only predecessor docmems, working vs. work-product docmems, `start_contract`/`end_contract`, agent prompting its parent (SPEC_AGENTS) | Only `delegate`/`complete` exist; no scoping — every agent has full write access to every docmem (which SPEC_DELEGATE, more recent, embraces). SPEC_AGENTS reads as an outdated vision doc |
-| S4 | `docmem_structure` output format | Indented metadata lines | JSON-escaped string (see C1) |
 
 Recommendation: update SPEC_CHAT (or the constant) for S1; add a "Current Implementation" section to SPEC_DOCMEM_ATOMICITY acknowledging the no-transaction reality and what that means for multi-node ops; either mark SPEC_AGENTS as superseded by SPEC_DELEGATE or trim it to what exists.
 
@@ -61,7 +56,7 @@ API requests carry a hard timeout (`OpenRouterAPI.js`: `AbortSignal.timeout`, de
 
 Three multipliers stack: every non-chat docmem is expanded into **every turn** of **every agent** (up to 10k tokens each, `buildNonChatDocmemSystemMessages`); loops run up to 100 turns; and recursive delegation is explicitly unbounded (SPEC_DELEGATE). A single user message can legitimately fan out to hundreds of model calls, each carrying the full docmem corpus. The status line helps visibility; consider also a per-run token accumulator and a configurable delegation depth cap.
 
-Related detail: the expanded docmem system messages embed `updated_at` per node, so any docmem write changes those messages on the next turn. They sit after the `cache_control` breakpoints, so the stable prefix still caches — but the docmem messages themselves never will. Worth knowing when reading OpenRouter bills.
+Related detail: the expanded docmem system messages sit at the end of the message list, after the append-only conversation, and their node serialization carries no timestamps — so they are byte-stable when content hasn't changed, and a docmem write invalidates only the tail of the context. Providers with implicit prefix caching benefit from this ordering automatically; Anthropic-style explicit caching would additionally need a `cache_control` breakpoint on the last chat message to cache the conversation itself (only the two prompt messages carry breakpoints today).
 
 ### R3 (LOW) — Token estimate vs. token budget
 
@@ -92,7 +87,7 @@ There is no automated test suite; the two parser test pages (`js/bash/test_comma
 ## Prioritized Recommendations
 
 1. **Add a Stop control and retry-with-backoff to the API path** (R1) — requests time out on their own, but a running loop still can't be cancelled from the UI.
-2. **Reconcile the spec divergences** (S1–S4) — the "specs are authoritative" discipline only pays off if they're kept true.
+2. **Reconcile the spec divergences** (S1–S3) — the "specs are authoritative" discipline only pays off if they're kept true.
 3. **Add a Docmem test page** covering move/copy/addSummary/delete edge cases.
 4. **Adopt gpt-tokenizer for `countTokens`** (R3) — cheap honesty for every budget decision.
 5. Longer-term, in line with the specs' own roadmap: IndexedDB persistence (the "all work lost on reload" footgun looms over everything else), then wrap multi-node operations in transactions to close the S2 gap for real.

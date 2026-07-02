@@ -140,7 +140,7 @@ def docmem_structure(node_id: str):
     """Returns the hierarchical structure and metadata without text content.
 
     node_id: starting node ID (must exist)
-    Returns: result> docmem_structure:\\n<JSON> - array of node objects with all fields EXCEPT text
+    Returns: result> docmem_structure:\\n<indented text outline> - one line per node in preorder traversal; each line is "- " followed by node metadata (id, context fields, order, token count — no text content), indented two spaces per depth level
     Use case: inspect tree structure without loading full text content
     """
 \`\`\`

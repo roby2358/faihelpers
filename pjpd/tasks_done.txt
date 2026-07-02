@@ -1,0 +1,6 @@
+Priority:   50
+Status: Done
+ID: faihelpers-h76a
+Created: 2026-07-02T06:33:01Z
+Updated: 2026-07-02T06:44:21Z
+Add a "sensory" docmem to the chat context: ambient situational information such as current time, location, temperature/weather, and other random sensory details. It goes at the very end of the message list — after the recency-sorted docmem expansions — which fits the most-volatile-last ordering, since it changes every turn anyway (per SPEC_CHAT's cache-stability ordering; keeping it last means its churn invalidates nothing else).

@@ -26,11 +26,12 @@ For each turn in the chat, the framework MUST include additional context from no
 2. For each docmem where the docmem ID does NOT start with "chat_" (i.e., excludes chat-related docmems) and is NOT the root prompt docmem (which is already included, serialized, as the main system prompt):
    - The framework MUST run `expandToLength(docmemId, 20000)` to expand the docmem to a maximum of 20000 tokens
    - The framework MUST concatenate all returned nodes into a single string, formatting each node with its metadata and content
-   - The concatenated string MUST include for each node: node ID, context metadata (context_type, context_name, context_value), timestamps (created_at, updated_at), order value, token count, and text content
+   - The concatenated string MUST include for each node: node ID, context metadata (context_type, context_name, context_value), order value, token count, and text content. Per-node timestamps (created_at, updated_at) MUST NOT be included, so that the serialized docmem messages remain byte-stable when node content has not changed, enabling prompt caching.
    - The framework MUST add this concatenated string as an additional system message with `role: 'system'` in the messages array sent to the LLM
-3. These additional system messages MUST be added before the chat session messages (i.e., after the main system prompt from the root node, but before the conversation messages)
+3. These docmem context system messages MUST be appended AFTER the chat session messages, at the end of the message list. This keeps the append-only conversation history a stable prefix for prompt caching; docmem writes only invalidate the tail of the message list.
+4. Among themselves, the docmem context messages MUST be ordered by last-updated ascending (most recently updated last), with ties broken deterministically by docmem root ID. A docmem's last-updated value is the maximum `updated_at` across the nodes included in its expansion — not the whole subtree — so the sort key changes only when the serialized message content changes. Frequently edited docmems thus settle at the very end of the message list, where their churn invalidates the least cacheable prefix.
 
-The format for concatenating nodes SHOULD include all node metadata in a human-readable format suitable for LLM context. The exact formatting is implementation-defined, but MUST include all node properties (id, contextType, contextName, contextValue, createdAt, updatedAt, order, tokenCount, text) in a clear and structured manner.
+The format for concatenating nodes SHOULD include all node metadata in a human-readable format suitable for LLM context. The exact formatting is implementation-defined, but MUST include all node properties (id, contextType, contextName, contextValue, order, tokenCount, text) in a clear and structured manner.
 
 ## API Request Timeout
 
