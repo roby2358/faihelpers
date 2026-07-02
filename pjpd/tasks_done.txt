@@ -4,3 +4,13 @@ ID: faihelpers-h76a
 Created: 2026-07-02T06:33:01Z
 Updated: 2026-07-02T06:44:21Z
 Add a "sensory" docmem to the chat context: ambient situational information such as current time, location, temperature/weather, and other random sensory details. It goes at the very end of the message list — after the recency-sorted docmem expansions — which fits the most-volatile-last ordering, since it changes every turn anyway (per SPEC_CHAT's cache-stability ordering; keeping it last means its churn invalidates nothing else).
+----
+Priority:    0
+Status: Done
+ID: copy-rule-z59k
+Remove the "same parent" rule for copying nodes
+----
+Priority:    0
+Status: Done
+ID: prompt-cache-7kad
+Configure provider calls for prompt caching. Set up caching mechanisms for LLM API calls to reduce costs and improve response times by caching prompt prefixes and reusing them across requests. This includes configuring cache settings in the OpenRouter API integration and managing cache invalidation strategies.

@@ -2,120 +2,117 @@ Priority:   80
 Status: ToDo
 ID: llm-api-za72
 Integrate LLM API calls for generating summaries and processing content. Implement round-trip communication where the LLM can read from docmem (via serialization/expansion), generate responses or summaries, and write results back to docmem nodes. This enables the LLM to work with the hierarchical memory structure bidirectionally.
----
+----
 Priority:   60
 Status: ToDo
 ID: checksum-5wv6
 Add hash property to track document state for optimistic locking to detect concurrent modifications
----
+----
 Priority:   60
 Status: ToDo
 ID: global-ids-9xnx
 Remove the docmem state from DocmemCommands and instead treat node-ids as global (and globally unique)
----
+----
 Priority:   60
 Status: ToDo
 ID: view-meta-4a6m
 Add a checkbox to the View page that allows users to toggle showing or hiding metadata. When checked, display node metadata (context_type, context_name, context_value, token counts, order values, timestamps, etc.) alongside the content. When unchecked, show only the content without metadata. This provides a cleaner view option for reading documents while still allowing access to structural information when needed.
----
+----
 Priority:   60
 Status: ToDo
 ID: summ-span-ubbd
 Change the summarize operation from accepting a list of node IDs to accepting a start node and stop node to pick up a span of contiguous nodes. This simplifies the interface by allowing users to specify a range of nodes (e.g., first and last node in a sequence) rather than listing all individual node IDs. The operation should identify all nodes between the start and stop nodes (inclusive) based on their order values within the same parent, and create a summary node for that contiguous span.
----
+----
 Priority:   60
 Status: ToDo
 ID: chat-ui-q4w8
 Implement the chat interface UI components and interaction flow. Create the chat tab interface with message display, input handling, and user interaction patterns. Set up the basic structure for sending and receiving messages, formatting conversation history, and managing chat state within the application.
----
+----
 Priority:   60
 Status: ToDo
 ID: fts-3633
 Implement full-text search for docmem using SQLite FTS5. Create FTS5 virtual tables for docmem nodes to enable powerful search capabilities including boolean queries, phrase queries, prefix matching, BM25 ranking, and result highlighting. This will allow users to search across docmem content efficiently using the existing sql.js infrastructure.
----
+----
 Priority:   50
 Status: ToDo
 ID: sensory-3eiu
 Created: 2026-07-02T06:44:10Z
 Updated: 2026-07-02T06:44:10Z
 Add a "sensory" docmem to the chat context: ambient situational information such as current time, location, temperature/weather, and other random sensory details. It goes at the very end of the message list — after the recency-sorted docmem expansions — which fits the most-volatile-last ordering, since it changes every turn anyway (per SPEC_CHAT's cache-stability ordering; keeping it last means its churn invalidates nothing else).
----
+----
 Priority:   50
 Status: ToDo
 ID: persist-bzb3
 Implement persistence for the SQLite database using IndexedDB so that docmem data survives page reloads and browser sessions. Serialize the database state to IndexedDB on save operations and restore it when loading a docmem instance.
----
+----
 Priority:   50
 Status: ToDo
 ID: py-parse-r2be
 Support Python function call parsing as an alternative to bash command syntax. Allow docmem commands to be specified as Python function calls (e.g., docmem_append_child(node_id, context_type, context_name, context_value, content)) in addition to the current bash-style command format, providing flexibility in how commands are expressed and parsed.
----
+----
 Priority:   50
 Status: ToDo
 ID: persist-bzb3
 Implement persistence for the SQLite database using IndexedDB so that docmem data survives page reloads and browser sessions. Serialize the database state to IndexedDB on save operations and restore it when loading a docmem instance.
----
+----
 Priority:   50
 Status: ToDo
 ID: wiki-toc-5cps
 Add a table of contents feature for docmem wiki pages. Generate and display a hierarchical table of contents based on the structure of wiki page nodes, allowing users to navigate through sections and subsections of the wiki content. The TOC should be auto-generated from the docmem node hierarchy.
----
+----
 Priority:   50
 Status: ToDo
 ID: wiki-view-atq9
 Display a docmem as a wiki page with proper formatting and navigation. Render docmem content as a readable wiki page with formatted text, headers, sections, and navigation elements. This includes styling the content appropriately and providing a user-friendly interface for browsing docmem content as wiki documentation.
----
+----
 Priority:   45
 Status: ToDo
 ID: ctx-schema-85zu
 Define a context schema scheme that specifies the structure and validation rules for context metadata (context_type, context_name, context_value) used across docmem nodes
----
+----
 Priority:   45
 Status: ToDo
 ID: arch-ann-i2di
 Architect fast cosine similarity search for semantic search in docmem using approximate nearest neighbor algorithms like HNSW. Evaluate options: (1) custom sql.js build with sqlite-vec extension, (2) separate HNSW library (vectra, hnswlib-wasm) alongside SQLite, (3) hybrid approach. Consider performance requirements, build complexity, storage integration, and scalability for large document collections. Document the chosen approach and implementation strategy.
----
+----
 Priority:   40
 Status: ToDo
 ID: lock-ctx-9phx
 Add a docmem-lock-context function that accepts a context schema and applies validation/constraints to ensure nodes conform to the specified context schema structure
----
+----
 Priority:   40
 Status: ToDo
 ID: node-path-v5y6
 Support @root-id/node-id syntax to reference and relate docmem nodes across different docmem instances. This enables cross-document node references using a path-like notation that combines the root docmem ID with the specific node ID.
----
+----
 Priority:   40
 Status: ToDo
 ID: doc-cmds-3s3a
 Enable document creation and editing through parsed command interface. Allow models to create new docmem documents and modify existing ones using structured commands. Implement command handlers that translate parsed commands into docmem operations like creating nodes, updating content, organizing structure, and managing document hierarchy.
----
+----
 Priority:   40
 Status: ToDo
 ID: ro-cache-wj6d
 Support caching read-only docmems by ordering them first in the system messages and marking them with cache_control ephemeral. Read-only docmems should be placed before dynamic docmems in the message list, with cache control applied, so they can be cached separately from frequently-changing docmem contexts.
----
+----
 Priority:   30
 Status: ToDo
 ID: db-mgmt-fayc
 Implement database management functions for docmem instances. Add operations to clear/delete docmem documents, list all available docmem instances, view metadata about stored documents, and perform maintenance tasks. This will provide users with tools to manage their collection of docmem documents and clean up unused or outdated instances.
----
+----
 Priority:   30
 Status: ToDo
 ID: download-3ck4
 Add a download button that exports a serialized docmem document. Implement functionality to serialize the current docmem tree structure into a downloadable format (JSON, text, or other format) so users can save and share docmem documents. The download should include the full hierarchical structure with all nodes, their content, context information, and relationships.
----
+----
 Priority:   30
 Status: ToDo
 ID: db-mgmt-fayc
 Implement database management functions for docmem instances. Add operations to clear/delete docmem documents, list all available docmem instances, view metadata about stored documents, and perform maintenance tasks. This will provide users with tools to manage their collection of docmem documents and clean up unused or outdated instances.
----
-Priority:    0
-Status: Done
-ID: copy-rule-z59k
-Remove the "same parent" rule for copying nodes
----
-Priority:    0
-Status: Done
-ID: prompt-cache-7kad
-Configure provider calls for prompt caching. Set up caching mechanisms for LLM API calls to reduce costs and improve response times by caching prompt prefixes and reusing them across requests. This includes configuring cache settings in the OpenRouter API integration and managing cache invalidation strategies.
+----
+Priority:   30
+Status: ToDo
+ID: chat-cache-eq84
+Created: 2026-07-02T07:22:14Z
+Updated: 2026-07-02T07:22:14Z
+Set cache_control: { type: 'ephemeral' } on the last chat message when building the message list, so providers with explicit (Anthropic-style) prompt caching cache the conversation history prefix. Currently only the two prompt system messages carry breakpoints, so the append-only chat history is re-billed as uncached input every turn on those providers. The marker moves forward each turn (standard incremental pattern); docmem expansions stay after it. ~3 lines in docmem_chat.js buildMessageList; harmless on providers that ignore the field. Low priority: this harness targets smaller models with implicit caching, where the existing message ordering already pays off. Related: ro-cache-wj6d (breakpoints for read-only docmems).
