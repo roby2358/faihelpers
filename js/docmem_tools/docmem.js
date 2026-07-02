@@ -111,8 +111,13 @@ export class Docmem {
     }
 
     async getRootOfNode(nodeId) {
+        const visited = new Set();
         let node = await this.requireNode(nodeId);
         while (node.parentId !== null) {
+            if (visited.has(node.id)) {
+                throw new Error(`Cycle detected in parent chain at node ${node.id}`);
+            }
+            visited.add(node.id);
             node = await this.requireNode(node.parentId);
         }
         return node;
@@ -266,6 +271,12 @@ export class Docmem {
 
         if (!targetNode.parentId) {
             throw new Error(`Cannot move a node to be ${operation} root node`);
+        }
+
+        // Target is a direct child of the moved node: the move would set
+        // node.parentId = node, creating a self-cycle
+        if (targetNode.parentId === nodeId) {
+            throw new Error('Cannot move a node to be a sibling of its own child');
         }
 
         const descendants = [];
