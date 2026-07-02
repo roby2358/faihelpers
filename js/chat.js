@@ -24,6 +24,24 @@ const STATIC_DOCMEM_COMMANDS = new Set(['docmem_get_all_roots', 'docmem_create']
 // UI Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
+let lastRequestStats = null;
+
+function updateStatusLine() {
+    const statusEl = document.getElementById('chat-status');
+    if (!statusEl) return;
+
+    const state = isProcessing ? 'Working...' : 'Ready';
+    const s = lastRequestStats;
+    statusEl.textContent = s
+        ? `${state} | reasoning: ${s.reasoning} | context length: ${s.contextLength.toLocaleString()} | max tokens: ${s.maxTokens.toLocaleString()}`
+        : state;
+}
+
+function reportModelRequest(stats) {
+    lastRequestStats = stats;
+    updateStatusLine();
+}
+
 function setUIEnabled(enabled) {
     const chatInput = document.getElementById('chat-input');
     const sendBtn = document.getElementById('chat-send-btn');
@@ -229,7 +247,8 @@ async function routeDelegate(restArgs, parentDocmemId, createRouter, currentApi)
 
     const childLoop = new AgentLoop(
         childChat, currentApi, childRouter, KNOWN_COMMANDS,
-        truncate(taskPrompt, 80), 100, () => {}, () => {}
+        truncate(taskPrompt, 80), 100, () => {}, () => {},
+        reportModelRequest
     );
 
     const result = await childLoop.run(initialMessage);
@@ -322,7 +341,8 @@ async function runAgentLoop(message) {
         chatSession, api, router, KNOWN_COMMANDS,
         truncate(message, 80), 100,
         (msg) => appendToChatDisplay(`\nuser> ${msg}`),
-        (msg) => appendToChatDisplay(`\nassistant> ${msg}`)
+        (msg) => appendToChatDisplay(`\nassistant> ${msg}`),
+        reportModelRequest
     );
 
     return await loop.run(message);
@@ -334,6 +354,7 @@ async function withProcessingGuard(fn) {
 
     isProcessing = true;
     setUIEnabled(false);
+    updateStatusLine();
 
     try {
         await fn();
@@ -344,6 +365,7 @@ async function withProcessingGuard(fn) {
     } finally {
         isProcessing = false;
         setUIEnabled(true);
+        updateStatusLine();
     }
 }
 

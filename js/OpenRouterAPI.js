@@ -108,8 +108,19 @@ export class OpenRouterAPI {
         if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
             throw new Error('API Error: Invalid response structure - no choices array');
         }
-        
-        if (!data.choices[0].message || !data.choices[0].message.content) {
+
+        const choice = data.choices[0];
+        if (!choice.message || !choice.message.content) {
+            // Reasoning models (e.g. GLM 5.2) can exhaust max_tokens on hidden
+            // reasoning, returning finish_reason "length" with empty content
+            if (choice.finish_reason === 'length') {
+                throw new Error('API Error: Response truncated (finish_reason=length) - '
+                    + 'the model ran out of tokens before producing content, '
+                    + 'likely spent on reasoning; increase maxTokens');
+            }
+            if (choice.message?.reasoning) {
+                throw new Error('API Error: Model returned reasoning but no message content');
+            }
             throw new Error('API Error: Invalid response structure - missing message content');
         }
     }

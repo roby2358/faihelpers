@@ -8,6 +8,13 @@ import { parse as parsePytool } from './pytool/pytool_parser.js';
 
 const PYTOOL_BLOCK = /```pytool\s*\n([\s\S]*?)```/gi;
 
+const TEMPERATURE = 0.7;
+// 8000 not 2000: reasoning models (e.g. GLM 5.2) spend hidden reasoning
+// tokens from this budget; too low and content comes back empty
+const MAX_TOKENS = 8000;
+// Not sent in the request yet — reported in the status line as a gauge
+const REASONING = false;
+
 export function formatDelegationMessage(taskPrompt, parentDocmemId) {
     return [
         '# Delegated Task',
@@ -33,7 +40,7 @@ export function formatDelegationMessage(taskPrompt, parentDocmemId) {
 }
 
 export class AgentLoop {
-    constructor(chatSession, api, commandRouter, knownCommands, summaryLine, maxDepth, onUserMessage, onAssistantMessage) {
+    constructor(chatSession, api, commandRouter, knownCommands, summaryLine, maxDepth, onUserMessage, onAssistantMessage, onModelRequest) {
         this.chatSession = chatSession;
         this.api = api;
         this.commandRouter = commandRouter;
@@ -42,6 +49,7 @@ export class AgentLoop {
         this.maxDepth = maxDepth;
         this.onUserMessage = onUserMessage;
         this.onAssistantMessage = onAssistantMessage;
+        this.onModelRequest = onModelRequest || (() => {});
     }
 
     // Run
@@ -98,7 +106,9 @@ export class AgentLoop {
 
     async invokeModelAndRecord() {
         const messages = await this.chatSession.buildMessageList();
-        const response = await this.api.chat(messages, 0.7, 2000);
+        const contextLength = messages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
+        this.onModelRequest({ reasoning: REASONING, contextLength, maxTokens: MAX_TOKENS });
+        const response = await this.api.chat(messages, TEMPERATURE, MAX_TOKENS);
         await this.recordAssistantMessage(response);
         return response;
     }

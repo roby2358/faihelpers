@@ -248,6 +248,16 @@ h1 {
     border-top: 1px solid #e0e0e0;
 }
 
+.chat-status {
+    flex: 0 0 auto;
+    padding: 0.35rem 1rem;
+    background-color: #fafafa;
+    border-top: 1px solid #e0e0e0;
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    color: #666;
+}
+
 .chat-input {
     flex: 1;
     padding: 0.75rem;
