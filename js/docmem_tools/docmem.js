@@ -231,16 +231,15 @@ export class Docmem {
     }
 
     async validateLeafNodes(nodes) {
-        for (const n of nodes) {
-            const children = await this.getChildren(n.id);
+        const nodesWithChildren = [];
+        for (const node of nodes) {
+            const children = await this.getChildren(node.id);
             if (children.length > 0) {
-                const nodesWithChildren = [];
-                for (const node of nodes) {
-                    const ch = await this.getChildren(node.id);
-                    if (ch.length > 0) nodesWithChildren.push(node);
-                }
-                throw new Error(`All nodes to summarize must be leaf nodes (have no children). Nodes with children: ${nodesWithChildren.map(n => n.id).join(', ')}`);
+                nodesWithChildren.push(node);
             }
+        }
+        if (nodesWithChildren.length > 0) {
+            throw new Error(`All nodes to summarize must be leaf nodes (have no children). Nodes with children: ${nodesWithChildren.map(n => n.id).join(', ')}`);
         }
     }
 

@@ -69,8 +69,7 @@ Related detail: the expanded docmem system messages embed `updated_at` per node,
 
 ## Code Quality
 
-- **Dead weight: the entire `js/bash/` directory.** Nothing outside it imports `command.js` or `command_parser.js` (~2,240 lines), and `bash_prompt.js` is unused. Only pytool is live. Either delete it (git preserves history) or add a README note that it's a retained alternative syntax; today it silently misleads readers (SPEC_DELEGATE still lists `command_parser.js` as a dependency).
-- **`validateLeafNodes`** (`docmem.js`) is an accidental O(n²): the outer loop detects one violation, then an inner loop re-scans *all* nodes to build the error message. Collect violators in one pass.
+- **`js/bash/` is a retained early version** of the command-syntax parser (the predecessor of pytool) and is not imported anywhere at runtime — only pytool is live. A one-line README in the directory would keep readers from assuming it's active.
 - **Duplication:** `getSortedChildren` exists in both `Docmem` and `DocmemChat`; `deleteExistingRoot`/`createChatRootNode` in `DocmemChat` partially reimplement `Docmem.createRoot`; `DocmemSQLite.getAllRoots` exists as both instance and static with different return shapes (Node vs plain object). Minor, but the kind of drift that breeds bugs.
 - **Illusory scoping:** `Docmem` takes a `docmemId` but every method operates on the shared table with no root check — `new Docmem('a').getNode(nodeOfB)` works fine. That's a deliberate design (SPEC_DELEGATE: no access control), but the constructor parameter implies a boundary that doesn't exist; a comment on the class would prevent false assumptions.
 - **`index.js` at 1,075 lines** is the largest hand-written file and mixes four tabs' worth of UI. Fine for now; first candidate to split when it grows.
@@ -88,16 +87,15 @@ Two things to be aware of: `logRequest`/`logSuccessResponse` print the full prom
 
 ## Testing
 
-There is no automated test suite; the two parser test pages (`js/bash/test_command_parser.html`, `js/pytool/test_pytool_parser.html`) are manual, and one of them tests dead code. The most valuable target is `Docmem` itself: its operations are pure logic over a database and would be straightforward to test in Node with an in-memory DuckDB (or a stub `DocmemSQLite`) — move/copy/summary/delete edge cases are exactly where small property tests pay off. Even a single `test_docmem.html` page in the existing style would be a large step up.
+There is no automated test suite; the two parser test pages (`js/bash/test_command_parser.html`, `js/pytool/test_pytool_parser.html`) are manual, and only the pytool one covers the live parser. The most valuable target is `Docmem` itself: its operations are pure logic over a database and would be straightforward to test in Node with an in-memory DuckDB (or a stub `DocmemSQLite`) — move/copy/summary/delete edge cases are exactly where small property tests pay off. Even a single `test_docmem.html` page in the existing style would be a large step up.
 
 ## Prioritized Recommendations
 
 1. **Add a Stop control and retry-with-backoff to the API path** (R1) — requests time out on their own, but a running loop still can't be cancelled from the UI.
 2. **Reconcile the spec divergences** (S1–S4) — the "specs are authoritative" discipline only pays off if they're kept true.
 3. **Add a Docmem test page** covering move/copy/addSummary/delete edge cases.
-4. **Delete or explicitly shelve `js/bash/`**.
-5. **Adopt gpt-tokenizer for `countTokens`** (R3) — cheap honesty for every budget decision.
-6. Longer-term, in line with the specs' own roadmap: IndexedDB persistence (the "all work lost on reload" footgun looms over everything else), then wrap multi-node operations in transactions to close the S2 gap for real.
+4. **Adopt gpt-tokenizer for `countTokens`** (R3) — cheap honesty for every budget decision.
+5. Longer-term, in line with the specs' own roadmap: IndexedDB persistence (the "all work lost on reload" footgun looms over everything else), then wrap multi-node operations in transactions to close the S2 gap for real.
 
 ## Closing Note
 

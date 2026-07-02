@@ -136,7 +136,7 @@ The child agent's chat docmem is a fresh docmem that the child owns. It is visib
 The delegation context (task prompt, parent identity, `complete` instruction) MUST be included in the initial user message passed to the child's AgentLoop. The child's message list is then built through the standard DocmemChat mechanism, which MUST include:
 
 - The same root system prompt as the parent (the shared root prompt docmem).
-- The same tool prompts (bash prompt, system prompt, docmem prompt) as the parent.
+- The same tool prompts (pytool prompt, system prompt, docmem prompt) as the parent.
 - Non-chat docmems, included via the existing system message mechanism (SPEC_CHAT.md).
 - The child's own chat history (starting with the initial delegation message as the first user turn).
 
@@ -221,7 +221,7 @@ The initial user message passed to the child's AgentLoop MUST contain:
 
 - DocmemChat (existing, from `docmem_chat.js`)
 - OpenRouterAPI (existing, from `OpenRouterAPI.js`)
-- Command parser (existing, from `command_parser.js`)
+- Command parser (existing, from `js/pytool/pytool_parser.js`)
 - DocmemCommands (existing, from `docmem_commands.js`)
 - SystemCommands (existing, from `system_commands.js`)
 
