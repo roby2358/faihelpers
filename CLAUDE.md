@@ -28,7 +28,7 @@ Hierarchical tree stored in DuckDB WASM (in-memory, single shared connection). E
 
 ### Agent System & Chat Flow
 
-Agents delegate to sub-agents with separate context boundaries. Each agent identified by its chat docmem root ID. See `SPEC_AGENTS.md` and `SPEC_DELEGATE.md`.
+Agents delegate to sub-agents with separate context boundaries. Each agent identified by its chat docmem root ID. See `docs/SPEC_AGENTS.md` and `docs/SPEC_DELEGATE.md`.
 
 **Execution flow:** User input → `chat.js:sendMessage()` → `AgentLoop.run()` → `DocmemChat.buildMessageList()` (constructs messages from docmem tree) → `OpenRouterAPI.chat()` (OpenRouter.ai, OpenAI-compatible protocol) → extract `` ```pytool `` blocks → `parsePytool()` → `commandRouter()` dispatches to `DocmemCommands` or `SystemCommands`. Loop iterates until no more tool calls or `complete()` is called.
 
@@ -56,7 +56,7 @@ Four tabs in `js/index.js`: Chat (OpenRouter API + command parsing), Docmem (tre
 
 ## Specifications
 
-`SPEC_*.md` files are the **authoritative source** for system behavior. When modifying core behavior, always consult and update relevant specs: `SPEC_DOCMEM.md`, `SPEC_DOCMEM_ATOMICITY.md`, `SPEC_DOCMEM_SERIALIZATION.md`, `SPEC_DOCMEM_WIKI.md`, `SPEC_AGENTS.md`, `SPEC_DELEGATE.md`, `SPEC_CHAT.md`, `js/bash/SPEC_COMMAND_PARSER.md`, `js/pytool/SPEC_PYTOOL_PARSER.md`.
+`SPEC_*.md` files are the **authoritative source** for system behavior. When modifying core behavior, always consult and update relevant specs, which live in `docs/`: `SPEC_DOCMEM.md`, `SPEC_DOCMEM_ATOMICITY.md`, `SPEC_DOCMEM_SERIALIZATION.md`, `SPEC_DOCMEM_WIKI.md`, `SPEC_AGENTS.md`, `SPEC_DELEGATE.md`, `SPEC_CHAT.md` — plus the parser specs `js/bash/SPEC_COMMAND_PARSER.md` and `js/pytool/SPEC_PYTOOL_PARSER.md`.
 
 ## DuckDB WASM Patterns
 

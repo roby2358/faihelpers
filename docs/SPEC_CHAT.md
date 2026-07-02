@@ -31,3 +31,10 @@ For each turn in the chat, the framework MUST include additional context from no
 3. These additional system messages MUST be added before the chat session messages (i.e., after the main system prompt from the root node, but before the conversation messages)
 
 The format for concatenating nodes SHOULD include all node metadata in a human-readable format suitable for LLM context. The exact formatting is implementation-defined, but MUST include all node properties (id, contextType, contextName, contextValue, createdAt, updatedAt, order, tokenCount, text) in a clear and structured manner.
+
+## API Request Timeout
+
+- Every LLM API request MUST enforce a timeout so that a hung connection cannot stall an agent loop indefinitely.
+- The default timeout MUST be 300 seconds. The timeout MAY be configurable per API client instance.
+- The timeout MUST cover the entire request, including reading the response body (responses are non-streaming, so the full generation must complete within the window).
+- A timed-out or aborted request MUST fail with a descriptive error (e.g., "Request timed out after 300s") that surfaces through the normal error path, the same as any other API failure.

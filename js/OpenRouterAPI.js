@@ -1,14 +1,20 @@
 /**
  * OpenRouterAPI - Client for calling OpenRouter API with OpenAI protocol
  */
+
+// Generous because responses are non-streaming: the entire generation
+// (including hidden reasoning tokens) must complete within this window
+const DEFAULT_TIMEOUT_MS = 300000;
+
 export class OpenRouterAPI {
-    constructor(apiKey, model) {
+    constructor(apiKey, model, timeoutMs = DEFAULT_TIMEOUT_MS) {
         if (!apiKey || apiKey.trim() === '') {
             throw new Error('OpenRouterAPI: API key is required');
         }
         this.apiKey = apiKey.trim();
         this.baseURL = 'https://openrouter.ai/api/v1';
         this.model = model;
+        this.timeoutMs = timeoutMs;
     }
 
     /**
@@ -133,13 +139,28 @@ export class OpenRouterAPI {
     }
 
     /**
+     * Convert abort/timeout DOMExceptions into agent-readable API errors;
+     * pass all other errors through unchanged
+     */
+    translateAbortError(error) {
+        if (error.name === 'TimeoutError') {
+            return new Error(`API Error: Request timed out after ${Math.round(this.timeoutMs / 1000)}s`);
+        }
+        if (error.name === 'AbortError') {
+            return new Error('API Error: Request aborted');
+        }
+        return error;
+    }
+
+    /**
      * Perform the HTTP request to the API
      */
     async performRequest(headers, requestBody) {
         return await fetch(`${this.baseURL}/chat/completions`, {
             method: 'POST',
             headers,
-            body: JSON.stringify(requestBody)
+            body: JSON.stringify(requestBody),
+            signal: AbortSignal.timeout(this.timeoutMs)
         });
     }
 
@@ -156,13 +177,19 @@ export class OpenRouterAPI {
         
         this.logRequest(requestBody, headers, messages);
         
-        const response = await this.performRequest(headers, requestBody);
+        let data;
+        try {
+            const response = await this.performRequest(headers, requestBody);
 
-        if (!response.ok) {
-            await this.handleErrorResponse(response);
+            if (!response.ok) {
+                await this.handleErrorResponse(response);
+            }
+
+            // The timeout signal also covers the body read
+            data = await response.json();
+        } catch (error) {
+            throw this.translateAbortError(error);
         }
-
-        const data = await response.json();
         
         this.validateResponse(data);
         

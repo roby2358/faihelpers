@@ -6,7 +6,7 @@ Reviewed 2026-07-02. Scope: architecture, correctness, spec conformance, robustn
 
 Fai Helpers is a coherent, opinionated experiment: agents whose working memory is an explicit, inspectable tree (Docmem) rather than an opaque context window. The architecture is unusually disciplined for a project of this size — clean layering, a UI-free agent loop, specs as first-class artifacts, and a strings-only command parser that avoids `eval` entirely.
 
-The main open issues are: **a cluster of spec–implementation divergences** (the specs are declared authoritative but drift from the code in several places), and **robustness gaps** typical of an early-stage framework (no request timeouts, no transactions, no automated tests, unbounded delegation cost).
+The main open issues are: **a cluster of spec–implementation divergences** (the specs are declared authoritative but drift from the code in several places), and **robustness gaps** typical of an early-stage framework (no way to cancel a running loop, no transactions, no automated tests, unbounded delegation cost).
 
 ## Strengths
 
@@ -53,9 +53,9 @@ Recommendation: update SPEC_CHAT (or the constant) for S1; add a "Current Implem
 
 ## Robustness & Cost
 
-### R1 (HIGH) — No timeout, no abort, no retry on API calls
+### R1 (MEDIUM) — No user cancel or retry on API calls
 
-`OpenRouterAPI.performRequest` (`OpenRouterAPI.js`) is a bare `fetch`. A hung connection stalls the agent loop forever ("Working…" indefinitely) with no way to cancel — and a delegated child hanging blocks its entire parent chain, since delegation is synchronous. Minimum viable fix: `AbortSignal.timeout(...)`, surfaced as a normal command error the loop can react to. A Stop button wired to an `AbortController` would materially improve the UX.
+API requests carry a hard timeout (`OpenRouterAPI.js`: `AbortSignal.timeout`, default 300s, covering the body read), so a hung connection cannot stall an agent loop indefinitely — timeouts surface as normal API errors. Two gaps remain: there is no way to cancel a running loop from the UI (a long delegation chain must be waited out or the tab closed), and transient failures are not retried, so a single network blip fails the whole run. A Stop button wired to an `AbortController` and a simple retry-with-backoff for 5xx/network errors would close this out.
 
 ### R2 (MEDIUM) — Token costs compound quietly
 
@@ -92,7 +92,7 @@ There is no automated test suite; the two parser test pages (`js/bash/test_comma
 
 ## Prioritized Recommendations
 
-1. **Add a fetch timeout/abort to `OpenRouterAPI`** (R1) and surface a Stop control — the loop currently has no escape hatch.
+1. **Add a Stop control and retry-with-backoff to the API path** (R1) — requests time out on their own, but a running loop still can't be cancelled from the UI.
 2. **Reconcile the spec divergences** (S1–S4) — the "specs are authoritative" discipline only pays off if they're kept true.
 3. **Add a Docmem test page** covering move/copy/addSummary/delete edge cases.
 4. **Delete or explicitly shelve `js/bash/`**.
