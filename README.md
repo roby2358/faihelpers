@@ -6,14 +6,22 @@ A browser-based agent framework centered around **Docmem**, a hierarchical docum
 
 No build step required. Serve the project directory with any local HTTP server and open `index.html`. ES modules require HTTP — `file://` won't work.
 
+With [`just`](https://github.com/casey/just):
+
 ```bash
-# any of these will work:
+just up     # start a local server at http://localhost:8000
+just down   # stop it
+```
+
+Or serve it yourself with any of:
+
+```bash
 npx serve .
 python3 -m http.server
 php -S localhost:8000
 ```
 
-Then open `http://localhost:3000` (or whichever port your server uses).
+Then open `http://localhost:8000` (or whichever port your server uses).
 
 ### Chat Setup
 
