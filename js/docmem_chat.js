@@ -110,18 +110,32 @@ export class DocmemChat {
 
     // System Message Builders
 
-    buildTruncationMarker(docmemId, nodes, totalCount) {
+    buildTruncationMarker(startNodeId, nodes, totalCount) {
         if (nodes.length >= totalCount) {
             return '';
         }
         // Expansion is breadth-first, so omissions are scattered deeper/older
         // subtrees, not a tail cut — the marker must lead, not trail.
-        return `\n[partial: ${nodes.length} of ${totalCount} nodes shown (token budget); call docmem_structure("${docmemId}") to see the omitted subtrees]`;
+        return `\n[partial: ${nodes.length} of ${totalCount} nodes shown (token budget); call docmem_structure("${startNodeId}") to see the omitted subtrees]`;
     }
 
-    buildExpandedSystemMessage(docmemId, nodes, totalCount) {
-        const marker = this.buildTruncationMarker(docmemId, nodes, totalCount);
-        return this.systemMsg(`${docmemId}${marker}\n\n${this.formatNodesExpanded(nodes)}`);
+    buildFocusMarker(docmemId, focusNodeId) {
+        if (!focusNodeId) {
+            return '';
+        }
+        return `\n[focus: showing only the subtree of ${focusNodeId} within docmem ${docmemId}; call docmem_focus("${docmemId}") to restore the full tree]`;
+    }
+
+    buildPretendInvocation(startNodeId) {
+        return `$ docmem_expand("${startNodeId}")`;
+    }
+
+    buildExpandedSystemMessage(docmemId, focusNodeId, nodes, totalCount) {
+        const startNodeId = focusNodeId || docmemId;
+        const invocation = this.buildPretendInvocation(startNodeId);
+        const focusMarker = this.buildFocusMarker(docmemId, focusNodeId);
+        const truncationMarker = this.buildTruncationMarker(startNodeId, nodes, totalCount);
+        return this.systemMsg(`${invocation}${focusMarker}${truncationMarker}\n\n${this.formatNodesExpanded(nodes)}`);
     }
 
     async validateRootPromptExists() {
@@ -152,7 +166,7 @@ export class DocmemChat {
             return null;
         }
 
-        const message = this.systemMsg(serialized);
+        const message = this.systemMsg(`${this.buildPretendInvocation(ROOT_PROMPT_DOCMEM_ID)}\n\n${serialized}`);
         message.cache_control = { type: 'ephemeral' };
         return message;
     }
@@ -171,16 +185,33 @@ export class DocmemChat {
         return nodes.reduce((max, node) => (node.updatedAt > max ? node.updatedAt : max), '');
     }
 
+    async resolveFocusNode(docmemId) {
+        const focusNodeId = Docmem.getFocus(docmemId);
+        if (!focusNodeId) {
+            return null;
+        }
+        const node = await this.docmem.find(focusNodeId);
+        if (!node) {
+            // Focus node was deleted — fall back to the full tree.
+            Docmem.clearFocus(docmemId);
+            return null;
+        }
+        return focusNodeId;
+    }
+
     async tryBuildExpandedDocmemMessage(docmemId) {
-        const { nodes: expandedNodes, totalCount } = await this.expandDocmemNodes(docmemId, DEFAULT_EXPAND_MAX_TOKENS);
+        const focusNodeId = await this.resolveFocusNode(docmemId);
+        const startNodeId = focusNodeId || docmemId;
+        const { nodes: expandedNodes, totalCount } = await this.expandDocmemNodes(startNodeId, DEFAULT_EXPAND_MAX_TOKENS);
         if (expandedNodes.length === 0) {
             console.warn(`Could not expand docmem ${docmemId}, skipping`);
             return null;
         }
 
-        console.log(`Added docmem ${docmemId} as system message (${expandedNodes.length} of ${totalCount} nodes)`);
+        const focusNote = focusNodeId ? `, focused on ${focusNodeId}` : '';
+        console.log(`Added docmem ${docmemId} as system message (${expandedNodes.length} of ${totalCount} nodes${focusNote})`);
         return {
-            message: this.buildExpandedSystemMessage(docmemId, expandedNodes, totalCount),
+            message: this.buildExpandedSystemMessage(docmemId, focusNodeId, expandedNodes, totalCount),
             lastUpdated: this.maxUpdatedAt(expandedNodes),
             docmemId
         };

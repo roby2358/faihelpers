@@ -186,6 +186,12 @@ The tree structure MUST be shallow with clear semantics at each level. For examp
 
 - Semantic prioritization and relevance-based expansion SHOULD be implemented in the future.
 
+### Focus
+- Docmem MUST provide a static focus registry mapping a docmem root ID to at most one focus node ID.
+- The registry MUST support setting, getting, and clearing the focus for a root.
+- Focus state MUST be in-memory only (same lifetime as the database) and MUST NOT be persisted or included in TOML export.
+- The registry stores IDs only; consumers (e.g., chat context construction, see SPEC_CHAT.md) are responsible for validating that the focus node still exists and for falling back to the root when it does not.
+
 ### Summarization
 - The summarize operation MUST compress a contiguous range of sibling nodes under a new summary parent.
 - Summary text content MUST be provided as a parameter (current implementation requires manual content).

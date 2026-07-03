@@ -13,6 +13,7 @@ export const KNOWN_DOCMEM_COMMANDS = new Set([
     'docmem_serialize',
     'docmem_structure',
     'docmem_expand_to_length',
+    'docmem_focus',
     'docmem_add_summary',
     'docmem_move_node',
     'docmem_copy_node',
@@ -155,6 +156,20 @@ export class DocmemCommands {
             ? ` (partial: ${nodes.length} of ${totalCount} nodes within token budget)`
             : '';
         return { success: true, result: `docmem-expand-to-length${truncationNote}:\n${JSON.stringify(nodes.map(n => n.toDict()), null, 2)}` };
+    }
+
+    async focus(nodeId) {
+        const node = await this.docmem.find(nodeId);
+        if (!node) {
+            return { success: false, result: `docmem-focus node not found: ${nodeId}` };
+        }
+        const root = await this.docmem.getRootOfNode(nodeId);
+        if (node.id === root.id) {
+            Docmem.clearFocus(root.id);
+            return { success: true, result: `docmem-focus cleared: docmem ${root.id} will serialize its full tree into context` };
+        }
+        Docmem.setFocus(root.id, node.id);
+        return { success: true, result: `docmem-focus focused: docmem ${root.id} will serialize only the subtree of ${node.id} into context. Call docmem_focus("${root.id}") to restore the full tree.` };
     }
 
     async addSummary(contextType, contextName, contextValue, content, startNodeId, endNodeId) {

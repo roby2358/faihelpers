@@ -24,8 +24,11 @@ For each turn in the chat, the framework MUST include additional context from no
 
 1. The framework MUST enumerate all existing docmem instances using `Docmem.getAllRoots()`
 2. For each docmem where the docmem ID does NOT start with "chat_" (i.e., excludes chat-related docmems) and is NOT the root prompt docmem (which is already included, serialized, as the main system prompt):
-   - The framework MUST run `expandToLength(docmemId, 20000)` to expand the docmem to a maximum of 20000 tokens
-   - If the expansion was truncated by the token budget (fewer nodes returned than the subtree contains), the system message MUST carry a truncation marker on a line directly below the docmem ID, stating how many of the total nodes are shown and pointing to `docmem_structure` for the omitted subtrees (e.g., `[partial: 42 of 97 nodes shown (token budget); call docmem_structure("<docmemId>") to see the omitted subtrees]`). The marker MUST lead the message rather than trail it, because breadth-first expansion omits scattered deeper/older subtrees, not a contiguous tail. A complete docmem MUST NOT carry a marker.
+   - The framework MUST determine the expansion start node: the docmem's focus node if one is set (see Docmem Focus below), otherwise the docmem root
+   - The framework MUST run `expandToLength(startNodeId, 20000)` to expand the docmem to a maximum of 20000 tokens
+   - The system message MUST begin with a pretend invocation line of the form `$ docmem_expand("<startNodeId>")`, labeling the content as expanded docmem output. This header MUST also lead the root prompt system message (using the root prompt docmem ID). `docmem_expand` is not a real agent command; the agent prompt MUST explain that this line is framework-generated labeling.
+   - If the docmem is focused, the message MUST carry a focus marker on a line directly below the pretend invocation, naming the focus node and the docmem root and pointing to `docmem_focus("<docmemId>")` to restore the full tree (e.g., `[focus: showing only the subtree of <focusNodeId> within docmem <docmemId>; call docmem_focus("<docmemId>") to restore the full tree]`). An unfocused docmem MUST NOT carry a focus marker.
+   - If the expansion was truncated by the token budget (fewer nodes returned than the subtree contains), the system message MUST carry a truncation marker on a line directly below the pretend invocation (and focus marker, if any), stating how many of the total nodes are shown and pointing to `docmem_structure` for the omitted subtrees (e.g., `[partial: 42 of 97 nodes shown (token budget); call docmem_structure("<startNodeId>") to see the omitted subtrees]`). The marker MUST lead the message rather than trail it, because breadth-first expansion omits scattered deeper/older subtrees, not a contiguous tail. A complete expansion MUST NOT carry a marker.
    - The framework MUST concatenate all returned nodes into a single string, formatting each node with its metadata and content
    - The concatenated string MUST include for each node: node ID, context metadata (context_type, context_name, context_value), order value, token count, and text content. Per-node timestamps (created_at, updated_at) MUST NOT be included, so that the serialized docmem messages remain byte-stable when node content has not changed, enabling prompt caching.
    - The framework MUST add this concatenated string as an additional system message with `role: 'system'` in the messages array sent to the LLM
@@ -33,6 +36,17 @@ For each turn in the chat, the framework MUST include additional context from no
 4. Among themselves, the docmem context messages MUST be ordered by last-updated ascending (most recently updated last), with ties broken deterministically by docmem root ID. A docmem's last-updated value is the maximum `updated_at` across the nodes included in its expansion — not the whole subtree — so the sort key changes only when the serialized message content changes. Frequently edited docmems thus settle at the very end of the message list, where their churn invalidates the least cacheable prefix.
 
 The format for concatenating nodes SHOULD include all node metadata in a human-readable format suitable for LLM context. The exact formatting is implementation-defined, but MUST include all node properties (id, contextType, contextName, contextValue, order, tokenCount, text) in a clear and structured manner.
+
+## Docmem Focus
+
+The `docmem_focus(node_id)` agent command narrows a docmem's automatic context serialization to one node and its subtree:
+
+- The framework MUST maintain at most one focus node per docmem root. Focus state is in-memory only (same lifetime as the database) and MUST NOT be persisted to TOML.
+- Focusing a node MUST resolve the node's root and record the focus against that root, so subsequent turns expand from the focus node instead of the root.
+- Focusing the docmem root MUST clear the focus (restore full-tree serialization). There is no separate unfocus command.
+- Focusing a nonexistent node MUST fail with an error.
+- If a focus node no longer exists at expansion time (e.g., it was deleted), the framework MUST clear the focus and fall back to full-tree expansion rather than failing.
+- Focus MUST persist across turns until changed or cleared.
 
 ## API Request Timeout
 

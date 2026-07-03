@@ -166,6 +166,10 @@ async function executeDocmemCommand(args, docmem) {
                 requireArgs(restArgs, 2, 'docmem_expand_to_length', '<node_id> <max_tokens>');
                 return await commands.expandToLength(restArgs[0], restArgs[1]);
 
+            case 'docmem_focus':
+                requireArgs(restArgs, 1, 'docmem_focus', '<node_id>');
+                return await commands.focus(restArgs[0]);
+
             case 'docmem_add_summary': {
                 requireArgs(restArgs, 6, 'docmem_add_summary', '<context_type> <context_name> <context_value> <content> <start_node_id> <end_node_id>');
                 const [contextType, contextName, contextValue, content, startNodeId, endNodeId] = restArgs;

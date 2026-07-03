@@ -102,6 +102,23 @@ export class Docmem {
         return await DocmemSQLite.getAllRoots();
     }
 
+    // Focus registry: per-docmem focus node for context serialization.
+    // In-memory only, same lifetime as the database itself.
+
+    static focusByRoot = new Map();
+
+    static setFocus(rootId, nodeId) {
+        Docmem.focusByRoot.set(rootId, nodeId);
+    }
+
+    static getFocus(rootId) {
+        return Docmem.focusByRoot.get(rootId) || null;
+    }
+
+    static clearFocus(rootId) {
+        Docmem.focusByRoot.delete(rootId);
+    }
+
     async requireNode(nodeId) {
         const node = await this.getNode(nodeId);
         if (!node) {
