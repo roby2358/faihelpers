@@ -123,11 +123,11 @@ export class DocmemChat {
         if (!focusNodeId) {
             return '';
         }
-        return `\n[focus: showing only the subtree of ${focusNodeId} within docmem ${docmemId}; call docmem_focus("${docmemId}") to restore the full tree]`;
+        return `\n[focus: showing only the subtree of ${focusNodeId} within docmem ${docmemId}; call docmem_focus("${docmemId}", "${docmemId}") to restore the full tree]`;
     }
 
     buildPretendInvocation(startNodeId) {
-        return `$ docmem_expand("${startNodeId}")`;
+        return `$ System.docmem_expand_to_context("${startNodeId}")`;
     }
 
     buildExpandedSystemMessage(docmemId, focusNodeId, nodes, totalCount) {
@@ -224,13 +224,21 @@ export class DocmemChat {
         return a.docmemId.localeCompare(b.docmemId);
     }
 
-    async collectIncludableDocmems() {
-        const allRoots = await Docmem.getAllRoots();
-        return allRoots.filter(r => this.isIncludableDocmem(r));
+    buildRootsRosterMessage(allRoots) {
+        // Chat roots are omitted — the agent has nothing to do with them.
+        // Sorted so the message is byte-stable regardless of query order,
+        // keeping it prompt-cache friendly.
+        const ids = allRoots
+            .map(r => r.id)
+            .filter(id => !id.startsWith('chat_'))
+            .sort()
+            .join('\n');
+        return this.systemMsg(`$ System.docmem_roots()\n\n${ids}`);
     }
 
     async buildNonChatDocmemSystemMessages() {
-        const includable = await this.collectIncludableDocmems();
+        const allRoots = await Docmem.getAllRoots();
+        const includable = allRoots.filter(r => this.isIncludableDocmem(r));
 
         console.log(`=== INCLUDING ${includable.length} NON-CHAT DOCMEMS ===`);
 
@@ -247,7 +255,7 @@ export class DocmemChat {
         // included nodes only, so the sort key changes only when the
         // serialized bytes do.
         entries.sort((a, b) => this.compareByLastUpdated(a, b));
-        return entries.map(entry => entry.message);
+        return [this.buildRootsRosterMessage(allRoots), ...entries.map(entry => entry.message)];
     }
 
     // Chat Node Converters

@@ -8,11 +8,8 @@ export const KNOWN_DOCMEM_COMMANDS = new Set([
     'docmem_create_node',
     'docmem_update_content',
     'docmem_update_context',
-    'docmem_find',
     'docmem_delete',
-    'docmem_serialize',
     'docmem_structure',
-    'docmem_expand_to_length',
     'docmem_focus',
     'docmem_add_summary',
     'docmem_move_node',
@@ -123,22 +120,9 @@ export class DocmemCommands {
         return { success: true, result: `docmem-update-context updated node: ${node.id}` };
     }
 
-    async find(nodeId) {
-        const node = await this.docmem.find(nodeId);
-        if (!node) {
-            return { success: false, result: `docmem-find node not found: ${nodeId}` };
-        }
-        return { success: true, result: `docmem-find:\n${JSON.stringify(node.toDict(), null, 2)}` };
-    }
-
     async delete(nodeId) {
         await this.docmem.delete(nodeId);
         return { success: true, result: `docmem-delete deleted node: ${nodeId}` };
-    }
-
-    async serialize(nodeId) {
-        const content = await this.docmem.serialize(nodeId);
-        return { success: true, result: `docmem-serialize:\n${content}` };
     }
 
     async structure(nodeId) {
@@ -146,30 +130,21 @@ export class DocmemCommands {
         return { success: true, result: `docmem-structure:\n${structure}` };
     }
 
-    async expandToLength(nodeId, maxTokens) {
-        const maxTokensNum = parseInt(maxTokens, 10);
-        if (isNaN(maxTokensNum)) {
-            throw new Error(`maxTokens must be a number, got: ${maxTokens}`);
-        }
-        const { nodes, totalCount } = await this.docmem.expandToLength(nodeId, maxTokensNum);
-        const truncationNote = nodes.length < totalCount
-            ? ` (partial: ${nodes.length} of ${totalCount} nodes within token budget)`
-            : '';
-        return { success: true, result: `docmem-expand-to-length${truncationNote}:\n${JSON.stringify(nodes.map(n => n.toDict()), null, 2)}` };
-    }
-
-    async focus(nodeId) {
+    async focus(rootNodeId, nodeId) {
         const node = await this.docmem.find(nodeId);
         if (!node) {
             return { success: false, result: `docmem-focus node not found: ${nodeId}` };
         }
         const root = await this.docmem.getRootOfNode(nodeId);
+        if (root.id !== rootNodeId) {
+            return { success: false, result: `docmem-focus node ${nodeId} does not belong to docmem ${rootNodeId} (its root is ${root.id})` };
+        }
         if (node.id === root.id) {
             Docmem.clearFocus(root.id);
             return { success: true, result: `docmem-focus cleared: docmem ${root.id} will serialize its full tree into context` };
         }
         Docmem.setFocus(root.id, node.id);
-        return { success: true, result: `docmem-focus focused: docmem ${root.id} will serialize only the subtree of ${node.id} into context. Call docmem_focus("${root.id}") to restore the full tree.` };
+        return { success: true, result: `docmem-focus focused: docmem ${root.id} will serialize only the subtree of ${node.id} into context. Call docmem_focus("${root.id}", "${root.id}") to restore the full tree.` };
     }
 
     async addSummary(contextType, contextName, contextValue, content, startNodeId, endNodeId) {

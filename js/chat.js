@@ -146,29 +146,17 @@ async function executeDocmemCommand(args, docmem) {
                 return await commands.updateContext(nodeId, contextType, contextName, contextValue);
             }
 
-            case 'docmem_find':
-                requireArgs(restArgs, 1, 'docmem_find', '<node_id>');
-                return await commands.find(restArgs[0]);
-
             case 'docmem_delete':
                 requireArgs(restArgs, 1, 'docmem_delete', '<node_id>');
                 return await commands.delete(restArgs[0]);
-
-            case 'docmem_serialize':
-                requireArgs(restArgs, 1, 'docmem_serialize', '<node_id>');
-                return await commands.serialize(restArgs[0]);
 
             case 'docmem_structure':
                 requireArgs(restArgs, 1, 'docmem_structure', '<node_id>');
                 return await commands.structure(restArgs[0]);
 
-            case 'docmem_expand_to_length':
-                requireArgs(restArgs, 2, 'docmem_expand_to_length', '<node_id> <max_tokens>');
-                return await commands.expandToLength(restArgs[0], restArgs[1]);
-
             case 'docmem_focus':
-                requireArgs(restArgs, 1, 'docmem_focus', '<node_id>');
-                return await commands.focus(restArgs[0]);
+                requireArgs(restArgs, 2, 'docmem_focus', '<root_node_id> <node_id>');
+                return await commands.focus(restArgs[0], restArgs[1]);
 
             case 'docmem_add_summary': {
                 requireArgs(restArgs, 6, 'docmem_add_summary', '<context_type> <context_name> <context_value> <content> <start_node_id> <end_node_id>');

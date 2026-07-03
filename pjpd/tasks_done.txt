@@ -1,9 +1,51 @@
+Priority:   80
+Status: Done
+ID: llm-api-za72
+Created: 2026-07-03T01:55:40Z
+Updated: 2026-07-03T01:55:40Z
+Integrate LLM API calls for generating summaries and processing content. Implement round-trip communication where the LLM can read from docmem (via serialization/expansion), generate responses or summaries, and write results back to docmem nodes. This enables the LLM to work with the hierarchical memory structure bidirectionally.
+----
+Priority:   60
+Status: Done
+ID: chat-ui-q4w8
+Created: 2026-07-03T01:55:40Z
+Updated: 2026-07-03T01:55:40Z
+Implement the chat interface UI components and interaction flow. Create the chat tab interface with message display, input handling, and user interaction patterns. Set up the basic structure for sending and receiving messages, formatting conversation history, and managing chat state within the application.
+----
+Priority:   60
+Status: Done
+ID: summ-span-ubbd
+Created: 2026-07-03T01:55:40Z
+Updated: 2026-07-03T01:55:40Z
+Change the summarize operation from accepting a list of node IDs to accepting a start node and stop node to pick up a span of contiguous nodes. This simplifies the interface by allowing users to specify a range of nodes (e.g., first and last node in a sequence) rather than listing all individual node IDs. The operation should identify all nodes between the start and stop nodes (inclusive) based on their order values within the same parent, and create a summary node for that contiguous span.
+----
+Priority:   60
+Status: Done
+ID: checksum-5wv6
+Created: 2026-07-03T01:55:40Z
+Updated: 2026-07-03T01:55:40Z
+Add hash property to track document state for optimistic locking to detect concurrent modifications
+----
+Priority:   50
+Status: Done
+ID: py-parse-r2be
+Created: 2026-07-03T01:55:40Z
+Updated: 2026-07-03T01:55:40Z
+Support Python function call parsing as an alternative to bash command syntax. Allow docmem commands to be specified as Python function calls (e.g., docmem_append_child(node_id, context_type, context_name, context_value, content)) in addition to the current bash-style command format, providing flexibility in how commands are expressed and parsed.
+----
 Priority:   50
 Status: Done
 ID: faihelpers-h76a
 Created: 2026-07-02T06:33:01Z
 Updated: 2026-07-02T06:44:21Z
 Add a "sensory" docmem to the chat context: ambient situational information such as current time, location, temperature/weather, and other random sensory details. It goes at the very end of the message list — after the recency-sorted docmem expansions — which fits the most-volatile-last ordering, since it changes every turn anyway (per SPEC_CHAT's cache-stability ordering; keeping it last means its churn invalidates nothing else).
+----
+Priority:   40
+Status: Done
+ID: doc-cmds-3s3a
+Created: 2026-07-03T01:55:40Z
+Updated: 2026-07-03T01:55:40Z
+Enable document creation and editing through parsed command interface. Allow models to create new docmem documents and modify existing ones using structured commands. Implement command handlers that translate parsed commands into docmem operations like creating nodes, updating content, organizing structure, and managing document hierarchy.
 ----
 Priority:    0
 Status: Done
