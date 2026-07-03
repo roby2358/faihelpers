@@ -548,6 +548,9 @@ export class Docmem {
      * - Priority list: ROOT, B, A, E, D, C
      * - Budget consumed until exhausted, list truncated
      * - DFS render: ROOT, A, ..., B, ... (only included nodes)
+     *
+     * Returns { nodes, totalCount } where totalCount is the full subtree size;
+     * nodes.length < totalCount means the budget truncated the expansion.
      */
     async expandToLength(nodeId, maxTokens) {
         if (!nodeId) {
@@ -609,7 +612,7 @@ export class Docmem {
 
         await renderDfs(startNode);
 
-        return result;
+        return { nodes: result, totalCount: priorityList.length };
     }
 
     async addSummary(startNodeId, endNodeId, content, contextType, contextName, contextValue) {

@@ -412,7 +412,7 @@ async function handleAddSummary() {
 async function handleDocmemExpand(rootId) {
     const expandTokenLimit = document.getElementById('expand-token-limit');
     const maxTokens = parseInt(expandTokenLimit.value) || 1000;
-    const expanded = await currentDocmem.expandToLength(rootId, maxTokens);
+    const { nodes: expanded } = await currentDocmem.expandToLength(rootId, maxTokens);
     renderExpanded(expanded);
 }
 
@@ -747,7 +747,7 @@ async function renderViewExpanded(rootId, maxTokens) {
         const docmem = new Docmem(rootId);
         await docmem.ready();
 
-        const expanded = await docmem.expandToLength(rootId, maxTokens);
+        const { nodes: expanded, totalCount } = await docmem.expandToLength(rootId, maxTokens);
 
         if (expanded.length === 0) {
             renderEmptyState(contentPanel, 'No content to display');
@@ -758,7 +758,7 @@ async function renderViewExpanded(rootId, maxTokens) {
         const totalTokens = calculateTotalTokens(expanded);
 
         const pre = createPreElement('view-serialized-text', textContent);
-        contentPanel.innerHTML = `<div class="view-stats">${expanded.length} nodes, ${totalTokens} tokens (expanded to ${maxTokens})</div>`;
+        contentPanel.innerHTML = `<div class="view-stats">${expanded.length} of ${totalCount} nodes, ${totalTokens} tokens (expanded to ${maxTokens})</div>`;
         contentPanel.appendChild(pre);
     } catch (error) {
         renderErrorState(contentPanel, error);

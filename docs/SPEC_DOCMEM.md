@@ -163,7 +163,8 @@ The tree structure MUST be shallow with clear semantics at each level. For examp
 - The reading order of a document MUST be determined by serialization order.
 
 ### Expand to Length
-- The expand operation MUST return an array of nodes that fit within a given token budget, starting from the specified node.
+- The expand operation MUST return the nodes that fit within a given token budget, starting from the specified node, along with the total node count of the subtree, as `{ nodes, totalCount }`.
+- Callers MUST be able to detect truncation by comparing `nodes.length` against `totalCount`.
 - The algorithm MUST have three phases:
 
 **Phase 1: Build priority list via reverse BFS**
@@ -181,7 +182,7 @@ The tree structure MUST be shallow with clear semantics at each level. For examp
 - The system MUST perform a preorder DFS traversal from the starting node.
 - Only nodes present in the included set MUST be rendered.
 - If a node is not included, its entire subtree MUST be skipped.
-- The operation MUST return the resulting array of nodes in DFS order.
+- The operation MUST return the resulting array of nodes in DFS order, together with the total node count of the subtree (the priority list length).
 
 - Semantic prioritization and relevance-based expansion SHOULD be implemented in the future.
 

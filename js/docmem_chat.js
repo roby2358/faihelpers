@@ -7,7 +7,7 @@ import { PYTOOL_PROMPT } from './pytool/pytool_prompt.js';
 import { SYSTEM_PROMPT } from './system_tools/system_prompt.js';
 import { DOCMEM_PROMPT } from './docmem_tools/docmem_prompt.js';
 
-const DEFAULT_EXPAND_MAX_TOKENS = 10000;
+const DEFAULT_EXPAND_MAX_TOKENS = 20000;
 const VALID_CHAT_ROLES = ['user', 'assistant'];
 
 export class DocmemChat {
@@ -110,8 +110,18 @@ export class DocmemChat {
 
     // System Message Builders
 
-    buildExpandedSystemMessage(docmemId, nodes) {
-        return this.systemMsg(`${docmemId}\n\n${this.formatNodesExpanded(nodes)}`);
+    buildTruncationMarker(docmemId, nodes, totalCount) {
+        if (nodes.length >= totalCount) {
+            return '';
+        }
+        // Expansion is breadth-first, so omissions are scattered deeper/older
+        // subtrees, not a tail cut — the marker must lead, not trail.
+        return `\n[partial: ${nodes.length} of ${totalCount} nodes shown (token budget); call docmem_structure("${docmemId}") to see the omitted subtrees]`;
+    }
+
+    buildExpandedSystemMessage(docmemId, nodes, totalCount) {
+        const marker = this.buildTruncationMarker(docmemId, nodes, totalCount);
+        return this.systemMsg(`${docmemId}${marker}\n\n${this.formatNodesExpanded(nodes)}`);
     }
 
     async validateRootPromptExists() {
@@ -162,15 +172,15 @@ export class DocmemChat {
     }
 
     async tryBuildExpandedDocmemMessage(docmemId) {
-        const expandedNodes = await this.expandDocmemNodes(docmemId, DEFAULT_EXPAND_MAX_TOKENS);
+        const { nodes: expandedNodes, totalCount } = await this.expandDocmemNodes(docmemId, DEFAULT_EXPAND_MAX_TOKENS);
         if (expandedNodes.length === 0) {
             console.warn(`Could not expand docmem ${docmemId}, skipping`);
             return null;
         }
 
-        console.log(`Added docmem ${docmemId} as system message (${expandedNodes.length} nodes)`);
+        console.log(`Added docmem ${docmemId} as system message (${expandedNodes.length} of ${totalCount} nodes)`);
         return {
-            message: this.buildExpandedSystemMessage(docmemId, expandedNodes),
+            message: this.buildExpandedSystemMessage(docmemId, expandedNodes, totalCount),
             lastUpdated: this.maxUpdatedAt(expandedNodes),
             docmemId
         };

@@ -7,18 +7,26 @@ Docmem organizes documents as a hierarchical tree structure. Each node in the tr
 
 The intent is to keep the context window smaller by moving thought processes and work products into system prompts.
 
-Try to keep as much as you can in docmem documents without repeating in the context window.
+Try to keep as much as you can in docmem documents rather than repeating it in your chat messages.
 
 Docmems are durable. They can be shared across conversations.
+
+## Docmem Content Is Already In Your Context
+
+Every docmem is automatically serialized and included in your context as a system message. Each serialized node shows its metadata (id, parent_id, context fields, order, token_count) followed by its full text content.
+
+- The serialization is regenerated EVERY turn, so it is always up to date and authoritative. It already reflects any nodes you created, updated, moved, or deleted on previous turns.
+- There is NO read command, and none is needed. To read a node, look at the serialized docmem in your context. Do NOT call \`docmem_structure\` to read content — it returns structure only, with no text.
+- Very large docmems may be only partially included (expanded breadth-first up to a token budget). Such docmems are marked with a \`[partial: N of M nodes shown ...]\` line under the docmem ID. Only in that case is \`docmem_structure\` useful, to see the parts of the tree that were left out. No \`[partial: ...]\` marker means the docmem is complete.
 
 ## Important Concepts
 
 ### Node IDs
 - Node IDs are randomly generated strings (e.g., "qjjp9a36") assigned by the system when nodes are created
-- You MUST use the actual node IDs returned by command responses
+- Use node IDs from the serialized docmems in your context, or from command responses
 - You MUST NOT make up or assume node IDs
 - The ONLY node you name is the docmem root when creating it with \`docmem_create\`
-- After creation commands, you MUST wait for the response to get the actual node_id before using it in subsequent commands
+- After creating a node, you MUST wait for the response to get the actual node_id before using it in subsequent commands
 - Once you know the node_id you may include multiple calls in the same pytool block
 
 ### Context Fields
@@ -141,7 +149,8 @@ def docmem_structure(node_id: str):
 
     node_id: starting node ID (must exist)
     Returns: result> docmem_structure:\\n<indented text outline> - one line per node in preorder traversal; each line is "- " followed by node metadata (id, context fields, order, token count — no text content), indented two spaces per depth level
-    Use case: inspect tree structure without loading full text content
+    Use case: see the shape of a tree that was too large to be fully serialized into your context.
+    Note: returns NO text content. To read node content, use the serialized docmem already in your context.
     """
 \`\`\`
 

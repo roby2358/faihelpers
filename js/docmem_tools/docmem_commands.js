@@ -150,8 +150,11 @@ export class DocmemCommands {
         if (isNaN(maxTokensNum)) {
             throw new Error(`maxTokens must be a number, got: ${maxTokens}`);
         }
-        const nodes = await this.docmem.expandToLength(nodeId, maxTokensNum);
-        return { success: true, result: `docmem-expand-to-length:\n${JSON.stringify(nodes.map(n => n.toDict()), null, 2)}` };
+        const { nodes, totalCount } = await this.docmem.expandToLength(nodeId, maxTokensNum);
+        const truncationNote = nodes.length < totalCount
+            ? ` (partial: ${nodes.length} of ${totalCount} nodes within token budget)`
+            : '';
+        return { success: true, result: `docmem-expand-to-length${truncationNote}:\n${JSON.stringify(nodes.map(n => n.toDict()), null, 2)}` };
     }
 
     async addSummary(contextType, contextName, contextValue, content, startNodeId, endNodeId) {
