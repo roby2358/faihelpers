@@ -78,3 +78,4 @@ pjpd/bak
 
 # Local dev server
 .server.pid
+toml/
