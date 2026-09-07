@@ -87,3 +87,28 @@ Entry format: date, title, decision, rationale, supersedes (if any).
 **Decision.** A successful command's `result` is the whole text the model sees, led by the function name as the model typed it (`docmem_create_node: appended child qjjp9a36`). The loop no longer echoes the call or prefixes `result>`; it prefixes `error <name>:` on failures and on pre-execution errors (`pytool`). Command labels use underscores to match the function names; the hyphenated labels are gone.
 
 **Rationale.** A fork of the project saw the model conclude it had called a tool twice, because its call appeared once in its own turn and again echoed in the result. faipredict never echoed the call and never hit that confusion. Putting the string in the tool also places any future summarization of long results in the one place that knows the data. The hyphen/underscore mismatch was a needless second name for a small model to reconcile.
+
+---
+
+## 2026-09-07 — Run summaries only for runs with tool rounds; status records the termination reason
+
+**Decision.** The run container node's text is set only when the run made two or more model calls, meaning commands ran between them. A single-exchange run leaves the text empty. On termination the container's `contextValue` changes from `working` to the termination reason.
+
+**Rationale.** The run container arrived with the shared AgentLoop, where a delegated child's many tool rounds collapse to one summary. The interactive chat inherited it, so every ordinary reply was stored twice, once as the message and once as the "summary" of a run that had nothing to compress. The rule is about the run's shape rather than who started it. The status value had never been updated, so finished runs read as `working` in the tree.
+
+---
+
+## 2026-09-07 — Turns hang off the chat root; runs are wrapped only when compressed
+
+**Decision.** Messages are appended directly to the chat docmem root. No container is created up front. When a run ends after two or more model calls, its messages are wrapped after the fact with `addSummary` into a `summary:status:<reason>` node carrying the run summary. Single-exchange runs are left flat. This supersedes the entry above about empty run summaries.
+
+**Rationale.** An empty container per exchange was structure with no content. Wrapping at the end, using the same operation the agent uses to compress chat history, means a summary node exists exactly when there is something it stands for.
+
+---
+
+## 2026-09-07 — No automatic chat summaries; compression is explicit
+
+**Decision.** The agent loop records turns flat under the chat root and never creates a summary node. Chat history is compressed only when the model calls `docmem_add_summary` on its own messages or the user does so from the UI. A size-triggered prompt to summarize is planned as a separate feature. This supersedes both run-summary entries above; the run container is gone entirely, and message building no longer special-cases `status` summary nodes.
+
+**Rationale.** Wrapping on the second model call tied compression to an accident of the turn shape rather than to context pressure. Summaries should happen when the transcript is long enough to need them, at a point the model or user chooses.
+

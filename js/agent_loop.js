@@ -60,9 +60,6 @@ export class AgentLoop {
 
         await docmem.updateContent(docmemId, this.summaryLine);
 
-        const runNode = await docmem.appendChild(docmemId, 'summary', 'status', 'working', 'working');
-        this.chatSession.messageParentId = runNode.id;
-
         await this.recordUserMessage(initialMessage);
 
         let finalResponse = '';
@@ -72,23 +69,19 @@ export class AgentLoop {
 
             const calls = this.extractPytoolCalls(finalResponse);
             if (calls.length === 0) {
-                return this.finalize(runNode.id, docmemId, 'no_commands', null, finalResponse);
+                return this.finalize(docmemId, 'no_commands', null, finalResponse);
             }
 
             const completion = await this.executeCallList(calls);
             if (completion.complete) {
-                return this.finalize(runNode.id, docmemId, 'complete', completion.summary, finalResponse);
+                return this.finalize(docmemId, 'complete', completion.summary, finalResponse);
             }
         }
 
-        return this.finalize(runNode.id, docmemId, 'depth_limit', null, finalResponse);
+        return this.finalize(docmemId, 'depth_limit', null, finalResponse);
     }
 
-    async finalize(runNodeId, docmemId, reason, summary, finalResponse) {
-        const text = reason === 'depth_limit'
-            ? '(depth limit reached) ' + finalResponse
-            : summary || finalResponse;
-        await this.chatSession.docmem.updateContent(runNodeId, text || '');
+    finalize(docmemId, reason, summary, finalResponse) {
         return { reason, summary, finalResponse, chatDocmemRootId: docmemId };
     }
 

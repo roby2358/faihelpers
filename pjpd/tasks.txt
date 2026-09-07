@@ -62,6 +62,22 @@ Updated: 2026-09-07T00:33:59Z
 
 Add editing-lens seed docmems for fiction passes (continuity, pacing, dialogue, prose rhythm, POV discipline, and a drafting lens), each a readonly system-prompt docmem in js/system_prompts. Add a fiction seed with arcs, characters, timeline, and scenes per docs/WHITEPAPER_NARRATIVE_COHERENCE_ENGINE.md. A task names its lens and the runner includes only that lens plus the root prompt.
 ----
+Priority:   50
+Status: ToDo
+ID: compress-dv9d
+Created: 2026-09-07T05:03:17Z
+Updated: 2026-09-07T05:03:17Z
+
+Size-triggered chat compression. The agent loop records turns flat under the chat root and never summarizes on its own; compression happens only when the model calls docmem_add_summary on a range of its own messages or the user does it from the UI. Add a trigger: when the chat docmem's token count (or the built message list) exceeds a configurable threshold, prompt the model, via the per-turn $ System.turn() message, to summarize the oldest contiguous range of messages with docmem_add_summary, and surface the same nudge in the Chat tab for the user. Do not summarize automatically without a model or user action. Update SPEC_CHAT with the threshold and the nudge text, and note the decision in ARCHITECTURE_LOG.
+----
+Priority:   50
+Status: ToDo
+ID: chat-summ-8nka
+Created: 2026-09-07T05:20:32Z
+Updated: 2026-09-07T05:21:30Z
+
+Let the model summarize its own chat history. Today the chat docmem is hidden from the model: chat_ roots are filtered out of the roster and expansions, so it never sees its chat root ID or its message node IDs, and the prompts never say the conversation is a docmem. Asked to summarize the conversation, the model instead copied facts into a new docmem and summarized that. Fix: (1) tell the model in the docmem prompt that its conversation is a chat docmem whose messages are sibling leaf nodes under the chat root, and that it may compress older history by calling docmem_add_summary on a contiguous range of them; (2) give it the IDs it needs, preferably through the per-turn $ System.turn() message, e.g. the chat root ID and the IDs of the oldest and newest messages not yet under a summary, without expanding the whole chat into context; (3) verify the summary node is then sent as the collapsed tool-call pair and its children are omitted. Keep chat roots out of the roster otherwise. Alternatives to weigh: the harness could do it automatically (the loop picks the range and makes a separate model call to write the summary text, then calls addSummary itself), or a new dedicated tool such as chat_summarize(summary_text) that takes only the text and lets the framework choose the range, so the model never needs message IDs. Update SPEC_CHAT and add an ARCHITECTURE_LOG entry.
+----
 Priority:   45
 Status: ToDo
 ID: ctx-schema-85zu

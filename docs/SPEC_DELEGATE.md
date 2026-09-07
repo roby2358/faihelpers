@@ -43,23 +43,20 @@ The AgentLoop MUST encapsulate the following concerns:
 
 ### Docmem Structure
 
-Each AgentLoop creates the following tree structure in its chat docmem:
+Each AgentLoop records its turns directly under the chat docmem root:
 
 ```
 root (text = summaryLine)
-└── summary node       (contextType='summary', contextName='status', contextValue='working')
-    ├── message node   (user — initial message with delegation context if delegated)
-    ├── message node   (assistant)
-    ├── message node   (user — command results)
-    ├── message node   (assistant)
-    └── ...
+├── message node   (user — initial message with delegation context if delegated)
+├── message node   (assistant)
+├── message node   (user — command results)
+├── message node   (assistant)
+└── ...
 ```
 
 - The `summaryLine` is a short descriptive label stored in the root node's text field. It describes what the agent was asked to do.
-- The summary node is created at the start of the loop with text `"working"`.
-- All user and assistant message nodes MUST be appended as children of the summary node, NOT of the root node.
-- When the loop terminates, the summary node's text MUST be updated from `"working"` to the final summary (from `complete`, or the final assistant response for `no_commands`/`depth_limit`).
-- When building the message list, DocmemChat MUST identify summary nodes used as run containers (`contextName='status'`) and expand them by reading their children, not by including the summary node itself as a message. This is distinct from chat-history summary nodes (created by `addSummary`), which are converted to tool-call message pairs.
+- All user and assistant message nodes MUST be appended as children of the root node.
+- The loop MUST NOT create summary nodes. Compressing chat history is an explicit act: the agent calls `docmem_add_summary` on a range of its own messages, or the user does so from the UI. Summary nodes in a chat docmem are converted to tool-call message pairs when the message list is built (see SPEC_CHAT).
 
 ### Message List Construction
 
@@ -88,13 +85,7 @@ A single turn MUST proceed as follows:
 
 ### Termination Result
 
-When the loop terminates, the AgentLoop MUST:
-
-1. Update the run node's text to the final summary. The summary text is:
-   - The `complete` command's summary argument (if termination reason is `complete`).
-   - The final assistant response text (if termination reason is `no_commands`).
-   - A depth-limit indicator prepended to the final response (if termination reason is `depth_limit`).
-2. Return a result containing:
+When the loop terminates, the AgentLoop MUST return a result containing:
    - The reason for termination: `complete`, `no_commands`, or `depth_limit`.
    - The summary text from the `complete` command (if termination reason is `complete`).
    - The final assistant response text (returned for all termination reasons).
