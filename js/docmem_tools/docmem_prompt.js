@@ -52,10 +52,11 @@ Every docmem is automatically serialized and included in your context as a syste
 - All other commands require an active docmem instance to operate on
 
 ### Command Response Format
-- Successful commands return: \`result> <command_name> <action>: <node_id>\` or similar
-- Query commands return text data: \`result> <command_name>:\\ntext\`
-- Failed commands return: \`error> <error_message>\`
-- Extract node_ids from the result text (they appear after colons)
+- Each command's output comes back in the next user message, one paragraph per command, in call order
+- Successful commands return: \`<command_name>: <one-line outcome>\`, e.g. \`docmem_create_node: appended child qjjp9a36\`
+- Query commands return text data below the label: \`<command_name>:\\ntext\`
+- Failed commands return: \`error <command_name>: <message>\`
+- The output is the framework's reply to your call; it is not a second invocation
 
 ## Tool Reference
 
@@ -66,7 +67,7 @@ def docmem_create(root_id: str):
     """Creates a new docmem with the specified root ID.
 
     root_id: string 0-24 chars. This is the ONLY node_id you specify yourself.
-    Returns: result> docmem_create created docmem: <root_id>
+    Returns: docmem_create: created docmem <root_id>
     Note: does NOT require an active docmem instance.
     """
 \`\`\`
@@ -81,7 +82,7 @@ def docmem_create_node(mode: str, node_id: str, context_type: str, context_name:
     context_name: string 0-24 chars
     context_value: string 0-24 chars
     content: text content (may be empty "")
-    Returns: result> docmem_create_node <action>: <new_node_id>
+    Returns: docmem_create_node: <action> <new_node_id>
     """
 \`\`\`
 
@@ -93,7 +94,7 @@ def docmem_update_content(node_id: str, content: str):
 
     node_id: existing node ID to update (must exist)
     content: new text content (may be empty "")
-    Returns: result> docmem_update_content updated node: <node_id>
+    Returns: docmem_update_content: updated <node_id>
     """
 \`\`\`
 
@@ -105,7 +106,7 @@ def docmem_update_context(node_id: str, context_type: str, context_name: str, co
     context_type: string 0-24 chars
     context_name: string 0-24 chars
     context_value: string 0-24 chars
-    Returns: result> docmem_update_context updated node: <node_id>
+    Returns: docmem_update_context: updated <node_id>
     """
 \`\`\`
 
@@ -118,7 +119,7 @@ def docmem_move_node(mode: str, node_id: str, target_id: str):
     mode: "append-child" (becomes child of target), "before" (sibling before target), or "after" (sibling after target)
     node_id: node ID to move (and its subtree) - must exist
     target_id: target node ID to position relative to - must exist
-    Returns: result> docmem_move_node <action>
+    Returns: docmem_move_node: <action>
     Note: node_id and target_id MUST belong to the same docmem root (same tree)
     """
 \`\`\`
@@ -130,7 +131,7 @@ def docmem_copy_node(mode: str, node_id: str, target_id: str):
     mode: "append-child" (copy becomes child of target), "before" (sibling before target), or "after" (sibling after target)
     node_id: node ID to copy (and its subtree) - must exist
     target_id: target node ID to position relative to - must exist
-    Returns: result> docmem_copy_node <action>: <new_node_id>
+    Returns: docmem_copy_node: <action> <new_node_id>
     """
 \`\`\`
 
@@ -141,7 +142,7 @@ def docmem_delete(node_id: str):
     """Deletes a node and its entire subtree (all descendants). Cannot be undone.
 
     node_id: node ID to delete (must exist)
-    Returns: result> docmem_delete deleted node: <node_id>
+    Returns: docmem_delete: deleted <node_id>
     """
 \`\`\`
 
@@ -152,7 +153,7 @@ def docmem_structure(node_id: str):
     """Returns the hierarchical structure and metadata without text content.
 
     node_id: starting node ID (must exist)
-    Returns: result> docmem_structure:\\n<indented text outline> - one line per node in preorder traversal; each line is "- " followed by node metadata (id, context fields, order, token count — no text content), indented two spaces per depth level
+    Returns: docmem_structure:\\n<indented text outline> - one line per node in preorder traversal; each line is "- " followed by node metadata (id, context fields, order, token count — no text content), indented two spaces per depth level
     Use case: see the shape of a tree that was too large to be fully serialized into your context.
     Note: returns NO text content. To read node content, use the serialized docmem already in your context.
     """
@@ -166,7 +167,7 @@ def docmem_search(node_id: str, pattern: str, mode: str = "literal"):
     pattern: what to search for (non-empty)
     mode: optional; "literal" (plain substring, the default), "wildcard" (* matches any run of characters, ? matches one), or "regex" (RE2 syntax)
     Example: docmem_search("stooges", "peacemaker") or docmem_search("stooges", "peace*", "wildcard")
-    Returns: result> docmem_search:\\n<hits> - for each hit, a "- " metadata line (same format as docmem_structure), a "path:" line of ancestor IDs from the root down to the hit, and a "match:" line with a short snippet around the match (or "(context field)" if only metadata matched). At most 50 hits; a [truncated: ...] line means there were more.
+    Returns: docmem_search:\\n<hits> - for each hit, a "- " metadata line (same format as docmem_structure), a "path:" line of ancestor IDs from the root down to the hit, and a "match:" line with a short snippet around the match (or "(context field)" if only metadata matched). At most 50 hits; a [truncated: ...] line means there were more.
     Use case: find where something is mentioned in a large or partially serialized docmem, then docmem_focus on the subtree you need.
     """
 \`\`\`
@@ -179,7 +180,7 @@ def docmem_focus(root_node_id: str, node_id: str):
     node_id: node to focus on (must exist)
     After focusing, only that subtree is serialized into your context each turn, marked with a [focus: ...] line. Focus persists across turns.
     To restore the full tree, pass the docmem root ID as both arguments (focusing the root clears the focus).
-    Returns: result> docmem-focus focused: ... (or "cleared" when focusing the root)
+    Returns: docmem_focus: focused, ... (or "cleared" when focusing the root)
     Use case: a large docmem where you only need one section right now — especially one marked [partial: ...], to zoom into subtrees that were omitted.
     """
 \`\`\`
@@ -197,7 +198,7 @@ def docmem_add_summary(context_type: str, context_name: str, context_value: str,
     start_node_id: first node in the range to summarize (must exist)
     end_node_id: last node in the range to summarize (must exist)
     Note: start and end nodes MUST be siblings. All nodes in range MUST be leaf nodes.
-    Returns: result> docmem_add_summary added summary node: <new_summary_node_id>
+    Returns: docmem_add_summary: added summary <new_summary_node_id>
     """
 \`\`\`
 
@@ -207,7 +208,7 @@ def docmem_add_summary(context_type: str, context_name: str, context_value: str,
 def docmem_get_all_roots():
     """Returns a list of all root node IDs in the system.
 
-    Returns: result> docmem_get_all_roots:\\n<JSON> - array of root node objects
+    Returns: docmem_get_all_roots:\\n<JSON> - array of root node objects
     Note: does NOT require an active docmem instance.
     """
 \`\`\`

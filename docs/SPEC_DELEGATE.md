@@ -162,7 +162,7 @@ When the child's AgentLoop terminates, the delegate command MUST return a result
 - The termination reason (`complete`, `no_commands`, or `depth_limit`).
 - The summary text from the `complete` command (if termination reason is `complete`), or the final assistant response text (for `no_commands` or `depth_limit`).
 
-The result MUST be formatted as a command result string, prepended with the child's chat docmem root ID. For example: `"chat_abc123: I finished the work to..."`. This result MUST be recorded in the parent's chat docmem as a user-role message, following the same pattern as other command results.
+The result MUST be formatted as a command result string in the standard shape (see SPEC_CHAT, Command Results): a first line `delegate: <child_id> completed`, then the child's summary. For example: `"delegate: chat_abc123 completed\nI finished the work to..."`. This result MUST be recorded in the parent's chat docmem as a user-role message, following the same pattern as other command results.
 
 ## Complete Command
 

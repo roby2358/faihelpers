@@ -3,7 +3,10 @@ export const SYSTEM_PROMPT = `
 
 \`\`\`
 def hello_world():
-    """Prints a simple greeting message."""
+    """Prints a simple greeting message.
+
+    Returns: hello_world: Hello, World!
+    """
 \`\`\`
 
 \`\`\`
@@ -14,7 +17,7 @@ def delegate(task_prompt: str):
     Delegation is synchronous — your loop suspends until the child finishes.
 
     task_prompt: a description of the task for the child agent
-    Returns: the child agent's ID and summary of work performed
+    Returns: delegate: <child_id> completed, followed by the child's summary on the next line
     """
 \`\`\`
 

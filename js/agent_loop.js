@@ -131,12 +131,10 @@ export class AgentLoop {
 
     // Call Execution
 
-    formatCall(call) {
-        return `${call.name}(${call.args.map(a => JSON.stringify(a)).join(', ')})`;
-    }
-
-    formatOutput(commandText, outputType, message) {
-        return `command> ${commandText}\n\n${outputType}> ${message}`;
+    // A successful tool owns its whole display string, led by the function
+    // name; the loop labels only failures, which arrive as bare messages
+    formatError(functionName, message) {
+        return `error ${functionName}: ${message}`;
     }
 
     findUnknownCommands(calls) {
@@ -150,19 +148,18 @@ export class AgentLoop {
         const parseErrors = calls.filter(c => c._error);
         if (parseErrors.length > 0) {
             const outputs = parseErrors.map(err =>
-                this.formatOutput('(parse error)', 'error', `Parse error: ${err.args[0]}`)
+                this.formatError('pytool', `parse error: ${err.args[0]}`)
             );
-            await this.recordUserMessage(outputs.join('\n'));
+            await this.recordUserMessage(outputs.join('\n\n'));
             return { complete: false };
         }
 
         const unknowns = this.findUnknownCommands(calls);
         if (unknowns.length > 0) {
             const available = [...this.knownCommands].sort().join(', ');
-            const output = this.formatOutput(
-                calls.map(c => this.formatCall(c)).join('\n'),
-                'error',
-                `Unknown function(s): ${unknowns.join(', ')}. Available: ${available}`
+            const output = this.formatError(
+                'pytool',
+                `unknown function(s): ${unknowns.join(', ')}. Available: ${available}`
             );
             await this.recordUserMessage(output);
             return { complete: false };
@@ -176,25 +173,23 @@ export class AgentLoop {
         const outputs = [];
 
         for (const call of calls) {
-            const callText = this.formatCall(call);
-
             try {
                 const result = await this.commandRouter([call.name, ...call.args], docmem);
-                outputs.push(this.formatOutput(callText, result.success ? 'result' : 'error', result.result));
+                outputs.push(result.success ? result.result : this.formatError(call.name, result.result));
 
                 if (result.complete) {
-                    await this.recordUserMessage(outputs.join('\n'));
+                    await this.recordUserMessage(outputs.join('\n\n'));
                     return { complete: true, summary: result.summary || null };
                 }
                 if (!result.success) break;
             } catch (error) {
-                outputs.push(this.formatOutput(callText, 'error', `Execution error: ${error.message}`));
+                outputs.push(this.formatError(call.name, `execution error: ${error.message}`));
                 break;
             }
         }
 
         if (outputs.length > 0) {
-            await this.recordUserMessage(outputs.join('\n'));
+            await this.recordUserMessage(outputs.join('\n\n'));
         }
         return { complete: false };
     }

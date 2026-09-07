@@ -1,11 +1,3 @@
-Priority:   90
-Status: ToDo
-ID: tool-results-hv2f
-Created: 2026-09-07T01:46:53Z
-Updated: 2026-09-07T01:46:53Z
-
-Summarize tool results before feeding them back to the model. After a turn's pytool calls execute, the results are recorded verbatim as a single user-role message; models can misread this as evidence they issued the calls twice, or lose the one result they needed in the noise. Collapse each turn's results into a short structured summary (one line per call: command, key argument, outcome or returned node id, error if any) that clearly labels itself as the results of the calls in the previous assistant message, and keep long payloads such as docmem_structure or docmem_search output trimmed or referenced rather than repeated. Consider recording the raw results in the chat docmem for the UI while sending the summary to the model. Update SPEC_DELEGATE (turn cycle step 7) and SPEC_CHAT.
-----
 Priority:   75
 Status: ToDo
 ID: persist-bzb3

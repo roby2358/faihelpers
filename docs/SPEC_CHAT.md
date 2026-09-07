@@ -39,6 +39,16 @@ For each turn in the chat, the framework MUST include additional context from no
 
 The format for concatenating nodes SHOULD include all node metadata in a human-readable format suitable for LLM context. The exact formatting is implementation-defined, but MUST include all node properties (id, contextType, contextName, contextValue, order, tokenCount, text) in a clear and structured manner.
 
+## Command Results
+
+Command output is fed back to the model as a user-role message, one per executed pytool block.
+
+- Each command contributes one paragraph, in call order, separated by blank lines.
+- A successful command owns its entire display string. The string MUST begin with the command's function name exactly as the model calls it (underscores, never hyphens), followed by a colon and a one-line outcome; multi-line data, if any, follows on subsequent lines. Example: `docmem_create_node: appended child qjjp9a36`.
+- A failed command returns a bare message; the loop labels it as `error <function_name>: <message>`.
+- Errors that arise before any command runs (parse errors, unknown functions) use the same shape with `pytool` as the name.
+- The call itself is never echoed back, so a result cannot be mistaken for a second invocation.
+
 ## Docmem Focus
 
 The `docmem_focus(root_node_id, node_id)` agent command narrows a docmem's automatic context serialization to one node and its subtree:

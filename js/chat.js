@@ -186,10 +186,10 @@ async function executeDocmemCommand(args, docmem) {
                 return await commands.getAllRoots();
 
             default:
-                return { success: false, result: `Unknown docmem command: ${command}` };
+                return { success: false, result: `unknown docmem command: ${command}` };
         }
     } catch (error) {
-        return { success: false, result: `Error: ${error.message}` };
+        return { success: false, result: error.message };
     }
 }
 
@@ -208,10 +208,10 @@ async function executeSystemCommand(args) {
                 return commands.helloWorld();
 
             default:
-                return { success: false, result: `Unknown system command: ${command}` };
+                return { success: false, result: `unknown system command: ${command}` };
         }
     } catch (error) {
-        return { success: false, result: `Error: ${error.message}` };
+        return { success: false, result: error.message };
     }
 }
 
@@ -221,15 +221,15 @@ async function executeSystemCommand(args) {
 
 function routeComplete(restArgs, isRoot) {
     if (isRoot) {
-        return { success: false, result: 'Warning: complete is a no-op for the root agent (no parent to return to).' };
+        return { success: false, result: 'no-op for the root agent (no parent to return to)' };
     }
     const summary = restArgs.join(' ').replace(/^\n+|\n+$/g, '') || '(no summary provided)';
-    return { success: true, result: summary, complete: true, summary };
+    return { success: true, result: `complete: ${summary}`, complete: true, summary };
 }
 
 async function routeDelegate(restArgs, parentDocmemId, createRouter, currentApi) {
     if (restArgs.length === 0) {
-        return { success: false, result: 'delegate requires a task prompt' };
+        return { success: false, result: 'requires a task prompt' };
     }
     const taskPrompt = restArgs.join(' ').replace(/^\n+|\n+$/g, '');
 
@@ -249,7 +249,7 @@ async function routeDelegate(restArgs, parentDocmemId, createRouter, currentApi)
 
     const result = await childLoop.run(initialMessage);
     const summaryText = result.summary || result.finalResponse || '(no result)';
-    return { success: true, result: `${childId}: ${summaryText}` };
+    return { success: true, result: `delegate: ${childId} completed\n${summaryText}` };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -276,7 +276,7 @@ function createCommandRouter(currentApi, parentDocmemId, isRoot) {
             return executeSystemCommand(args);
         }
 
-        return { success: false, result: `Unknown command: ${command}. Available: ${[...KNOWN_COMMANDS].sort().join(', ')}` };
+        return { success: false, result: `unknown command. Available: ${[...KNOWN_COMMANDS].sort().join(', ')}` };
     }
 
     function createRouter(childDocmemId, childIsRoot) {

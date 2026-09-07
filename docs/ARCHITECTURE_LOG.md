@@ -79,3 +79,11 @@ Entry format: date, title, decision, rationale, supersedes (if any).
 **Decision.** The model dropdown defaults to DeepSeek V4 Pro. DeepSeek V4 Flash stays listed as a worker model for single-lens tasks once per-task model overrides exist.
 
 **Rationale.** On the same requests, Flash dropped required arguments and misread tool results, while Pro handled them. The interactive chat needs multi-step planning over a large tool prompt; queued passes do not. This supersedes the "DeepSeek Flash is the default" entry above.
+
+---
+
+## 2026-09-07 — Tools own their display string; the loop labels only errors
+
+**Decision.** A successful command's `result` is the whole text the model sees, led by the function name as the model typed it (`docmem_create_node: appended child qjjp9a36`). The loop no longer echoes the call or prefixes `result>`; it prefixes `error <name>:` on failures and on pre-execution errors (`pytool`). Command labels use underscores to match the function names; the hyphenated labels are gone.
+
+**Rationale.** A fork of the project saw the model conclude it had called a tool twice, because its call appeared once in its own turn and again echoed in the result. faipredict never echoed the call and never hit that confusion. Putting the string in the tool also places any future summarization of long results in the one place that knows the data. The hyphen/underscore mismatch was a needless second name for a small model to reconcile.

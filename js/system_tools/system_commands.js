@@ -11,7 +11,7 @@ export class SystemCommands {
     }
 
     helloWorld() {
-        return { success: true, result: 'Hello, World!' };
+        return { success: true, result: 'hello_world: Hello, World!' };
     }
 }
 
