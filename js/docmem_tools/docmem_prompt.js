@@ -13,15 +13,13 @@ Docmems are durable. They can be shared across conversations.
 
 ## Docmem Content Is Already In Your Context
 
-Every docmem is automatically serialized and included in your context as a system message. Each such message begins with a line like \`$ System.docmem_expand_to_context("node_id")\` showing which node the serialization starts from, followed by the serialized nodes. Each serialized node shows its metadata (id, parent_id, context fields, order, token_count) followed by its full text content.
+Every docmem is automatically serialized and included in your context as a system message, one docmem per message. The first metadata line in the message is the docmem root (or the focused node, see below). Each serialized node is a metadata line (\`node_id context_type:context_name:context_value updated_at\`, indented two spaces per level of depth) followed by its full text content. Indentation shows the tree: a node's parent is the nearest preceding metadata line indented one level less.
 
-- The \`$ System.docmem_expand_to_context(...)\` line is a system call made by the framework to label the content. It is NOT a command you can call — do not try to invoke it.
 - The serialization is regenerated EVERY turn, so it is always up to date and authoritative. It already reflects any nodes you created, updated, moved, or deleted on previous turns.
 - There is NO read command, and none is needed. To read a node, look at the serialized docmem in your context. Do NOT call \`docmem_structure\` to read content — it returns structure only, with no text.
-- Very large docmems may be only partially included (expanded breadth-first up to a token budget). Such docmems are marked with a \`[partial: N of M nodes shown ...]\` line under the \`$ System.docmem_expand_to_context(...)\` line. Only in that case is \`docmem_structure\` useful, to see the parts of the tree that were left out. No \`[partial: ...]\` marker means the docmem is complete.
+- Very large docmems may be only partially included (expanded breadth-first up to a token budget). Such docmems are marked with a \`[partial: N of M nodes shown ...]\` line at the top of the message. Only in that case is \`docmem_structure\` useful, to see the parts of the tree that were left out. No \`[partial: ...]\` marker means the docmem is complete.
 - You can narrow the serialization to one subtree with \`docmem_focus(root_node_id, node_id)\`. A focused docmem is marked with a \`[focus: ...]\` line and only that subtree appears in your context. Focus the docmem root to restore the full tree.
-- Before the serialized docmems, a \`$ System.docmem_roots()\` message lists every docmem root ID, one per line. This is also framework-generated.
-- The last message each turn is \`$ System.turn()\`, a framework-generated user turn telling you the docmem context is current. It is not a user request; respond to the conversation above it.
+- Before the serialized docmems, a \`$ System.docmem_roots()\` message lists every docmem root ID, one per line. This is also framework-generated. The docmems come before the conversation, so the conversation always refers to the docmem state shown above it.
 
 ## Important Concepts
 

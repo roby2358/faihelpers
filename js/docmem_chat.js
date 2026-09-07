@@ -67,40 +67,26 @@ export class DocmemChat {
 
     // Node Formatting
 
-    buildNodeMetadataFields(node) {
-        return [
-            ['id', node.id],
-            ['parent_id', node.parentId],
-            ['context_type', node.contextType],
-            ['context_name', node.contextName],
-            ['context_value', node.contextValue],
-            ['order', node.order],
-            ['token_count', node.tokenCount]
-        ];
+    // Expansion has no holes, so every ancestor of a returned node is in the
+    // list; depth is recovered from parent links to indent headers as
+    // docmem_structure does.
+    buildDepthMap(nodes) {
+        const depths = new Map();
+        for (const node of nodes) {
+            const parentDepth = depths.get(node.parentId);
+            depths.set(node.id, parentDepth === undefined ? 0 : parentDepth + 1);
+        }
+        return depths;
     }
 
-    filterDefinedFields(fields) {
-        return fields.filter(([_, value]) => value !== null && value !== undefined);
-    }
-
-    formatMetadataFields(fields) {
-        return fields
-            .map(([key, value]) => `${key}: ${value}`)
-            .join(', ');
-    }
-
-    formatNodeMetadata(node) {
-        const fields = this.buildNodeMetadataFields(node);
-        const defined = this.filterDefinedFields(fields);
-        return this.formatMetadataFields(defined);
-    }
-
-    formatNodeWithMetadata(node) {
-        return `${this.formatNodeMetadata(node)}\n${node.text || ''}`;
+    formatNodeWithMetadata(node, depth) {
+        const indent = '  '.repeat(depth);
+        return `${indent}${node.metadataString()}\n${node.text || ''}`;
     }
 
     formatNodesExpanded(nodes) {
-        return nodes.map(node => this.formatNodeWithMetadata(node)).join('\n\n---\n\n');
+        const depths = this.buildDepthMap(nodes);
+        return nodes.map(node => this.formatNodeWithMetadata(node, depths.get(node.id))).join('\n\n');
     }
 
     // System Message Builders
@@ -111,26 +97,24 @@ export class DocmemChat {
         }
         // Expansion is breadth-first, so omissions are scattered deeper/older
         // subtrees, not a tail cut — the marker must lead, not trail.
-        return `\n[partial: ${nodes.length} of ${totalCount} nodes shown (token budget); call docmem_structure("${startNodeId}") to see the omitted subtrees]`;
+        return `[partial: ${nodes.length} of ${totalCount} nodes shown (token budget); call docmem_structure("${startNodeId}") to see the omitted subtrees]`;
     }
 
     buildFocusMarker(docmemId, focusNodeId) {
         if (!focusNodeId) {
             return '';
         }
-        return `\n[focus: showing only the subtree of ${focusNodeId} within docmem ${docmemId}; call docmem_focus("${docmemId}", "${docmemId}") to restore the full tree]`;
-    }
-
-    buildPretendInvocation(startNodeId) {
-        return `$ System.docmem_expand_to_context("${startNodeId}")`;
+        return `[focus: showing only the subtree of ${focusNodeId} within docmem ${docmemId}; call docmem_focus("${docmemId}", "${docmemId}") to restore the full tree]`;
     }
 
     buildExpandedSystemMessage(docmemId, focusNodeId, nodes, totalCount) {
         const startNodeId = focusNodeId || docmemId;
-        const invocation = this.buildPretendInvocation(startNodeId);
-        const focusMarker = this.buildFocusMarker(docmemId, focusNodeId);
-        const truncationMarker = this.buildTruncationMarker(startNodeId, nodes, totalCount);
-        return this.systemMsg(`${invocation}${focusMarker}${truncationMarker}\n\n${this.formatNodesExpanded(nodes)}`);
+        const markers = [
+            this.buildFocusMarker(docmemId, focusNodeId),
+            this.buildTruncationMarker(startNodeId, nodes, totalCount)
+        ].filter(Boolean).join('\n');
+        const body = this.formatNodesExpanded(nodes);
+        return this.systemMsg(markers ? `${markers}\n\n${body}` : body);
     }
 
     async validateRootPromptExists() {
@@ -161,7 +145,7 @@ export class DocmemChat {
             return null;
         }
 
-        const message = this.systemMsg(`${this.buildPretendInvocation(ROOT_PROMPT_DOCMEM_ID)}\n\n${serialized}`);
+        const message = this.systemMsg(serialized);
         message.cache_control = { type: 'ephemeral' };
         return message;
     }
@@ -417,18 +401,11 @@ export class DocmemChat {
     /**
      * Final user-role message so the list ends on a user turn. Byte-stable.
      */
-    buildTurnMessage() {
-        return {
-            role: 'user',
-            content: '$ System.turn()\n\nThe docmem context above is current. Continue the conversation.'
-        };
-    }
-
     async buildMessageList() {
         const systemMessages = await this.buildSystemMessages();
         const chatMessages = await this.buildChatMessages();
         const docmemMessages = await this.buildNonChatDocmemSystemMessages();
-        return [...systemMessages, ...chatMessages, ...docmemMessages, this.buildTurnMessage()];
+        return [...systemMessages, ...docmemMessages, ...chatMessages];
     }
 
     // Public API

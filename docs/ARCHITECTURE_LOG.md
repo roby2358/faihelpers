@@ -112,3 +112,19 @@ Entry format: date, title, decision, rationale, supersedes (if any).
 
 **Rationale.** Wrapping on the second model call tied compression to an accident of the turn shape rather than to context pressure. Summaries should happen when the transcript is long enough to need them, at a point the model or user chooses.
 
+
+---
+
+## 2026-09-07 — Docmem context messages are bare node blocks
+
+**Decision.** The `$ System.docmem_expand_to_context(...)` header is removed from docmem context messages and from the root prompt message; a docmem message starts with its focus/partial markers, if any, then the node blocks. Each node is rendered as its `docmem_structure` metadata line (`id type:name:value updated_at`, indented by depth) followed by its text, with blocks separated by a blank line. The former `id: ..., parent_id: ..., context_type: ..., order: ..., token_count: ...` field list and `---` separators are gone, and the spec no longer bars `updated_at` from expansions.
+
+**Rationale.** The header was noise: the first node block already names the start node, and the field list beneath it read as a raw record dump, as though a command had been echoed rather than evaluated. One format for node identity across structure output and expansion keeps the model's picture consistent, and indentation carries the hierarchy that `parent_id` used to. `updated_at` changes only when the node changes, so it does not disturb prompt caching.
+
+---
+
+## 2026-09-07 — Docmem context precedes the conversation
+
+**Decision.** The message list is: tool prompts, root prompt, roster, docmem context messages, chat history. Previously the docmem messages sat between the chat history and a trailing `$ System.turn()` user message; that message is dropped, superseding the entry above that introduced it, because the chat history now ends the list and always closes on a user-role message.
+
+**Rationale.** Placing the docmems after the conversation put the material under discussion below the question about it, which read backwards to the model and the user. With docmems first the conversation is grounded in state that is already in view. The cost is that a docmem edit now invalidates the cached prefix ahead of the chat history rather than only the tail; the docmem messages are still ordered least-recently-updated first, so a single edit invalidates as little as the order allows.
