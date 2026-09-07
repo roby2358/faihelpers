@@ -10,6 +10,7 @@ export const KNOWN_DOCMEM_COMMANDS = new Set([
     'docmem_update_context',
     'docmem_delete',
     'docmem_structure',
+    'docmem_search',
     'docmem_focus',
     'docmem_add_summary',
     'docmem_move_node',
@@ -128,6 +129,11 @@ export class DocmemCommands {
     async structure(nodeId) {
         const structure = await this.docmem.structure(nodeId);
         return { success: true, result: `docmem-structure:\n${structure}` };
+    }
+
+    async search(nodeId, pattern, mode = 'literal') {
+        const results = await this.docmem.search(nodeId, mode, pattern);
+        return { success: true, result: `docmem-search:\n${this.docmem.formatSearchResults(results)}` };
     }
 
     async focus(rootNodeId, nodeId) {

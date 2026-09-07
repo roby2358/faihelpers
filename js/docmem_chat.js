@@ -429,11 +429,21 @@ export class DocmemChat {
         return messages;
     }
 
+    /**
+     * Final user-role message so the list ends on a user turn. Byte-stable.
+     */
+    buildTurnMessage() {
+        return {
+            role: 'user',
+            content: '$ System.turn()\n\nThe docmem context above is current. Continue the conversation.'
+        };
+    }
+
     async buildMessageList() {
         const systemMessages = await this.buildSystemMessages();
         const chatMessages = await this.buildChatMessages();
         const docmemMessages = await this.buildNonChatDocmemSystemMessages();
-        return [...systemMessages, ...chatMessages, ...docmemMessages];
+        return [...systemMessages, ...chatMessages, ...docmemMessages, this.buildTurnMessage()];
     }
 
     // Public API

@@ -1,8 +1,17 @@
+Priority:   90
+Status: ToDo
+ID: tool-results-hv2f
+Created: 2026-09-07T01:46:53Z
+Updated: 2026-09-07T01:46:53Z
+
+Summarize tool results before feeding them back to the model. After a turn's pytool calls execute, the results are recorded verbatim as a single user-role message; models can misread this as evidence they issued the calls twice, or lose the one result they needed in the noise. Collapse each turn's results into a short structured summary (one line per call: command, key argument, outcome or returned node id, error if any) that clearly labels itself as the results of the calls in the previous assistant message, and keep long payloads such as docmem_structure or docmem_search output trimmed or referenced rather than repeated. Consider recording the raw results in the chat docmem for the UI while sending the summary to the model. Update SPEC_DELEGATE (turn cycle step 7) and SPEC_CHAT.
+----
 Priority:   75
 Status: ToDo
 ID: persist-bzb3
 Created: 2026-07-03T01:55:47Z
 Updated: 2026-07-03T01:55:47Z
+
 Implement persistence for the SQLite database using IndexedDB so that docmem data survives page reloads and browser sessions. Serialize the database state to IndexedDB on save operations and restore it when loading a docmem instance.
 ----
 Priority:   65
@@ -10,6 +19,7 @@ Status: ToDo
 ID: sensory-3eiu
 Created: 2026-07-02T06:44:10Z
 Updated: 2026-07-03T01:55:48Z
+
 Add a "sensory" docmem to the chat context: ambient situational information such as current time, location, temperature/weather, and other random sensory details. It goes at the very end of the message list — after the recency-sorted docmem expansions — which fits the most-volatile-last ordering, since it changes every turn anyway (per SPEC_CHAT's cache-stability ordering; keeping it last means its churn invalidates nothing else).
 ----
 Priority:   65
@@ -17,25 +27,53 @@ Status: ToDo
 ID: global-ids-9xnx
 Created: 2026-07-03T01:55:48Z
 Updated: 2026-07-03T01:55:48Z
+
 Remove the docmem state from DocmemCommands and instead treat node-ids as global (and globally unique)
+----
+Priority:   65
+Status: ToDo
+ID: read-set-32jb
+Created: 2026-09-07T00:33:50Z
+Updated: 2026-09-07T00:33:50Z
+
+Scope docmem context per agent instead of expanding every non-chat docmem into every turn. DocmemChat.buildMessageList should accept an explicit read-set (list of root or node ids) and expand only those; the root chat keeps the current expand-all behavior by default. This is the prerequisite for fiction work where a full manuscript plus character and timeline docmems would otherwise ride along on every worker turn. Update SPEC_CHAT.md.
+----
+Priority:   60
+Status: ToDo
+ID: task-queue-9uvz
+Created: 2026-09-07T00:33:54Z
+Updated: 2026-09-07T00:33:54Z
+
+Write docs/SPEC_TASKS.md and implement a task-queue runner. Tasks are nodes in a task docmem: context_type task, context_name the lens or pass name, context_value the status (queued, claimed, done, failed), text the instruction, with child nodes for the read-set, target node, optional model override, and the result summary. The runner is plain JavaScript: pick the first queued node, mark it claimed, run an AgentLoop seeded with the task, record the result under the task, mark done, repeat. Workers continue multi-round work only by enqueueing new task nodes. No master agent. Keep delegate() for synchronous sub-questions. Mark SPEC_AGENTS.md superseded by SPEC_DELEGATE.md and SPEC_TASKS.md.
+----
+Priority:   60
+Status: ToDo
+ID: stop-budget-uyg6
+Created: 2026-09-07T00:33:57Z
+Updated: 2026-09-07T00:33:57Z
+
+Add a Stop button wired to an AbortController that cancels the running AgentLoop and any delegated children, retry with backoff for 5xx and network errors in OpenRouterAPI, and a per-run token budget that terminates the loop with a budget_exhausted reason. Required before an unattended task queue can run safely.
 ----
 Priority:   55
 Status: ToDo
 ID: docmem-tests-6h9i
 Created: 2026-07-03T02:05:54Z
 Updated: 2026-07-03T02:05:54Z
+
 Create a browser test page for docmem core invariants, like the existing parser test pages (js/bash/test_command_parser.html). Cover: hash formula includes exactly parent_id|context_type|context_name|context_value|text|order (not readonly); order interpolation stays monotonic under repeated insertion; optimistic locking raises OptimisticLockError on concurrent modification; expandToLength never orphans a node (every included node's parent is included) and totalCount is accurate; focus registry set/clear/fallback-on-deleted-node behavior. These invariants currently have no automated coverage and regress silently.
 ----
-Priority:   50
+Priority:   55
 Status: ToDo
-ID: fts-3633
-Created: 2026-07-03T01:55:48Z
-Updated: 2026-07-03T01:55:48Z
-Implement full-text search for docmem using SQLite FTS5. Create FTS5 virtual tables for docmem nodes to enable powerful search capabilities including boolean queries, phrase queries, prefix matching, BM25 ranking, and result highlighting. This will allow users to search across docmem content efficiently using the existing sql.js infrastructure.
+ID: lenses-xk5d
+Created: 2026-09-07T00:33:59Z
+Updated: 2026-09-07T00:33:59Z
+
+Add editing-lens seed docmems for fiction passes (continuity, pacing, dialogue, prose rhythm, POV discipline, and a drafting lens), each a readonly system-prompt docmem in js/system_prompts. Add a fiction seed with arcs, characters, timeline, and scenes per docs/WHITEPAPER_NARRATIVE_COHERENCE_ENGINE.md. A task names its lens and the runner includes only that lens plus the root prompt.
 ----
 Priority:   45
 Status: ToDo
 ID: ctx-schema-85zu
+
 Define a context schema scheme that specifies the structure and validation rules for context metadata (context_type, context_name, context_value) used across docmem nodes
 ----
 Priority:   45
@@ -43,49 +81,65 @@ Status: ToDo
 ID: req-log-hixf
 Created: 2026-07-03T02:05:57Z
 Updated: 2026-07-03T02:05:57Z
+
 Persist raw LLM request/response pairs per turn for post-hoc debugging. OpenRouterAPI.logRequest currently dumps to console only, which evaporates on reload — when a small model does something baffling, the interesting request is often gone. Keep an in-memory ring buffer of (request messages JSON, response, timestamp, model) and add a download/export from the Persist tab. Also enables diffing turn N vs N+1 message lists to verify prompt-cache prefix stability is actually holding.
+----
+Priority:   45
+Status: ToDo
+ID: task-model-nd63
+Created: 2026-09-07T00:34:01Z
+Updated: 2026-09-07T00:34:01Z
+
+Allow a per-task model override so cheap models draft and stronger models run editorial passes. The task node carries an optional model child; the runner constructs an OpenRouterAPI for that model when present, falling back to the chat's selected model.
 ----
 Priority:   40
 Status: ToDo
 ID: view-meta-4a6m
 Created: 2026-07-03T01:55:49Z
 Updated: 2026-07-03T01:55:49Z
+
 Add a checkbox to the View page that allows users to toggle showing or hiding metadata. When checked, display node metadata (context_type, context_name, context_value, token counts, order values, timestamps, etc.) alongside the content. When unchecked, show only the content without metadata. This provides a cleaner view option for reading documents while still allowing access to structural information when needed.
 ----
 Priority:   40
 Status: ToDo
 ID: lock-ctx-9phx
+
 Add a docmem-lock-context function that accepts a context schema and applies validation/constraints to ensure nodes conform to the specified context schema structure
 ----
 Priority:   40
 Status: ToDo
 ID: node-path-v5y6
+
 Support @root-id/node-id syntax to reference and relate docmem nodes across different docmem instances. This enables cross-document node references using a path-like notation that combines the root docmem ID with the specific node ID.
 ----
 Priority:   40
 Status: ToDo
 ID: ro-cache-wj6d
+
 Support caching read-only docmems by ordering them first in the system messages and marking them with cache_control ephemeral. Read-only docmems should be placed before dynamic docmems in the message list, with cache control applied, so they can be cached separately from frequently-changing docmem contexts.
 ----
 Priority:   40
 Status: ToDo
 ID: sys-status-48jb
 Created: 2026-07-03T02:08:57Z
-Updated: 2026-07-03T02:08:57Z
-Add a framework-generated $ System.status() fake system call message to the chat context: a small status readout such as turn count, agent depth (root vs delegated), token budget usage, and pending delegation state. Follows the established fake-call conventions: System. prefix, name distinct from any real agent command, plain undecorated output. Placed at the very end of the message list since it changes every turn (most-volatile-last, so its churn invalidates no cacheable prefix).
+Updated: 2026-09-07T01:51:30Z
+
+Extend the framework-generated $ System.turn() user message (the final message of every turn, see SPEC_CHAT) with a small status readout: turn count, agent depth (root vs delegated), token budget usage, and pending delegation state. Follows the fake-call conventions: System. prefix, plain undecorated output. It sits at the very end of the list so its per-turn churn invalidates no cacheable prefix.
 ----
 Priority:   35
 Status: ToDo
 ID: arch-ann-i2di
 Created: 2026-07-03T01:55:50Z
-Updated: 2026-07-03T01:55:50Z
-Architect fast cosine similarity search for semantic search in docmem using approximate nearest neighbor algorithms like HNSW. Evaluate options: (1) custom sql.js build with sqlite-vec extension, (2) separate HNSW library (vectra, hnswlib-wasm) alongside SQLite, (3) hybrid approach. Consider performance requirements, build complexity, storage integration, and scalability for large document collections. Document the chosen approach and implementation strategy.
+Updated: 2026-09-07T00:34:07Z
+
+Architect semantic search for docmem. Embeddings come from OpenRouter; storage is DuckDB WASM (not sql.js), so evaluate: (1) a FLOAT[] embedding column with array_cosine_similarity and brute-force scan, adequate for a single novel's worth of nodes; (2) the DuckDB vss extension if loadable in WASM; (3) a JS-side HNSW library (hnswlib-wasm) alongside DuckDB. Document the chosen approach. Defer until explicit task read-sets prove insufficient.
 ----
 Priority:   35
 Status: ToDo
 ID: wiki-view-atq9
 Created: 2026-07-03T01:55:49Z
 Updated: 2026-07-03T01:55:49Z
+
 Display a docmem as a wiki page with proper formatting and navigation. Render docmem content as a readable wiki page with formatted text, headers, sections, and navigation elements. This includes styling the content appropriately and providing a user-friendly interface for browsing docmem content as wiki documentation.
 ----
 Priority:   35
@@ -93,6 +147,7 @@ Status: ToDo
 ID: wiki-toc-5cps
 Created: 2026-07-03T01:55:49Z
 Updated: 2026-07-03T01:55:49Z
+
 Add a table of contents feature for docmem wiki pages. Generate and display a hierarchical table of contents based on the structure of wiki page nodes, allowing users to navigate through sections and subsections of the wiki content. The TOC should be auto-generated from the docmem node hierarchy.
 ----
 Priority:   35
@@ -100,6 +155,7 @@ Status: ToDo
 ID: replay-qux7
 Created: 2026-07-03T02:06:00Z
 Updated: 2026-07-03T02:06:00Z
+
 Replay harness: take a logged request messages array, edit it (e.g., tweak one system message), resend via OpenRouterAPI.chat(), and compare responses side by side. OpenRouterAPI.chat() already accepts a messages array, so this is roughly a textarea plus send button on a dev tab. Gold for small-model prompt iteration. Depends on req-log for capturing the requests to replay.
 ----
 Priority:   35
@@ -107,16 +163,27 @@ Status: ToDo
 ID: auto-struct-ynxd
 Created: 2026-07-03T02:06:03Z
 Updated: 2026-07-03T02:06:03Z
+
 For docmems whose context serialization is truncated ([partial: ...]), consider auto-including the omitted structure as a second framework-generated fake system call, e.g. $ System.docmem_structure_to_context("<id>") followed by the skeleton of the subtrees that were left out. Saves the agent a turn of calling docmem_structure itself. Follow the established fake-call conventions: System. prefix, name distinct from the real docmem_structure command if output differs, byte-stable output for prompt caching.
 ----
 Priority:   30
 Status: ToDo
+ID: fts-3633
+Created: 2026-07-03T01:55:48Z
+Updated: 2026-09-07T00:34:04Z
+
+Full-text search for docmem beyond literal/wildcard/regex: ranked (BM25-style) search with phrase and boolean queries. The store is DuckDB WASM, not sql.js, so FTS5 does not apply; evaluate the DuckDB fts extension availability in WASM, or a JS-side inverted index (e.g. minisearch) rebuilt from the nodes table. Lower priority now that literal search exists and tasks carry explicit read-sets.
+----
+Priority:   30
+Status: ToDo
 ID: db-mgmt-fayc
+
 Implement database management functions for docmem instances. Add operations to clear/delete docmem documents, list all available docmem instances, view metadata about stored documents, and perform maintenance tasks. This will provide users with tools to manage their collection of docmem documents and clean up unused or outdated instances.
 ----
 Priority:   30
 Status: ToDo
 ID: download-3ck4
+
 Add a download button that exports a serialized docmem document. Implement functionality to serialize the current docmem tree structure into a downloadable format (JSON, text, or other format) so users can save and share docmem documents. The download should include the full hierarchical structure with all nodes, their content, context information, and relationships.
 ----
 Priority:   30
@@ -124,6 +191,7 @@ Status: ToDo
 ID: chat-cache-eq84
 Created: 2026-07-02T07:22:14Z
 Updated: 2026-07-02T07:22:14Z
+
 Set cache_control: { type: 'ephemeral' } on the last chat message when building the message list, so providers with explicit (Anthropic-style) prompt caching cache the conversation history prefix. Currently only the two prompt system messages carry breakpoints, so the append-only chat history is re-billed as uncached input every turn on those providers. The marker moves forward each turn (standard incremental pattern); docmem expansions stay after it. ~3 lines in docmem_chat.js buildMessageList; harmless on providers that ignore the field. Low priority: this harness targets smaller models with implicit caching, where the existing message ordering already pays off. Related: ro-cache-wj6d (breakpoints for read-only docmems).
 ----
 Priority:   30
@@ -131,6 +199,7 @@ Status: ToDo
 ID: empty-nodes-bh7g
 Created: 2026-07-03T02:06:05Z
 Updated: 2026-07-03T02:06:05Z
+
 formatNodesExpanded in docmem_chat.js renders empty-text nodes (e.g., bare root nodes) as a metadata line followed by a blank line before the first --- separator. Consider filtering empty-text nodes from the expanded serialization the way serialize() does, or rendering them metadata-only, to tidy the docmem context messages. Cosmetic; noticed during message-list review of the docmem_focus work.
 ----
 Priority:   25
@@ -138,4 +207,5 @@ Status: ToDo
 ID: focus-scope-xdr7
 Created: 2026-07-03T02:06:08Z
 Updated: 2026-07-03T02:06:08Z
+
 Docmem focus state (Docmem.focusByRoot) is global per docmem root, so a parent agent and its delegated child share focus — if the child focuses a subtree, the parent's next turn also sees only that subtree. Currently accepted as intentional (docmems are shared by design), but revisit whether focus should be scoped per chat/agent (e.g., key the registry by chatId+rootId) once delegation gets real use. Design decision, not a bug.

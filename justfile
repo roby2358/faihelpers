@@ -5,19 +5,19 @@
 
 set shell := ["bash", "-cu"]
 
-port := "8000"
+port := "8137"
 pidfile := ".server.pid"
 
 # List available recipes
 default:
     @just --list
 
-# Start a local HTTP server in the background
+# Start a local HTTP server (npx serve) in the background; killed as a process group on `down`
 up:
     @if [ -f "{{pidfile}}" ] && kill -0 "$(cat {{pidfile}})" 2>/dev/null; then \
         echo "Server already running (pid $(cat {{pidfile}})) at http://localhost:{{port}}"; \
     else \
-        nohup python3 -m http.server {{port}} >/dev/null 2>&1 & \
+        setsid nohup npx serve . -l {{port}} >/dev/null 2>&1 & \
         echo $! > "{{pidfile}}"; \
         echo "Serving http://localhost:{{port}} (pid $(cat {{pidfile}}))"; \
     fi
@@ -28,7 +28,7 @@ down:
         echo "No server pidfile found; nothing to stop."; \
     else \
         pid="$(cat {{pidfile}})"; \
-        if kill "$pid" 2>/dev/null; then \
+        if kill -- -"$pid" 2>/dev/null || kill "$pid" 2>/dev/null; then \
             echo "Stopped server (pid $pid)"; \
         else \
             echo "No running process for pid $pid"; \

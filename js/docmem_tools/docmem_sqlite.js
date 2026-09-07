@@ -213,6 +213,43 @@ export class DocmemSQLite {
         return rows.map(row => this.rowToNode(row));
     }
 
+    /**
+     * Search a node's subtree (inclusive) for a pattern in text or context fields.
+     * mode: 'literal' (substring), 'wildcard' (* and ?), or 'regex' (RE2 syntax).
+     * All modes are case-insensitive and match anywhere in a field.
+     * Results are in preorder-ish order (depth, then order_value) capped at limit.
+     */
+    async searchSubtree(startNodeId, mode, pattern, limit) {
+        let predicate;
+        let param;
+        if (mode === 'regex') {
+            predicate = "regexp_matches(col, ?, 'i')";
+            param = pattern;
+        } else {
+            const escaped = pattern.replace(/[\\%_]/g, ch => '\\' + ch);
+            const like = mode === 'wildcard'
+                ? escaped.replace(/\*/g, '%').replace(/\?/g, '_')
+                : escaped;
+            predicate = "lower(col) LIKE lower(?) ESCAPE '\\'";
+            param = `%${like}%`;
+        }
+        const fields = ['text', 'context_type', 'context_name', 'context_value'];
+        const where = fields.map(f => predicate.replace('col', f)).join(' OR ');
+        const sql = `
+            WITH RECURSIVE tree(id, depth) AS (
+                SELECT id, 0 FROM nodes WHERE id = ?
+                UNION ALL
+                SELECT n.id, t.depth + 1 FROM nodes n JOIN tree t ON n.parent_id = t.id
+            )
+            SELECT n.* FROM nodes n JOIN tree t ON n.id = t.id
+            WHERE ${where}
+            ORDER BY t.depth, n.order_value
+            LIMIT ?`;
+        const params = [startNodeId, ...fields.map(() => param), limit];
+        const rows = await this.executeMultipleRows(sql, params);
+        return rows.map(row => this.rowToNode(row));
+    }
+
     static async getAllRoots() {
         if (!SharedDatabase._conn) {
             return [];

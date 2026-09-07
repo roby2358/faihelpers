@@ -9,10 +9,10 @@ import { parse as parsePytool } from './pytool/pytool_parser.js';
 const PYTOOL_BLOCK = /```pytool\s*\n([\s\S]*?)```/gi;
 
 const TEMPERATURE = 0.7;
-// 8000 not 2000: reasoning models (e.g. GLM 5.2) spend hidden reasoning
-// tokens from this budget; too low and content comes back empty
-const MAX_TOKENS = 8000;
-// Not sent in the request yet — reported in the status line as a gauge
+// Ceiling on completion length, not a spend target. Covers a full scene
+// draft plus any hidden reasoning tokens, which count against this budget.
+const MAX_TOKENS = 32000;
+// Sent as OpenRouter's reasoning.enabled and shown in the status line
 const REASONING = false;
 
 export function formatDelegationMessage(taskPrompt, parentDocmemId) {
@@ -108,7 +108,7 @@ export class AgentLoop {
         const messages = await this.chatSession.buildMessageList();
         const contextLength = messages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
         this.onModelRequest({ reasoning: REASONING, contextLength, maxTokens: MAX_TOKENS });
-        const response = await this.api.chat(messages, TEMPERATURE, MAX_TOKENS);
+        const response = await this.api.chat(messages, TEMPERATURE, MAX_TOKENS, REASONING);
         await this.recordAssistantMessage(response);
         return response;
     }

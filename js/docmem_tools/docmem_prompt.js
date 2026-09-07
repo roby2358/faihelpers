@@ -21,6 +21,7 @@ Every docmem is automatically serialized and included in your context as a syste
 - Very large docmems may be only partially included (expanded breadth-first up to a token budget). Such docmems are marked with a \`[partial: N of M nodes shown ...]\` line under the \`$ System.docmem_expand_to_context(...)\` line. Only in that case is \`docmem_structure\` useful, to see the parts of the tree that were left out. No \`[partial: ...]\` marker means the docmem is complete.
 - You can narrow the serialization to one subtree with \`docmem_focus(root_node_id, node_id)\`. A focused docmem is marked with a \`[focus: ...]\` line and only that subtree appears in your context. Focus the docmem root to restore the full tree.
 - Before the serialized docmems, a \`$ System.docmem_roots()\` message lists every docmem root ID, one per line. This is also framework-generated.
+- The last message each turn is \`$ System.turn()\`, a framework-generated user turn telling you the docmem context is current. It is not a user request; respond to the conversation above it.
 
 ## Important Concepts
 
@@ -154,6 +155,19 @@ def docmem_structure(node_id: str):
     Returns: result> docmem_structure:\\n<indented text outline> - one line per node in preorder traversal; each line is "- " followed by node metadata (id, context fields, order, token count — no text content), indented two spaces per depth level
     Use case: see the shape of a tree that was too large to be fully serialized into your context.
     Note: returns NO text content. To read node content, use the serialized docmem already in your context.
+    """
+\`\`\`
+
+\`\`\`
+def docmem_search(node_id: str, pattern: str, mode: str = "literal"):
+    """Searches a node and its whole subtree for a pattern in text or context fields. Case-insensitive; matches anywhere in a field.
+
+    node_id: starting node ID (must exist) — use a docmem root to search the whole docmem
+    pattern: what to search for (non-empty)
+    mode: optional; "literal" (plain substring, the default), "wildcard" (* matches any run of characters, ? matches one), or "regex" (RE2 syntax)
+    Example: docmem_search("stooges", "peacemaker") or docmem_search("stooges", "peace*", "wildcard")
+    Returns: result> docmem_search:\\n<hits> - for each hit, a "- " metadata line (same format as docmem_structure), a "path:" line of ancestor IDs from the root down to the hit, and a "match:" line with a short snippet around the match (or "(context field)" if only metadata matched). At most 50 hits; a [truncated: ...] line means there were more.
+    Use case: find where something is mentioned in a large or partially serialized docmem, then docmem_focus on the subtree you need.
     """
 \`\`\`
 

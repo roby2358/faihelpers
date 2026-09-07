@@ -538,6 +538,104 @@ export class Docmem {
         return result.join('\n');
     }
 
+    /**
+     * Search a subtree. Returns { hits, truncated } where each hit is
+     * { node, path, snippet }: path is the ancestor id chain from the docmem
+     * root down to the node, snippet is the matching text region (or null
+     * when only a context field matched).
+     */
+    async search(nodeId, mode, pattern, limit = Docmem.SEARCH_LIMIT) {
+        if (!nodeId) {
+            throw new Error('nodeId is required');
+        }
+        if (!Docmem.SEARCH_MODES.has(mode)) {
+            throw new Error(`mode must be one of ${[...Docmem.SEARCH_MODES].join(', ')}, got: ${mode}`);
+        }
+        if (typeof pattern !== 'string' || pattern.length === 0) {
+            throw new Error('pattern must be a non-empty string');
+        }
+        await this.requireNode(nodeId);
+        const matcher = Docmem.buildMatcher(mode, pattern);
+        const nodes = await this.sqlite.searchSubtree(nodeId, mode, pattern, limit + 1);
+        const truncated = nodes.length > limit;
+        const parentCache = new Map();
+        const hits = [];
+        for (const node of nodes.slice(0, limit)) {
+            hits.push({
+                node,
+                path: await this.ancestorPath(node, parentCache),
+                snippet: Docmem.snippet(node.text, matcher),
+            });
+        }
+        return { hits, truncated };
+    }
+
+    static SEARCH_LIMIT = 50;
+    static SEARCH_MODES = new Set(['literal', 'wildcard', 'regex']);
+    static SNIPPET_RADIUS = 60;
+
+    static buildMatcher(mode, pattern) {
+        if (mode === 'regex') {
+            return new RegExp(pattern, 'i');
+        }
+        const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const source = mode === 'wildcard'
+            ? escaped.replace(/\\\*/g, '[\\s\\S]*?').replace(/\\\?/g, '[\\s\\S]')
+            : escaped;
+        return new RegExp(source, 'i');
+    }
+
+    static snippet(text, matcher) {
+        if (!text) {
+            return null;
+        }
+        const match = matcher.exec(text);
+        if (!match) {
+            return null;
+        }
+        const start = Math.max(0, match.index - Docmem.SNIPPET_RADIUS);
+        const end = Math.min(text.length, match.index + match[0].length + Docmem.SNIPPET_RADIUS);
+        let body = text.slice(start, end).replace(/\s+/g, ' ').trim();
+        const maxLength = Docmem.SNIPPET_RADIUS * 4;
+        if (body.length > maxLength) {
+            body = `${body.slice(0, maxLength / 2)} […] ${body.slice(-maxLength / 2)}`;
+        }
+        return `${start > 0 ? '…' : ''}${body}${end < text.length ? '…' : ''}`;
+    }
+
+    async ancestorPath(node, cache) {
+        const ids = [node.id];
+        let parentId = node.parentId;
+        while (parentId) {
+            ids.unshift(parentId);
+            if (!cache.has(parentId)) {
+                const parent = await this.sqlite.getNode(parentId);
+                if (!parent) {
+                    throw new Error(`Node ${parentId} not found while walking ancestors of ${node.id}`);
+                }
+                cache.set(parentId, parent.parentId);
+            }
+            parentId = cache.get(parentId);
+        }
+        return ids;
+    }
+
+    formatSearchResults({ hits, truncated }) {
+        if (hits.length === 0) {
+            return '(no matches)';
+        }
+        const lines = [];
+        for (const { node, path, snippet } of hits) {
+            lines.push(`- ${node.metadataString()}`);
+            lines.push(`  path: ${path.join(' > ')}`);
+            lines.push(`  match: ${snippet === null ? '(context field)' : snippet}`);
+        }
+        if (truncated) {
+            lines.push(`[truncated: first ${hits.length} matches shown; narrow the pattern or search a smaller subtree]`);
+        }
+        return lines.join('\n');
+    }
+
     async structureRecursive(node, result, depth) {
         const indent = '  '.repeat(depth);
         const line = `${indent}- ${node.metadataString()}`;

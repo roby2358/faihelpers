@@ -154,6 +154,10 @@ async function executeDocmemCommand(args, docmem) {
                 requireArgs(restArgs, 1, 'docmem_structure', '<node_id>');
                 return await commands.structure(restArgs[0]);
 
+            case 'docmem_search':
+                requireArgs(restArgs, 2, 'docmem_search', '<node_id> <pattern> [<mode>]');
+                return await commands.search(restArgs[0], restArgs[1], restArgs[2] || 'literal');
+
             case 'docmem_focus':
                 requireArgs(restArgs, 2, 'docmem_focus', '<root_node_id> <node_id>');
                 return await commands.focus(restArgs[0], restArgs[1]);

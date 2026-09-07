@@ -8,7 +8,7 @@ Fai Helpers is a browser-based agent framework centered around **Docmem**, a hie
 
 ## Running and Testing
 
-Pure browser ES modules, no build step or bundler. Serve the directory over HTTP and open `index.html` (`file://` won't work — ES modules require HTTP): e.g. `npx serve .`, `python3 -m http.server`, or `php -S localhost:8000`. CDN dependencies: DuckDB WASM (dynamic import), gpt-tokenizer. Parser tests: open `js/bash/test_command_parser.html` and `js/pytool/test_pytool_parser.html` in the browser. No automated test suite.
+Pure browser ES modules, no build step or bundler. Serve the directory over HTTP with `npx serve . -l 8137` (or `just up`) and open `http://localhost:8137` (`file://` won't work — ES modules require HTTP). CDN dependencies: DuckDB WASM (dynamic import), gpt-tokenizer. Parser tests: open `js/bash/test_command_parser.html` and `js/pytool/test_pytool_parser.html` in the browser. No automated test suite.
 
 **Regenerate parsers** after editing `.pegjs` grammars:
 ```
@@ -55,6 +55,8 @@ Database is in-memory only — data lost on reload unless saved to TOML.
 Four tabs in `js/index.js`: Chat (OpenRouter API + command parsing), Docmem (tree CRUD), View (read-only exploration), Persist (save/load/import).
 
 ## Specifications
+
+`docs/ARCHITECTURE_LOG.md` is an append-only record of architectural decisions: deltas and rationale go there. Specs, code, and comments describe the system as built, in its current state, without history or justification. When making an architectural change, append a log entry and update the affected spec to the new current state.
 
 `SPEC_*.md` files are the **authoritative source** for system behavior. When modifying core behavior, always consult and update relevant specs, which live in `docs/`: `SPEC_DOCMEM.md`, `SPEC_DOCMEM_ATOMICITY.md`, `SPEC_DOCMEM_SERIALIZATION.md`, `SPEC_DOCMEM_WIKI.md`, `SPEC_AGENTS.md`, `SPEC_DELEGATE.md`, `SPEC_CHAT.md` — plus the parser specs `js/bash/SPEC_COMMAND_PARSER.md` and `js/pytool/SPEC_PYTOOL_PARSER.md`.
 

@@ -32,13 +32,30 @@ export class OpenRouterAPI {
     /**
      * Build request body for chat completion
      */
-    buildRequestBody(messages, temperature, maxTokens) {
-        return {
+    buildRequestBody(messages, temperature, maxTokens, reasoning, ignoreProviders = []) {
+        const body = {
             model: this.model,
             messages,
             temperature,
-            max_tokens: maxTokens
+            max_tokens: maxTokens,
+            // OpenRouter unified reasoning control; models that cannot
+            // switch thinking off ignore enabled: false
+            reasoning: { enabled: reasoning }
         };
+        if (ignoreProviders.length > 0) {
+            body.provider = { ignore: ignoreProviders };
+        }
+        return body;
+    }
+
+    /**
+     * True for a completed response whose content is empty: the model ended
+     * its turn immediately. Retried once on a different provider.
+     */
+    isEmptyStop(data) {
+        const choice = data?.choices?.[0];
+        return Boolean(choice) && !choice.error && !choice.message?.content
+            && choice.finish_reason === 'stop';
     }
 
     /**
@@ -53,6 +70,10 @@ export class OpenRouterAPI {
         console.log('Model:', requestBody.model);
         console.log('Temperature:', requestBody.temperature);
         console.log('Max Tokens:', requestBody.max_tokens);
+        console.log('Reasoning:', requestBody.reasoning.enabled);
+        if (requestBody.provider) {
+            console.log('Provider:', JSON.stringify(requestBody.provider));
+        }
         console.log('Messages:', JSON.stringify(messages, null, 2));
         console.log('====================');
     }
@@ -77,11 +98,13 @@ export class OpenRouterAPI {
     /**
      * Log successful response to console
      */
-    logSuccessResponse(data, responseContent) {
+    logRawResponse(data) {
         console.log('=== RAW LLM RESPONSE ===');
         console.log(JSON.stringify(data, null, 2));
         console.log('========================');
-        
+    }
+
+    logSuccessResponse(data, responseContent) {
         console.log('=== RESPONSE FROM LLM ===');
         console.log('Model Used:', data.model || 'unknown');
         console.log('Usage:', JSON.stringify(data.usage || {}, null, 2));
@@ -116,7 +139,14 @@ export class OpenRouterAPI {
         }
 
         const choice = data.choices[0];
+        if (choice.error) {
+            const message = choice.error.message || JSON.stringify(choice.error);
+            throw new Error(`API Error: Provider error in response: ${message}`);
+        }
         if (!choice.message || !choice.message.content) {
+            const detail = `finish_reason=${choice.finish_reason ?? 'none'}, `
+                + `native_finish_reason=${choice.native_finish_reason ?? 'none'}, `
+                + `message keys=[${Object.keys(choice.message || {}).join(', ')}]`;
             // Reasoning models (e.g. GLM 5.2) can exhaust max_tokens on hidden
             // reasoning, returning finish_reason "length" with empty content
             if (choice.finish_reason === 'length') {
@@ -125,9 +155,9 @@ export class OpenRouterAPI {
                     + 'likely spent on reasoning; increase maxTokens');
             }
             if (choice.message?.reasoning) {
-                throw new Error('API Error: Model returned reasoning but no message content');
+                throw new Error(`API Error: Model returned reasoning but no message content (${detail})`);
             }
-            throw new Error('API Error: Invalid response structure - missing message content');
+            throw new Error(`API Error: Empty message content (${detail})`);
         }
     }
 
@@ -165,18 +195,12 @@ export class OpenRouterAPI {
     }
 
     /**
-     * Call the chat completion API
+     * One request/response round trip; returns the parsed JSON body
      */
-    async chat(messages, temperature, maxTokens) {
-        if (!this.apiKey || this.apiKey.trim() === '') {
-            throw new Error('API key is missing or empty');
-        }
-
-        const headers = this.buildHeaders();
-        const requestBody = this.buildRequestBody(messages, temperature, maxTokens);
-        
+    async requestOnce(headers, messages, temperature, maxTokens, reasoning, ignoreProviders) {
+        const requestBody = this.buildRequestBody(messages, temperature, maxTokens, reasoning, ignoreProviders);
         this.logRequest(requestBody, headers, messages);
-        
+
         let data;
         try {
             const response = await this.performRequest(headers, requestBody);
@@ -190,7 +214,27 @@ export class OpenRouterAPI {
         } catch (error) {
             throw this.translateAbortError(error);
         }
-        
+
+        this.logRawResponse(data);
+        return data;
+    }
+
+    /**
+     * Call the chat completion API
+     */
+    async chat(messages, temperature, maxTokens, reasoning = false) {
+        if (!this.apiKey || this.apiKey.trim() === '') {
+            throw new Error('API key is missing or empty');
+        }
+
+        const headers = this.buildHeaders();
+        let data = await this.requestOnce(headers, messages, temperature, maxTokens, reasoning, []);
+
+        if (this.isEmptyStop(data) && data.provider) {
+            console.warn(`Empty response from provider ${data.provider}; retrying once on another provider`);
+            data = await this.requestOnce(headers, messages, temperature, maxTokens, reasoning, [data.provider]);
+        }
+
         this.validateResponse(data);
         
         const responseContent = this.extractResponseContent(data);

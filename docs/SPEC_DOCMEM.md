@@ -274,6 +274,15 @@ The tree structure MUST be shallow with clear semantics at each level. For examp
 - The result MUST include the starting node (at depth 0) and all descendants.
 - Traversal MUST use preorder traversal ordered by order_value.
 
+### Search
+- The search operation MUST accept a starting node ID, a non-empty pattern, and an optional mode, and MUST search the starting node and all of its descendants.
+- Mode MUST be one of `literal`, `wildcard`, or `regex`, and MUST default to `literal` when omitted. Literal matches the pattern as a plain substring. Wildcard treats `*` as any run of characters and `?` as any single character. Regex uses the database engine's regular expression syntax (RE2).
+- All modes MUST be case-insensitive and MUST match anywhere within a field (unanchored).
+- The pattern MUST be tested against the text, context_type, context_name, and context_value fields; a node matches if any field matches.
+- Results MUST be ordered by depth, then by order_value, and MUST be capped at 50 hits. When more hits exist, the result MUST indicate truncation.
+- Each hit MUST include the standard full node metadata format, the chain of node IDs from the docmem root down to the hit, and a short snippet of the text surrounding the first match (or an indicator that only a context field matched).
+- An invalid regular expression MUST fail the operation with an error rather than returning no results.
+
 ### Find
 - The find operation MUST retrieve a node by ID.
 - The operation MUST return the full node if found, or null if not found.
@@ -304,7 +313,7 @@ Cross-entity relationships MUST be carried in content via @ tags rather than str
 - Semantic search with query-time trace-up and deduplication SHOULD be implemented.
 
 ### Query Operations (Planned)
-- Semantic query operations SHOULD be implemented when vector DB is available.
+- Semantic query operations SHOULD be implemented when vector DB is available (literal, wildcard, and regex search are specified under Operations / Search).
 - Query results SHOULD include structural context through trace-up operations.
 
 ### Summarization
