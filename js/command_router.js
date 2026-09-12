@@ -123,20 +123,14 @@ async function executeSystemCommand(args) {
 }
 
 // suspend and finish end the run after the rest of the block executes.
-// The result carries `terminate` so AgentLoop can act on it; outside a
-// task run (the user-facing chat) they are no-ops with a warning.
+// The result carries `terminate` so AgentLoop can act on it. Each router
+// is built from a lookup of terminator handlers keyed by command name.
 
-function routeSuspend(isTaskRun) {
-    if (!isTaskRun) {
-        return { success: false, result: 'no-op outside a task run' };
-    }
+function suspendInTask(restArgs) {
     return { success: true, result: 'suspend: run suspended', terminate: 'suspend' };
 }
 
-function routeFinish(restArgs, isTaskRun) {
-    if (!isTaskRun) {
-        return { success: false, result: 'no-op outside a task run' };
-    }
+function finishInTask(restArgs) {
     const summary = restArgs.join(' ').replace(/^\n+|\n+$/g, '');
     if (!summary) {
         return { success: false, result: 'requires a summary' };
@@ -144,19 +138,19 @@ function routeFinish(restArgs, isTaskRun) {
     return { success: true, result: 'finish: task finished', terminate: 'finish', summary };
 }
 
-/**
- * Build a router. isTaskRun enables suspend/finish.
- */
-export function createCommandRouter({ isTaskRun = false } = {}) {
+function noOpOutsideTask(restArgs) {
+    return { success: false, result: 'no-op outside a task run' };
+}
+
+const TASK_TERMINATORS = { suspend: suspendInTask, finish: finishInTask };
+const CHAT_TERMINATORS = { suspend: noOpOutsideTask, finish: noOpOutsideTask };
+
+function buildRouter(terminators) {
     return function router(args, docmem) {
         const [command, ...restArgs] = args;
 
-        if (command === 'suspend') {
-            return routeSuspend(isTaskRun);
-        }
-
-        if (command === 'finish') {
-            return routeFinish(restArgs, isTaskRun);
+        if (Object.hasOwn(terminators, command)) {
+            return terminators[command](restArgs);
         }
 
         if (KNOWN_DOCMEM_COMMANDS.has(command)) {
@@ -169,4 +163,14 @@ export function createCommandRouter({ isTaskRun = false } = {}) {
 
         return { success: false, result: `unknown command. Available: ${[...KNOWN_COMMANDS].sort().join(', ')}` };
     };
+}
+
+/** Router for the user-facing chat: suspend and finish are no-ops with a warning. */
+export function createChatCommandRouter() {
+    return buildRouter(CHAT_TERMINATORS);
+}
+
+/** Router for a task run: suspend and finish end the run. */
+export function createTaskCommandRouter() {
+    return buildRouter(TASK_TERMINATORS);
 }

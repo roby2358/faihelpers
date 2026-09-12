@@ -17,14 +17,14 @@ AgentLoop is the reusable LLM query/response loop. It is run by the chat UI for 
 
 ### Construction
 
-`new AgentLoop(chatSession, api, commandRouter, knownCommands, options)` where options are:
+`new AgentLoop(chatSession, api, commandRouter, knownCommands, options)`. Every option is required; construction throws naming the first missing key. Options are:
 
 | option               | meaning                                                                                   |
 |----------------------|-------------------------------------------------------------------------------------------|
 | `summaryLine`        | short label written to the chat root's text                                               |
-| `maxDepth`           | turn limit, default 100                                                                   |
-| `signal`             | AbortSignal, checked before each model call and before each command; passed to the API    |
-| `nudge`              | `{ message, limit }`: reply to a tool-less response with `message`, up to `limit` times   |
+| `maxDepth`           | turn limit                                                                                |
+| `signal`             | AbortSignal or null, checked before each model call and before each command; passed to the API |
+| `nudge`              | `{ message, limit }` or null: reply to a tool-less response with `message`, up to `limit` times |
 | `onUserMessage`, `onAssistantMessage`, `onModelRequest` | display callbacks                                      |
 
 ### Docmem Structure
@@ -69,9 +69,11 @@ Abort rejects with `AbortedError`. API and command execution errors that escape 
 
 The loop delegates every command to the router (`js/command_router.js`) and contains no command implementations. A router result is `{ success, result }` and MAY carry `terminate: 'suspend' | 'finish'` and `summary`.
 
+Within one pytool block, a terminator takes effect after the remaining commands have executed. If a later command in the same block fails, the termination is cancelled: the failure output is suffixed with `(suspend cancelled)` or `(finish cancelled)` and the run continues with the next turn.
+
 ## Suspend and Finish Commands
 
-`suspend()` and `finish(summary)` are system commands handled by the router. Their effect on a task run is specified in TASK_DELEGATION_SPEC. Outside a task run (the router built with `isTaskRun: false`, the user-facing chat) both return an error result stating they are a no-op.
+`suspend()` and `finish(summary)` are system commands handled by the router. Their effect on a task run is specified in TASK_DELEGATION_SPEC. `command_router.js` exports two routers built from one dispatch over terminator handlers: `createTaskCommandRouter()`, where both commands end the run, and `createChatCommandRouter()` for the user-facing chat, where both return an error result stating they are a no-op.
 
 ## Non-Functional Requirements
 

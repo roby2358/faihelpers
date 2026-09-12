@@ -15,6 +15,11 @@ const MAX_TOKENS = 32000;
 // Sent as OpenRouter's reasoning.enabled and shown in the status line
 const REASONING = false;
 
+const AGENT_LOOP_OPTION_KEYS = [
+    'summaryLine', 'maxDepth', 'signal', 'nudge',
+    'onUserMessage', 'onAssistantMessage', 'onModelRequest'
+];
+
 export class AbortedError extends Error {
     constructor() {
         super('Run aborted');
@@ -23,13 +28,13 @@ export class AbortedError extends Error {
 }
 
 /**
- * Options:
+ * Options (every key is required; null where noted):
  *   summaryLine      short label written to the chat root text
- *   maxDepth         turn limit (default 100)
- *   signal           AbortSignal; checked before each model call and each command
- *   nudge            { message, limit }: reply to a tool-less response with
+ *   maxDepth         turn limit
+ *   signal           AbortSignal or null; checked before each model call and each command
+ *   nudge            { message, limit } or null: reply to a tool-less response with
  *                    `message` up to `limit` times before ending the run as
- *                    no_commands. Absent: a tool-less response ends the run.
+ *                    no_commands. null: a tool-less response ends the run.
  *   onUserMessage, onAssistantMessage, onModelRequest  display callbacks
  *
  * run() resolves to { reason, summary, finalResponse, chatDocmemRootId, workDone }
@@ -39,18 +44,23 @@ export class AbortedError extends Error {
  * executed successfully during the run.
  */
 export class AgentLoop {
-    constructor(chatSession, api, commandRouter, knownCommands, options = {}) {
+    constructor(chatSession, api, commandRouter, knownCommands, options) {
+        for (const key of AGENT_LOOP_OPTION_KEYS) {
+            if (options[key] === undefined) {
+                throw new Error(`AgentLoop options missing: ${key}`);
+            }
+        }
         this.chatSession = chatSession;
         this.api = api;
         this.commandRouter = commandRouter;
         this.knownCommands = knownCommands;
-        this.summaryLine = options.summaryLine || '';
-        this.maxDepth = options.maxDepth || 100;
-        this.signal = options.signal || null;
-        this.nudge = options.nudge || null;
-        this.onUserMessage = options.onUserMessage || (() => {});
-        this.onAssistantMessage = options.onAssistantMessage || (() => {});
-        this.onModelRequest = options.onModelRequest || (() => {});
+        this.summaryLine = options.summaryLine;
+        this.maxDepth = options.maxDepth;
+        this.signal = options.signal;
+        this.nudge = options.nudge;
+        this.onUserMessage = options.onUserMessage;
+        this.onAssistantMessage = options.onAssistantMessage;
+        this.onModelRequest = options.onModelRequest;
         this.workDone = false;
     }
 
@@ -177,7 +187,15 @@ export class AgentLoop {
         return await this.executeCalls(calls);
     }
 
-    // suspend/finish take effect after the remaining commands in the block
+    // suspend/finish take effect after the remaining commands in the block.
+    // A command that fails after the terminator cancels it: the run continues
+    // so the model can see the error and decide again.
+    cancelTermination(terminate, outputs) {
+        if (terminate === null) return null;
+        outputs[outputs.length - 1] += ` (${terminate} cancelled)`;
+        return null;
+    }
+
     async executeCalls(calls) {
         const docmem = this.chatSession.docmem;
         const outputs = [];
@@ -198,11 +216,18 @@ export class AgentLoop {
                 if (result.success) {
                     this.workDone = true;
                 }
-                if (!result.success) break;
+                if (!result.success) {
+                    terminate = this.cancelTermination(terminate, outputs);
+                    break;
+                }
             } catch (error) {
                 outputs.push(this.formatError(call.name, `execution error: ${error.message}`));
+                terminate = this.cancelTermination(terminate, outputs);
                 break;
             }
+        }
+        if (terminate === null) {
+            summary = null;
         }
 
         if (outputs.length > 0) {

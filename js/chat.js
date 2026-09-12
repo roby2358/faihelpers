@@ -6,7 +6,7 @@ import { DocmemChat } from './docmem_chat.js';
 import { showMessage } from './index.js';
 import { Key } from './key.js';
 import { AgentLoop } from './agent_loop.js';
-import { createCommandRouter, KNOWN_COMMANDS } from './command_router.js';
+import { createChatCommandRouter, KNOWN_COMMANDS } from './command_router.js';
 
 let chatSession = null;
 let api = null;
@@ -14,6 +14,7 @@ let isProcessing = false;
 let keyHandler = null;
 
 const CHAT_DOCMEM_ID = 'chat_session';
+const MAX_DEPTH = 100;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // UI Helpers
@@ -113,7 +114,7 @@ async function startChatSession() {
         storeApiKeyAndModel(apiKey, model);
         api = new OpenRouterAPI(apiKey, model);
 
-        chatSession = new DocmemChat(CHAT_DOCMEM_ID);
+        chatSession = new DocmemChat(CHAT_DOCMEM_ID, { readSet: null, lensId: null });
         await chatSession.ready();
         await chatSession.createChatSession();
 
@@ -132,10 +133,13 @@ async function startChatSession() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function runAgentLoop(message) {
-    const router = createCommandRouter({ isTaskRun: false });
+    const router = createChatCommandRouter();
 
     const loop = new AgentLoop(chatSession, api, router, KNOWN_COMMANDS, {
         summaryLine: truncate(message, 80),
+        maxDepth: MAX_DEPTH,
+        signal: null,
+        nudge: null,
         onUserMessage: (msg) => appendToChatDisplay(`\nuser> ${msg}`),
         onAssistantMessage: (msg) => appendToChatDisplay(`\nassistant> ${msg}`),
         onModelRequest: reportModelRequest

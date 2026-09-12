@@ -146,3 +146,19 @@ Entry format: date, title, decision, rationale, supersedes (if any).
 **Decision.** `docmem_add_summary` accepts nodes with children, and a range may be a single node. `expandToLength` no longer descends into a summary node (other than the start node), so a summary's subtree is omitted from context and from `totalCount`. Context fields may be empty strings; `Node` and `DocmemCommands` only reject null.
 
 **Rationale.** The harness folds a task by summarizing it in place, and a task may have child tasks, so the leaf restriction had to go. Once a summary can hide an arbitrary subtree, expansion has to honor it or the tree never compresses; the open question in SPEC_DOCMEM about summary expansion is thereby settled in favor of keeping the summary as a header and dropping its children. Empty context fields let a task node carry no lens without a placeholder token.
+
+---
+
+## 2026-09-12 — Failure after a terminator cancels it; two routers instead of a mode flag
+
+**Decision.** In `AgentLoop.executeCalls`, a command that fails after `suspend()` or `finish()` in the same pytool block cancels the termination and the run continues. `createCommandRouter({ isTaskRun })` is replaced by `createChatCommandRouter()` and `createTaskCommandRouter()`, both built from one dispatch over a terminator lookup. `AgentLoop`, `DocmemChat`, and `OpenRouterAPI.chat` take every argument explicitly; missing options throw.
+
+**Rationale.** Folding a task as done while its final block partly failed hid the error under a summary. A mode flag re-tested inside the router is a discriminator conditional; a lookup keyed by command name keeps each variant in one place. Default parameters multiply the call shapes to test, so callers state every value.
+
+---
+
+## 2026-09-12 — Harness termination as a table; no default options
+
+**Decision.** `TaskHarness` termination is a lookup table keyed by how the run ended (`TERMINATION`) applied by a pure `applyTermination(state, hasChildTasks, outcome)`; `finish` and `aborted` are the two early-exit rows. The harness takes a `credentials` accessor instead of an API factory plus default model, and every constructor option is required. Counters (`attempts`, `failures`) are written explicitly on a task's first run instead of being defaulted at each read; `retry_limit` remains the one optional key, read in a single `retryLimit()` function. A malformed state block logs a warning. The `chat` key is reused only when it names a chat root. Tree walks use a shared `Docmem.preorder(rootId, descend)` generator.
+
+**Rationale.** Branching on the outcome kind in several places smeared each row of the spec's termination table across the function; a table keeps each row in one place and lets the table be tested without DuckDB. Default parameters multiply the conditions a test has to cover, so callers now pass every value.

@@ -8,10 +8,12 @@
 import { Docmem } from './docmem_tools/docmem.js';
 import { DocmemChat } from './docmem_chat.js';
 import { AgentLoop, AbortedError } from './agent_loop.js';
-import { createCommandRouter, KNOWN_COMMANDS } from './command_router.js';
+import { createTaskCommandRouter, KNOWN_COMMANDS } from './command_router.js';
+import { OpenRouterAPI } from './OpenRouterAPI.js';
 import { randomString } from './tools.js';
 
-const DEFAULT_RETRY_LIMIT = 3;
+const RETRY_LIMIT = 3;
+const MAX_DEPTH = 100;
 const NUDGE_LIMIT = 3;
 const NUDGE_MESSAGE = '$ System.turn()\n\nYour last response ran no commands. Act with a pytool block, or call suspend() or finish(summary).';
 
@@ -63,21 +65,96 @@ export function isSummaryNode(node) {
     return node.contextType === 'summary';
 }
 
+// Counters are written explicitly when a task first runs, so a missing key
+// after that is a real inconsistency, not a case to paper over.
+function counter(state, key) {
+    if (!state.has(key)) {
+        throw new Error(`state block missing ${key}`);
+    }
+    return Number(state.get(key));
+}
+
+/** The one place the per-task retry_limit key is allowed to be absent (spec). */
+export function retryLimit(state) {
+    return state.has('retry_limit') ? Number(state.get('retry_limit')) : RETRY_LIMIT;
+}
+
+// Termination table (spec: Termination). Each row: how `failures` changes,
+// the status when the run rests, and the reason used if the task fails.
+
+const restStatus = (hasChildTasks) => hasChildTasks ? 'waiting' : 'queued';
+
+export const TERMINATION = {
+    suspend: {
+        failures: (outcome, failures) => outcome.workDone ? 0 : failures + 1,
+        status: restStatus,
+        reason: () => 'no progress'
+    },
+    no_commands: {
+        failures: (outcome, failures) => failures + 1,
+        status: restStatus,
+        reason: () => 'no progress'
+    },
+    error: {
+        failures: (outcome, failures) => failures + 1,
+        status: () => 'queued',
+        reason: (outcome) => outcome.message
+    },
+    depth_limit: {
+        failures: (outcome, failures) => failures + 1,
+        status: () => 'queued',
+        reason: () => 'depth limit reached'
+    }
+};
+
+/**
+ * Pure termination step. Mutates and returns `state`; `fold` is null or
+ * { value, text } describing the summary node to fold the task under.
+ */
+export function applyTermination(state, hasChildTasks, outcome) {
+    if (outcome.kind === 'finish') {
+        state.set('failures', '0');
+        state.set('status', 'done');
+        return { state, fold: { value: 'done', text: outcome.summary } };
+    }
+    if (outcome.kind === 'aborted') {
+        state.set('status', 'queued');
+        return { state, fold: null };
+    }
+    const row = TERMINATION[outcome.kind];
+    if (!row) {
+        throw new Error(`unknown outcome kind ${outcome.kind}`);
+    }
+    const failures = row.failures(outcome, counter(state, 'failures'));
+    state.set('failures', String(failures));
+    if (failures >= retryLimit(state)) {
+        state.set('status', 'failed');
+        return { state, fold: { value: 'failed', text: row.reason(outcome) } };
+    }
+    state.set('status', row.status(hasChildTasks));
+    return { state, fold: null };
+}
+
+const REQUIRED_OPTIONS = ['taskRootId', 'credentials', 'onChange', 'onLog'];
+
 export class TaskHarness {
     /**
-     * options:
+     * options (all required):
      *   taskRootId   root id of the task docmem (context_type task_list)
-     *   apiFactory   (model) => OpenRouterAPI
-     *   defaultModel model id used when a task has no `model` key
+     *   credentials  () => ({ apiKey, model }); model is used when a task has no `model` key
      *   onChange     () => void, after every harness write to the task docmem
      *   onLog        (line) => void
      */
     constructor(options) {
+        for (const key of REQUIRED_OPTIONS) {
+            if (options[key] === undefined) {
+                throw new Error(`TaskHarness options missing: ${key}`);
+            }
+        }
         this.taskRootId = options.taskRootId;
-        this.apiFactory = options.apiFactory;
-        this.defaultModel = options.defaultModel;
-        this.onChange = options.onChange || (() => {});
-        this.onLog = options.onLog || (() => {});
+        this.credentials = options.credentials;
+        this.onChange = options.onChange;
+        this.onLog = options.onLog;
         this.docmem = new Docmem(this.taskRootId);
         this.state = 'stopped';
         this.abortController = null;
@@ -138,10 +215,32 @@ export class TaskHarness {
         }
     }
 
+    // State block access
+
+    /** Parse a task's state block, warning once per read when it is malformed. */
+    readState(node) {
+        const { state, malformed } = parseStateBlock(node.text);
+        if (malformed) {
+            this.log(`warning: malformed state block on ${node.id}; treating as empty`);
+        }
+        return state;
+    }
+
+    async writeState(nodeId, state) {
+        const node = await this.docmem.requireNode(nodeId);
+        state.set('updated', new Date().toISOString());
+        await this.setTaskText(nodeId, writeStateBlock(node.text, state));
+    }
+
+    async setTaskText(nodeId, text) {
+        await this.docmem.updateContent(nodeId, text);
+        this.onChange();
+    }
+
     // A `running` status at start can only be stale (snapshot, reload, crash)
     async resetStaleRunning() {
         for (const node of await this.allTaskNodes()) {
-            const { state } = parseStateBlock(node.text);
+            const state = this.readState(node);
             if (state.get('status') === 'running') {
                 state.set('status', 'queued');
                 await this.writeState(node.id, state);
@@ -150,41 +249,33 @@ export class TaskHarness {
         }
     }
 
+    // Walks never descend into a summary: it stands in for its subtree
+    taskWalk() {
+        return this.docmem.preorder(this.taskRootId, node => !isSummaryNode(node));
+    }
+
     async allTaskNodes() {
         const result = [];
-        const walk = async (node) => {
+        for await (const { node } of this.taskWalk()) {
             if (isTaskNode(node)) result.push(node);
-            if (isSummaryNode(node)) return;
-            for (const child of await this.docmem.getSortedChildren(node.id)) {
-                await walk(child);
-            }
-        };
-        await walk(await this.docmem.requireNode(this.taskRootId));
+        }
         return result;
     }
 
-    // Selection: first eligible task in preorder, never descending into summaries
+    // Selection: first eligible task in preorder
 
     async selectNext() {
-        const visit = async (node) => {
-            const children = await this.docmem.getSortedChildren(node.id);
-            if (isTaskNode(node) && await this.isEligible(node, children)) {
+        for await (const { node, children } of this.taskWalk()) {
+            if (isTaskNode(node) && this.isEligible(node, children)) {
                 return node;
             }
-            for (const child of children) {
-                if (isSummaryNode(child)) continue;
-                const found = await visit(child);
-                if (found) return found;
-            }
-            return null;
-        };
-        return await visit(await this.docmem.requireNode(this.taskRootId));
+        }
+        return null;
     }
 
-    async isEligible(node, children) {
-        const { state } = parseStateBlock(node.text);
-        const status = state.get('status') || 'queued';
-        if (status === 'queued') return true;
+    isEligible(node, children) {
+        const status = this.readState(node).get('status');
+        if (status === 'queued' || status === undefined) return true;
         if (status === 'waiting') {
             return !children.some(isTaskNode);
         }
@@ -193,40 +284,38 @@ export class TaskHarness {
 
     // Running a task
 
-    async writeState(nodeId, state) {
-        const node = await this.docmem.requireNode(nodeId);
-        state.set('updated', new Date().toISOString());
-        await this.docmem.updateContent(nodeId, writeStateBlock(node.text, state));
-        this.onChange();
-    }
-
+    // Reuse the recorded chat only if it is still a chat root
     async resolveChat(state) {
         const existing = state.get('chat');
-        if (existing && await this.docmem.find(existing)) {
-            return existing;
+        if (existing) {
+            const node = await this.docmem.find(existing);
+            if (node && node.parentId === null && node.contextType === 'chat') {
+                return existing;
+            }
         }
         const chatId = 'chat_' + randomString(8);
-        const chat = this.createChat(chatId, {});
+        const chat = this.createChat(chatId, null, null);
         await chat.ready();
         await chat.createChatSession();
         state.set('chat', chatId);
         return chatId;
     }
 
-    createChat(chatId, options) {
-        return new DocmemChat(chatId, options);
+    createChat(chatId, readSet, lensId) {
+        return new DocmemChat(chatId, { readSet, lensId });
     }
 
+    // Read-set: the task root plus every `read` key from the task up to the root
     async readSetFor(node) {
         const ids = [this.taskRootId];
         let current = node;
         while (current) {
-            const { state } = parseStateBlock(current.text);
-            const read = state.get('read');
+            const read = this.readState(current).get('read');
             if (read) {
                 ids.push(...read.split(/\s+/).filter(Boolean));
             }
-            current = current.parentId ? await this.docmem.find(current.parentId) : null;
+            if (current.id === this.taskRootId) break;
+            current = await this.docmem.find(current.parentId);
         }
         return [...new Set(ids)];
     }
@@ -239,39 +328,55 @@ export class TaskHarness {
         ].join('\n');
     }
 
+    // First run of a task initializes its counters explicitly
+    initCounters(state) {
+        if (!state.has('attempts')) state.set('attempts', '0');
+        if (!state.has('failures')) state.set('failures', '0');
+    }
+
+    modelFor(state) {
+        return state.has('model') ? state.get('model') : this.credentials().model;
+    }
+
     async runTask(task) {
-        const { state } = parseStateBlock(task.text);
+        const state = this.readState(task);
+        this.initCounters(state);
         state.set('status', 'running');
-        state.set('attempts', String(Number(state.get('attempts') || 0) + 1));
+        state.set('attempts', String(counter(state, 'attempts') + 1));
         const chatId = await this.resolveChat(state);
         await this.writeState(task.id, state);
         this.current = task.id;
         this.log(`running ${task.id} (attempt ${state.get('attempts')}, chat ${chatId})`);
 
-        const model = state.get('model') || this.defaultModel;
-        const api = this.apiFactory(model);
+        const api = new OpenRouterAPI(this.credentials().apiKey, this.modelFor(state));
         const readSet = await this.readSetFor(task);
-        const chat = this.createChat(chatId, { readSet, lensId: task.contextName || null });
+        const chat = this.createChat(chatId, readSet, task.contextName || null);
         await chat.ready();
-        const loop = new AgentLoop(chat, api, createCommandRouter({ isTaskRun: true }), KNOWN_COMMANDS, {
+        const loop = new AgentLoop(chat, api, createTaskCommandRouter(), KNOWN_COMMANDS, {
             summaryLine: `task ${task.id}`,
+            maxDepth: MAX_DEPTH,
             signal: this.abortController.signal,
-            nudge: { message: NUDGE_MESSAGE, limit: NUDGE_LIMIT }
+            nudge: { message: NUDGE_MESSAGE, limit: NUDGE_LIMIT },
+            onUserMessage: () => {},
+            onAssistantMessage: () => {},
+            onModelRequest: () => {}
         });
 
-        let outcome;
-        try {
-            const result = await loop.run(this.taskMessage(task.id, chatId));
-            outcome = { kind: result.reason, summary: result.summary, workDone: result.workDone };
-        } catch (error) {
-            if (error instanceof AbortedError || error.name === 'AbortError') {
-                outcome = { kind: 'aborted' };
-            } else {
-                outcome = { kind: 'error', message: error.message };
-            }
-        }
+        const outcome = await this.runLoop(loop, task, chatId);
         await this.terminate(task.id, outcome);
         this.current = null;
+    }
+
+    async runLoop(loop, task, chatId) {
+        try {
+            const result = await loop.run(this.taskMessage(task.id, chatId));
+            return { kind: result.reason, summary: result.summary, workDone: result.workDone };
+        } catch (error) {
+            if (error instanceof AbortedError || error.name === 'AbortError') {
+                return { kind: 'aborted' };
+            }
+            return { kind: 'error', message: error.message };
+        }
     }
 
     // Termination per the spec table
@@ -282,74 +387,33 @@ export class TaskHarness {
             this.log(`task ${taskId} vanished during its run`);
             return;
         }
-        const { state } = parseStateBlock(node.text);
         const children = await this.docmem.getSortedChildren(taskId);
         const hasChildTasks = children.some(isTaskNode);
-        const limit = Number(state.get('retry_limit') || DEFAULT_RETRY_LIMIT);
-        let failures = Number(state.get('failures') || 0);
-        const restStatus = hasChildTasks ? 'waiting' : 'queued';
-
-        switch (outcome.kind) {
-            case 'finish':
-                state.set('failures', '0');
-                state.set('status', 'done');
-                await this.writeState(taskId, state);
-                await this.fold(taskId, 'done', outcome.summary);
-                this.log(`finished ${taskId}`);
-                return;
-            case 'suspend':
-                if (outcome.workDone) {
-                    failures = 0;
-                } else {
-                    failures += 1;
-                }
-                break;
-            case 'no_commands':
-                failures += 1;
-                break;
-            case 'aborted':
-                state.set('status', 'queued');
-                await this.writeState(taskId, state);
-                this.log(`aborted ${taskId}; queued`);
-                return;
-            case 'error':
-            case 'depth_limit':
-                failures += 1;
-                break;
-        }
-
-        state.set('failures', String(failures));
-        if (failures >= limit) {
-            const reason = outcome.kind === 'error' ? outcome.message
-                : outcome.kind === 'depth_limit' ? 'depth limit reached'
-                : 'no progress';
-            state.set('status', 'failed');
-            await this.writeState(taskId, state);
-            await this.fold(taskId, 'failed', reason);
-            this.log(`failed ${taskId}: ${reason}`);
-            return;
-        }
-
-        const isError = outcome.kind === 'error' || outcome.kind === 'depth_limit';
-        state.set('status', isError ? 'queued' : restStatus);
+        const { state, fold } = applyTermination(this.readState(node), hasChildTasks, outcome);
         await this.writeState(taskId, state);
+        if (fold) {
+            await this.fold(taskId, fold.value, fold.text);
+        }
         const detail = outcome.kind === 'error' ? `: ${outcome.message}` : '';
-        this.log(`${outcome.kind} ${taskId}; ${state.get('status')} (failures ${failures})${detail}`);
+        this.log(`${outcome.kind} ${taskId}; ${state.get('status')} (failures ${state.get('failures')})${detail}`);
     }
 
-    async fold(taskId, value, summary) {
-        await this.docmem.addSummary(taskId, taskId, summary || '', 'summary', 'task', value);
+    async fold(taskId, value, text) {
+        await this.docmem.addSummary(taskId, taskId, text || '', 'summary', 'task', value);
         this.onChange();
     }
 }
 
 /** Create a new task docmem root. */
 export async function createTaskDocmem(rootId, name) {
+    if (name === undefined) {
+        throw new Error('createTaskDocmem requires a name');
+    }
     const docmem = new Docmem(rootId);
     await docmem.ready();
     const root = await docmem.getRootById(rootId);
     if (root.contextType !== 'task_list') {
-        await docmem.updateContext(rootId, 'task_list', name || rootId, new Date().toISOString());
+        await docmem.updateContext(rootId, 'task_list', name, new Date().toISOString());
     }
     return docmem;
 }

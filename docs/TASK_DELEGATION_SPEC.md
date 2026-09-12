@@ -92,7 +92,7 @@ For the selected task the harness MUST:
 The worker's message list follows SPEC_CHAT with these differences:
 
 - The docmem context messages MUST include the whole task docmem, expanded from its root, with summary nodes shown but their children omitted (the normal summary rule). The worker therefore sees where the work stands: what is folded, what is queued, and its own position in the tree.
-- The docmem context messages MUST include every node named in the task's `read` key and in the `read` keys of its ancestors, expanded from the named node. This is the read-set. A named node inside a summary MUST be expanded even though the summary rule would otherwise omit it, so a task can peek inside folded work when it needs the detail.
+- The docmem context messages MUST include every node named in the task's `read` key and in the `read` keys of its ancestors up to and including the task docmem root, expanded from the named node. This is the read-set. A named node inside a summary MUST be expanded even though the summary rule would otherwise omit it, so a task can peek inside folded work when it needs the detail.
 - The lens named in `context_name`, if any, is included as a system prompt docmem after the root prompt.
 - Other docmems are NOT included: a worker sees only the root prompt, its lens, the task docmem, and its read-set. The roster message still lists every non-chat root so a worker can address any docmem by id.
 
@@ -112,7 +112,7 @@ followed by a short fixed instruction block explaining around advice, the state 
 
 - `suspend()` ends the current run without folding. Use it after planning children, after moving the task to run later, or to yield after a bounded chunk of work so the tree is re-evaluated.
 - `finish(summary)` ends the run and folds the task. `summary` is required. Its content is at the worker's discretion; it SHOULD say what was done in enough detail that later tasks and the parent need not peek beneath the summary.
-- Both MUST take effect after the remaining commands in the same pytool block have executed, mirroring today's `complete`.
+- Both MUST take effect after the remaining commands in the same pytool block have executed. A failing command later in the block cancels the termination (see SPEC_DELEGATE).
 
 ### Deferring
 
@@ -139,7 +139,7 @@ Every run ends in exactly one of these ways. The harness writes the state block 
 - The retry limit defaults to 3 and MAY be overridden per task with the `retry_limit` key. `failures` counts consecutive unproductive runs; a run that does work resets it, so a task that alternates progress and errors is not folded as failed.
 - The `failed` summary's reason is the error text when the last run ended in an error or depth limit, and "no progress" when it ended as a plain yield.
 - Folding inserts a summary node above the task node with `context_type=summary`, `context_name=task`, and `context_value` as shown. Failed tasks are folded so the tree still compresses and later tasks see what went wrong.
-- A task returned to `queued` runs before its own children (preorder), even if the interrupted or failed run created some. Its `chat` key is kept, so the worker continues the same conversation and sees what it already did.
+- A task returned to `queued` runs before its own children (preorder), even if the interrupted or failed run created some. Its `chat` key is kept, so the worker continues the same conversation and sees what it already did. The harness reuses the `chat` key only when it names an existing chat root; otherwise it starts a new chat and rewrites the key.
 - A `failed` task is never selected again unless the user or an agent resets its status.
 - `suspend()` does not count as work: `docmem_create_node(...)` then `suspend()` is progress; `suspend()` alone three runs in a row folds the task as failed. This is the guard against a task that reruns forever without acting.
 

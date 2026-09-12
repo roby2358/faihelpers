@@ -3,12 +3,11 @@
  * the task tree with state blocks, plus manual editing between runs.
  */
 import { Docmem } from './docmem_tools/docmem.js';
-import { OpenRouterAPI } from './OpenRouterAPI.js';
 import { showMessage } from './index.js';
 import { getChatCredentials } from './chat.js';
 import {
     TaskHarness, createTaskDocmem, parseStateBlock, formatStateBlock,
-    writeStateBlock, instructionText, isTaskNode, isSummaryNode
+    instructionText, isTaskNode, isSummaryNode
 } from './task_harness.js';
 
 let harness = null;
@@ -59,8 +58,7 @@ async function bindHarness() {
     if (!selectedRootId) return;
     harness = new TaskHarness({
         taskRootId: selectedRootId,
-        apiFactory: (model) => new OpenRouterAPI(getChatCredentials().apiKey, model),
-        defaultModel: getChatCredentials().model,
+        credentials: getChatCredentials,
         onChange: () => { renderTree(); renderStatus(); },
         onLog: log
     });
@@ -80,7 +78,7 @@ function renderStatus() {
     el('tasks-stop-btn').disabled = harness.state === 'stopped';
 }
 
-function shorten(text, max = 160) {
+function shorten(text, max) {
     const oneLine = text.replace(/\s+/g, ' ').trim();
     return oneLine.length > max ? oneLine.slice(0, max - 1) + '…' : oneLine;
 }
@@ -101,25 +99,18 @@ async function renderTree() {
         return;
     }
     container.innerHTML = '';
-    const docmem = harness.docmem;
-    const walk = async (node, depth) => {
-        const children = await docmem.getSortedChildren(node.id);
-        if (node.parentId !== null) {
-            container.appendChild(renderRow(node, depth, children));
-        }
-        if (isSummaryNode(node) && !expandedSummaries.has(node.id)) return;
-        for (const child of children) {
-            await walk(child, depth + 1);
-        }
-    };
+    const descend = (node) => !isSummaryNode(node) || expandedSummaries.has(node.id);
     try {
-        await walk(await docmem.requireNode(harness.taskRootId), -1);
+        for await (const { node, depth } of harness.docmem.preorder(harness.taskRootId, descend)) {
+            if (node.parentId === null) continue;
+            container.appendChild(renderRow(node, depth - 1));
+        }
     } catch (error) {
         container.innerHTML = `<div class="error-state">${error.message}</div>`;
     }
 }
 
-function renderRow(node, depth, children) {
+function renderRow(node, depth) {
     const row = document.createElement('div');
     row.className = 'task-row';
     row.style.paddingLeft = `${0.5 + depth * 1.5}rem`;
@@ -137,7 +128,7 @@ function renderRow(node, depth, children) {
         row.classList.add('summary', node.contextValue);
         const open = expandedSummaries.has(node.id);
         stateEl.textContent = `${open ? '▾' : '▸'} ${node.id} ${node.contextValue}`;
-        textEl.textContent = shorten(node.text || '(no summary)');
+        textEl.textContent = shorten(node.text || '(no summary)', 160);
         row.addEventListener('click', () => {
             if (open) expandedSummaries.delete(node.id); else expandedSummaries.add(node.id);
             renderTree();
@@ -146,7 +137,7 @@ function renderRow(node, depth, children) {
         const { state } = parseStateBlock(node.text);
         const lens = node.contextName ? ` lens=${node.contextName}` : '';
         stateEl.textContent = `${node.id} ${formatStateBlock(state)}${lens}`;
-        textEl.textContent = shorten(instructionText(node.text));
+        textEl.textContent = shorten(instructionText(node.text), 160);
         row.addEventListener('click', () => { selectedNodeId = node.id; renderTree(); });
         actions.append(
             button('edit', 'Edit instruction and state block', () => editTask(node)),
@@ -157,7 +148,7 @@ function renderRow(node, depth, children) {
         );
     } else {
         stateEl.textContent = `${node.id} ${node.contextString()}`;
-        textEl.textContent = shorten(node.text || '');
+        textEl.textContent = shorten(node.text || '', 160);
     }
 
     row.append(stateEl, textEl, actions);
@@ -201,15 +192,15 @@ async function editTask(node) {
     if (!guardIdle()) return;
     const edited = window.prompt('Task text (state block first):', node.text);
     if (edited === null) return;
-    await refreshAfter(() => harness.docmem.updateContent(node.id, edited));
+    await refreshAfter(() => harness.setTaskText(node.id, edited));
 }
 
 async function setStatus(node, status) {
     if (!guardIdle()) return;
     await refreshAfter(async () => {
-        const { state } = parseStateBlock(node.text);
+        const state = harness.readState(node);
         state.set('status', status);
-        await harness.docmem.updateContent(node.id, writeStateBlock(node.text, state));
+        await harness.writeState(node.id, state);
     });
 }
 
@@ -249,7 +240,6 @@ async function startHarness() {
         showMessage('Enter an API key and pick a model on the Chat tab first', 'error');
         return;
     }
-    harness.defaultModel = model;
     harness.start();
     renderStatus();
 }

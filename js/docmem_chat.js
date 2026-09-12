@@ -11,18 +11,21 @@ const DEFAULT_EXPAND_MAX_TOKENS = 20000;
 const VALID_CHAT_ROLES = ['user', 'assistant'];
 
 /**
- * Options:
+ * Options (both keys required; null allowed):
  *   readSet   array of node ids to expand as docmem context instead of every
  *             non-chat docmem (null: expand all, the chat agent's default)
  *   lensId    root id of a docmem serialized as a system prompt after the
  *             root prompt (null: none)
  */
 export class DocmemChat {
-    constructor(docmemId, options = {}) {
+    constructor(docmemId, { readSet, lensId }) {
+        if (readSet === undefined || lensId === undefined) {
+            throw new Error('DocmemChat options require readSet and lensId');
+        }
         this.docmem = new Docmem(docmemId);
         this.docmemId = docmemId;
-        this.readSet = options.readSet || null;
-        this.lensId = options.lensId || null;
+        this.readSet = readSet;
+        this.lensId = lensId;
     }
 
     async ready() {

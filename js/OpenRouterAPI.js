@@ -225,7 +225,7 @@ export class OpenRouterAPI {
     /**
      * Call the chat completion API
      */
-    async chat(messages, temperature, maxTokens, reasoning = false, signal = null) {
+    async chat(messages, temperature, maxTokens, reasoning, signal) {
         if (!this.apiKey || this.apiKey.trim() === '') {
             throw new Error('API key is missing or empty');
         }

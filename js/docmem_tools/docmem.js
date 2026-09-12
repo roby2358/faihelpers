@@ -145,6 +145,23 @@ export class Docmem {
         return [...children].sort((a, b) => a.order - b.order);
     }
 
+    /**
+     * Preorder walk from rootId. Yields { node, children, depth } for every
+     * visited node; descend(node) decides whether its children are visited.
+     */
+    async *preorder(rootId, descend) {
+        const stack = [{ node: await this.requireNode(rootId), depth: 0 }];
+        while (stack.length > 0) {
+            const { node, depth } = stack.pop();
+            const children = await this.getSortedChildren(node.id);
+            yield { node, children, depth };
+            if (!descend(node)) continue;
+            for (let i = children.length - 1; i >= 0; i--) {
+                stack.push({ node: children[i], depth: depth + 1 });
+            }
+        }
+    }
+
     async calculateOrderForAppend(parentId) {
         const children = await this.getChildren(parentId);
         const maxOrder = children.length > 0

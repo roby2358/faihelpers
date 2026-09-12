@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Harness Tests</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        .test {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+        }
+        .test.fail {
+            border-left-color: #f44336;
+        }
+        .test-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .test-result {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .pass {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .fail {
+            color: #f44336;
+            font-weight: bold;
+        }
+        .summary {
+            background: #333;
+            color: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        pre {
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Task Harness Tests</h1>
+    <div id="results"></div>
+    <div class="summary" id="summary"></div>
+
+    <script type="module">
+        import {
+            parseStateBlock, formatStateBlock, writeStateBlock, instructionText,
+            retryLimit, applyTermination
+        } from './task_harness.js';
+
+        // Each test returns a value; `expected` is compared by JSON. Tests with
+        // `throws` pass when the call throws an error whose message contains it.
+
+        const stateJson = (state) => Object.fromEntries(state);
+        const run = (hasChildTasks, outcome, entries) => {
+            const { state, fold } = applyTermination(new Map(entries), hasChildTasks, outcome);
+            return { state: stateJson(state), fold };
+        };
+        const fresh = [['status', 'running'], ['attempts', '1'], ['failures', '0']];
+        const atTwo = [['status', 'running'], ['attempts', '3'], ['failures', '2']];
+
+        const tests = [
+            // parseStateBlock
+            {
+                name: 'parseStateBlock: missing block reads as queued',
+                run: () => { const r = parseStateBlock('Do the thing'); return { state: stateJson(r.state), malformed: r.malformed }; },
+                expected: { state: { status: 'queued' }, malformed: false }
+            },
+            {
+                name: 'parseStateBlock: unknown keys preserved',
+                run: () => { const r = parseStateBlock('{status=queued, owner=rob, read=a b}\nText'); return { state: stateJson(r.state), malformed: r.malformed }; },
+                expected: { state: { status: 'queued', owner: 'rob', read: 'a b' }, malformed: false }
+            },
+            {
+                name: 'parseStateBlock: pair without = is malformed and empty',
+                run: () => { const r = parseStateBlock('{status=queued, nonsense}\nText'); return { state: stateJson(r.state), malformed: r.malformed }; },
+                expected: { state: {}, malformed: true }
+            },
+            {
+                name: 'parseStateBlock: empty pairs ignored',
+                run: () => stateJson(parseStateBlock('{status=queued,,}').state),
+                expected: { status: 'queued' }
+            },
+            {
+                name: 'parseStateBlock: keys and values trimmed',
+                run: () => stateJson(parseStateBlock('  {  status = waiting ,  chat = chat_1  }').state),
+                expected: { status: 'waiting', chat: 'chat_1' }
+            },
+
+            // formatStateBlock / writeStateBlock / instructionText
+            {
+                name: 'formatStateBlock: joins pairs with comma-space',
+                run: () => formatStateBlock(new Map([['status', 'queued'], ['attempts', '2']])),
+                expected: '{status=queued, attempts=2}'
+            },
+            {
+                name: 'format/parse round trip',
+                run: () => stateJson(parseStateBlock(formatStateBlock(new Map([['status', 'done'], ['chat', 'c1']]))).state),
+                expected: { status: 'done', chat: 'c1' }
+            },
+            {
+                name: 'writeStateBlock: prepends when text has no block',
+                run: () => writeStateBlock('Write the scene', new Map([['status', 'queued']])),
+                expected: '{status=queued}\nWrite the scene'
+            },
+            {
+                name: 'writeStateBlock: replaces in place, instruction untouched',
+                run: () => writeStateBlock('{status=queued}\nWrite the scene\n\nWith {braces} inside', new Map([['status', 'running'], ['attempts', '1']])),
+                expected: '{status=running, attempts=1}\nWrite the scene\n\nWith {braces} inside'
+            },
+            {
+                name: 'instructionText: strips block and one newline',
+                run: () => instructionText('{status=queued}\n\nTwo newlines before'),
+                expected: '\nTwo newlines before'
+            },
+            {
+                name: 'instructionText: no block returns text unchanged',
+                run: () => instructionText('Plain instruction'),
+                expected: 'Plain instruction'
+            },
+
+            // retryLimit
+            {
+                name: 'retryLimit: defaults to 3',
+                run: () => retryLimit(new Map()),
+                expected: 3
+            },
+            {
+                name: 'retryLimit: per-task override',
+                run: () => retryLimit(new Map([['retry_limit', '5']])),
+                expected: 5
+            },
+
+            // applyTermination: one row per spec table entry
+            {
+                name: 'finish: failures=0, done, fold done with summary',
+                run: () => run(false, { kind: 'finish', summary: 'All good' }, atTwo),
+                expected: { state: { status: 'done', attempts: '3', failures: '0' }, fold: { value: 'done', text: 'All good' } }
+            },
+            {
+                name: 'suspend after work: failures reset, queued without children',
+                run: () => run(false, { kind: 'suspend', workDone: true }, atTwo),
+                expected: { state: { status: 'queued', attempts: '3', failures: '0' }, fold: null }
+            },
+            {
+                name: 'suspend after work: waiting with child tasks',
+                run: () => run(true, { kind: 'suspend', workDone: true }, fresh),
+                expected: { state: { status: 'waiting', attempts: '1', failures: '0' }, fold: null }
+            },
+            {
+                name: 'bare suspend: failures+1, queued',
+                run: () => run(false, { kind: 'suspend', workDone: false }, fresh),
+                expected: { state: { status: 'queued', attempts: '1', failures: '1' }, fold: null }
+            },
+            {
+                name: 'bare suspend: failures+1, waiting with child tasks',
+                run: () => run(true, { kind: 'suspend', workDone: false }, fresh),
+                expected: { state: { status: 'waiting', attempts: '1', failures: '1' }, fold: null }
+            },
+            {
+                name: 'no_commands: failures+1, rest status by children',
+                run: () => run(true, { kind: 'no_commands' }, fresh),
+                expected: { state: { status: 'waiting', attempts: '1', failures: '1' }, fold: null }
+            },
+            {
+                name: 'aborted: counters untouched, queued',
+                run: () => run(true, { kind: 'aborted' }, atTwo),
+                expected: { state: { status: 'queued', attempts: '3', failures: '2' }, fold: null }
+            },
+            {
+                name: 'error: failures+1, queued even with child tasks',
+                run: () => run(true, { kind: 'error', message: 'boom' }, fresh),
+                expected: { state: { status: 'queued', attempts: '1', failures: '1' }, fold: null }
+            },
+            {
+                name: 'depth_limit: failures+1, queued even with child tasks',
+                run: () => run(true, { kind: 'depth_limit' }, fresh),
+                expected: { state: { status: 'queued', attempts: '1', failures: '1' }, fold: null }
+            },
+            {
+                name: 'retry limit via no_commands: failed, reason no progress',
+                run: () => run(false, { kind: 'no_commands' }, atTwo),
+                expected: { state: { status: 'failed', attempts: '3', failures: '3' }, fold: { value: 'failed', text: 'no progress' } }
+            },
+            {
+                name: 'retry limit via bare suspend: failed, reason no progress',
+                run: () => run(false, { kind: 'suspend', workDone: false }, atTwo),
+                expected: { state: { status: 'failed', attempts: '3', failures: '3' }, fold: { value: 'failed', text: 'no progress' } }
+            },
+            {
+                name: 'retry limit via error: failed, reason is the error message',
+                run: () => run(false, { kind: 'error', message: 'API Error: 500' }, atTwo),
+                expected: { state: { status: 'failed', attempts: '3', failures: '3' }, fold: { value: 'failed', text: 'API Error: 500' } }
+            },
+            {
+                name: 'retry limit via depth_limit: failed, reason depth limit reached',
+                run: () => run(false, { kind: 'depth_limit' }, atTwo),
+                expected: { state: { status: 'failed', attempts: '3', failures: '3' }, fold: { value: 'failed', text: 'depth limit reached' } }
+            },
+            {
+                name: 'per-task retry_limit honored',
+                run: () => run(false, { kind: 'error', message: 'x' }, [['status', 'running'], ['failures', '0'], ['retry_limit', '1']]),
+                expected: { state: { status: 'failed', failures: '1', retry_limit: '1' }, fold: { value: 'failed', text: 'x' } }
+            },
+            {
+                name: 'missing failures counter throws',
+                run: () => run(false, { kind: 'error', message: 'x' }, [['status', 'running']]),
+                throws: 'missing failures'
+            },
+            {
+                name: 'unknown outcome kind throws',
+                run: () => run(false, { kind: 'mystery' }, fresh),
+                throws: 'unknown outcome kind'
+            }
+        ];
+
+        const resultsDiv = document.getElementById('results');
+        const summaryDiv = document.getElementById('summary');
+        let passed = 0;
+        let failed = 0;
+
+        tests.forEach((test, index) => {
+            const testDiv = document.createElement('div');
+            testDiv.className = 'test';
+
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'test-name';
+            nameDiv.textContent = `Test ${index + 1}: ${test.name}`;
+            testDiv.appendChild(nameDiv);
+
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'test-result';
+
+            try {
+                const result = test.run();
+                if (test.throws) {
+                    failed++;
+                    testDiv.classList.add('fail');
+                    resultDiv.innerHTML = `<span class="fail">FAIL</span> - expected an error containing "${test.throws}"<br>` +
+                        `Got: <pre>${JSON.stringify(result, null, 2)}</pre>`;
+                } else if (JSON.stringify(result) === JSON.stringify(test.expected)) {
+                    passed++;
+                    resultDiv.innerHTML = `<span class="pass">PASS</span><br>` +
+                        `Result: <pre>${JSON.stringify(result, null, 2)}</pre>`;
+                } else {
+                    failed++;
+                    testDiv.classList.add('fail');
+                    resultDiv.innerHTML = `<span class="fail">FAIL</span><br>` +
+                        `Expected: <pre>${JSON.stringify(test.expected, null, 2)}</pre>` +
+                        `Got: <pre>${JSON.stringify(result, null, 2)}</pre>`;
+                }
+            } catch (error) {
+                if (test.throws && error.message.includes(test.throws)) {
+                    passed++;
+                    resultDiv.innerHTML = `<span class="pass">PASS</span> - Correctly threw error<br>` +
+                        `Error: ${error.message}`;
+                } else {
+                    failed++;
+                    testDiv.classList.add('fail');
+                    resultDiv.innerHTML = `<span class="fail">ERROR</span><br>` +
+                        `${error.message}`;
+                }
+            }
+
+            testDiv.appendChild(resultDiv);
+            resultsDiv.appendChild(testDiv);
+        });
+
+        summaryDiv.innerHTML = `<h2>Summary</h2>` +
+            `<p>Total: ${tests.length} | ` +
+            `<span class="pass">Passed: ${passed}</span> | ` +
+            `<span class="fail">Failed: ${failed}</span></p>`;
+    </script>
+</body>
+</html>
