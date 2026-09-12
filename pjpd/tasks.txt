@@ -62,6 +62,14 @@ Updated: 2026-09-07T05:21:30Z
 
 Let the model summarize its own chat history. Today the chat docmem is hidden from the model: chat_ roots are filtered out of the roster and expansions, so it never sees its chat root ID or its message node IDs, and the prompts never say the conversation is a docmem. Asked to summarize the conversation, the model instead copied facts into a new docmem and summarized that. Fix: (1) tell the model in the docmem prompt that its conversation is a chat docmem whose messages are sibling leaf nodes under the chat root, and that it may compress older history by calling docmem_add_summary on a contiguous range of them; (2) give it the IDs it needs, preferably through the per-turn $ System.turn() message, e.g. the chat root ID and the IDs of the oldest and newest messages not yet under a summary, without expanding the whole chat into context; (3) verify the summary node is then sent as the collapsed tool-call pair and its children are omitted. Keep chat roots out of the roster otherwise. Alternatives to weigh: the harness could do it automatically (the loop picks the range and makes a separate model call to write the summary text, then calls addSummary itself), or a new dedicated tool such as chat_summarize(summary_text) that takes only the text and lets the framework choose the range, so the model never needs message IDs. Update SPEC_CHAT and add an ARCHITECTURE_LOG entry.
 ----
+Priority:   50
+Status: ToDo
+ID: reasoning-v6tx
+Created: 2026-09-12T23:36:27Z
+Updated: 2026-09-12T23:36:27Z
+
+Make reasoning a checkbox on the Chat page. Currently `REASONING` is a constant in js/agent_loop.js (true), sent as OpenRouter's `reasoning.enabled` in OpenRouterAPI.buildRequestBody and shown in the chat status line. Add an "Include reasoning" checkbox next to the model dropdown in index.html, read it in chat.js / tasks_panel.js when constructing the AgentLoop, and pass it through explicitly (no default parameter) so both the Chat tab and the task harness honor it. Fable requires reasoning on; small models run cheaper with it off.
+----
 Priority:   45
 Status: ToDo
 ID: ctx-schema-85zu

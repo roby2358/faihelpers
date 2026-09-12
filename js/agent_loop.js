@@ -30,7 +30,7 @@ const TEMPERATURE = 0.7;
 // draft plus any hidden reasoning tokens, which count against this budget.
 const MAX_TOKENS = 32000;
 // Sent as OpenRouter's reasoning.enabled and shown in the status line
-const REASONING = false;
+const REASONING = true;
 
 const AGENT_LOOP_OPTION_KEYS = [
     'summaryLine', 'maxDepth', 'signal', 'nudge',
