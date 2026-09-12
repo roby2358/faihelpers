@@ -50,8 +50,8 @@ export class AbortedError extends Error {
  *   maxDepth         turn limit
  *   signal           AbortSignal or null; checked before each model call and each command
  *   nudge            { message, limit } or null: reply to a tool-less response with
- *                    `message` up to `limit` times before ending the run as
- *                    no_commands. null: a tool-less response ends the run.
+ *                    `message(response)` up to `limit` times before ending the
+ *                    run as no_commands. null: a tool-less response ends the run.
  *   onUserMessage, onAssistantMessage, onModelRequest  display callbacks
  *
  * run() resolves to { reason, summary, finalResponse, chatDocmemRootId, workDone }
@@ -104,7 +104,7 @@ export class AgentLoop {
                 if (!this.nudge || toolless >= this.nudge.limit) {
                     return this.finalize(docmemId, 'no_commands', null, finalResponse);
                 }
-                await this.recordUserMessage(this.nudge.message);
+                await this.recordUserMessage(this.nudge.message(finalResponse));
                 continue;
             }
             toolless = 0;

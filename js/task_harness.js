@@ -16,6 +16,14 @@ const RETRY_LIMIT = 3;
 const MAX_DEPTH = 100;
 const NUDGE_LIMIT = 3;
 const NUDGE_MESSAGE = '$ System.turn()\n\nYour last response ran no commands. Act with a pytool block, or call suspend() or finish(summary).';
+const NATIVE_MARKUP_MESSAGE = '$ System.turn()\n\nYour last response wrote native tool-call markup, which this system does not read. Only fenced ```pytool blocks run. Rewrite the same calls inside a pytool fence.';
+
+// Native tool-call syntaxes small models fall back to instead of pytool fences
+const NATIVE_MARKUP = /<｜+DSML｜+|<tool_call>|<function_calls>|<invoke /;
+
+function nudgeFor(response) {
+    return NATIVE_MARKUP.test(response) ? NATIVE_MARKUP_MESSAGE : NUDGE_MESSAGE;
+}
 
 // State block: {key=value, ...} at the start of a task node's text
 
@@ -326,27 +334,27 @@ export class TaskHarness {
     }
 
     // A docmem the worker creates joins its read-set at once, and is recorded
-    // in the task's `read` key so later runs and child tasks see it too
-    routerFor(taskId, chat) {
+    // in the task root's `read` key so every later task in this docmem sees it
+    routerFor(chat) {
         const router = createTaskCommandRouter();
         return async (args, docmem) => {
             const result = await router(args, docmem);
             if (args[0] === 'docmem_create' && result.success) {
-                await this.addToReadSet(taskId, chat, args[1]);
+                await this.addToReadSet(chat, args[1]);
             }
             return result;
         };
     }
 
-    async addToReadSet(taskId, chat, rootId) {
+    async addToReadSet(chat, rootId) {
         if (chat.readSet.includes(rootId)) return;
         chat.readSet.push(rootId);
-        const node = await this.docmem.find(taskId);
+        const node = await this.docmem.find(this.taskRootId);
         const state = this.readState(node);
         const read = readList(state);
         read.push(rootId);
         state.set('read', read.join(' '));
-        await this.writeState(taskId, state);
+        await this.writeState(this.taskRootId, state);
     }
 
     taskMessage(taskId, chatId) {
@@ -381,11 +389,11 @@ export class TaskHarness {
         const readSet = await this.readSetFor(task);
         const chat = this.createChat(chatId, readSet, task.contextName || null);
         await chat.ready();
-        const loop = new AgentLoop(chat, api, this.routerFor(task.id, chat), KNOWN_COMMANDS, {
+        const loop = new AgentLoop(chat, api, this.routerFor(chat), KNOWN_COMMANDS, {
             summaryLine: `task ${task.id}`,
             maxDepth: MAX_DEPTH,
             signal: this.abortController.signal,
-            nudge: { message: NUDGE_MESSAGE, limit: NUDGE_LIMIT },
+            nudge: { message: nudgeFor, limit: NUDGE_LIMIT },
             onUserMessage: () => {},
             onAssistantMessage: () => {},
             onModelRequest: () => {}

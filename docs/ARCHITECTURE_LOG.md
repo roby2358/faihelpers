@@ -174,3 +174,15 @@ Entry format: date, title, decision, rationale, supersedes (if any).
 **Decision.** `docmem_create` fails when the id already names a docmem, with a message that points to `docmem_create_node` for adding to it and to the roster for picking a fresh id. The harness's chat-reuse test is `isChatRoot`, keyed on `chat_session`, the context type chat roots actually carry.
 
 **Rationale.** A worker called `docmem_create("story")`, the id of its own task docmem, was told it succeeded, and wrote eleven paragraphs into the task tree. Opening an existing root silently is right for the framework's own constructor but wrong for a model command. The reuse check compared against `chat`, so no rerun ever continued its conversation and each attempt left an orphan chat.
+
+## 2026-09-12: Created docmems are recorded on the task root
+
+**Delta:** When a worker's `docmem_create` succeeds, the new root is appended to the `read` key of the task root, not of the running task.
+
+**Rationale:** Writing to the running task only reached that task and its children. Sibling tasks queued after it (the normal pipeline: create, then revise passes) inherited nothing and ran with the story docmem outside their context; one worker rewrote the whole story from search snippets. The task root is an ancestor of every task in the docmem, so a key there reaches all later tasks. At short-story scale full visibility is the intent.
+
+## 2026-09-12: Nudge names native tool-call markup
+
+**Delta.** `AgentLoop`'s `nudge.message` is a function of the tool-less response. The task harness returns a markup-specific nudge when the response contains a native tool-call syntax (`<｜DSML｜>`, `<tool_call>`, `<function_calls>`, `<invoke>`), telling the model that only fenced pytool blocks run.
+
+**Rationale.** A Flash 4.1 worker wrote every call in DeepSeek's DSML markup, including six story rewrites and repeated `finish()` calls, and never left that format across three attempts and ten generic nudges. Naming the mistake costs nothing and gives a stuck small model a way out.

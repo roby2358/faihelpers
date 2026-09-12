@@ -24,7 +24,7 @@ AgentLoop is the reusable LLM query/response loop. It is run by the chat UI for 
 | `summaryLine`        | short label written to the chat root's text                                               |
 | `maxDepth`           | turn limit                                                                                |
 | `signal`             | AbortSignal or null, checked before each model call and before each command; passed to the API |
-| `nudge`              | `{ message, limit }` or null: reply to a tool-less response with `message`, up to `limit` times |
+| `nudge`              | `{ message, limit }` or null: reply to a tool-less response with `message(response)`, up to `limit` times |
 | `onUserMessage`, `onAssistantMessage`, `onModelRequest` | display callbacks                                      |
 
 ### Docmem Structure
@@ -47,7 +47,7 @@ The loop MUST NOT create summary nodes. Compressing chat history is an explicit 
 2. Build the message list from the chat docmem.
 3. Call the LLM API with the message list and the signal.
 4. Record the response as an assistant-role node.
-5. Extract command blocks. If there are none: without `nudge`, or once `limit` consecutive tool-less responses have been seen, terminate with `no_commands`; otherwise record `nudge.message` as a user-role node and return to step 1.
+5. Extract command blocks. If there are none: without `nudge`, or once `limit` consecutive tool-less responses have been seen, terminate with `no_commands`; otherwise record `nudge.message(response)` as a user-role node and return to step 1.
 6. Execute each command in order, checking the signal before each. A `suspend` or `finish` result is noted and execution continues with the remaining commands in the block.
 7. Record the collected results as a single user-role node.
 8. If `suspend` or `finish` was noted, terminate with that reason. Otherwise return to step 1.
