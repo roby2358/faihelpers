@@ -6,6 +6,22 @@ Updated: 2026-07-03T01:55:47Z
 
 Implement persistence for the SQLite database using IndexedDB so that docmem data survives page reloads and browser sessions. Serialize the database state to IndexedDB on save operations and restore it when loading a docmem instance.
 ----
+Priority:   70
+Status: ToDo
+ID: task-harness-ci7c
+Created: 2026-09-12T05:37:21Z
+Updated: 2026-09-12T05:37:21Z
+
+Implement the delegated task harness per docs/TASK_DELEGATION_SPEC.md. The harness is bound to a single task docmem for its lifetime and always looks there for work. Tasks are nodes in a tree; the harness picks the next task in depth-first preorder that is not a summary node and not done, seeds an AgentLoop with the task path (ancestor and earlier-sibling context) plus the task's read-set, and runs it. Agents treat the task node as around-advice: they may create child task nodes then call suspend() so the child is picked up next, or defer a task by moving its node and suspending. A finished task is folded into an inserted summary node. Task state (status, attempts, failures, model override) lives in a {key=value, ...} block in the task node text, interpreted by agents, so the format is loose with common key names and integer values. Replaces delegate() and complete() with suspend().
+----
+Priority:   70
+Status: ToDo
+ID: task-panel-p4cf
+Created: 2026-09-12T05:37:29Z
+Updated: 2026-09-12T05:37:29Z
+
+Add a Tasks tab to the harness UI that renders the bound task docmem as a task tree: one row per task node showing its instruction, the parsed {key=value} state block (status, attempts, failures, model), and which node is currently executing; summary nodes rendered collapsed with the folded originals expandable underneath. Include Stop and Run buttons, live refresh as the harness updates nodes, and the ability to add, reorder (move), edit, and delete task nodes by hand between jobs. The View tab can already render the docmem, but this panel is purpose-built for tasks.
+----
 Priority:   65
 Status: ToDo
 ID: sensory-3eiu
@@ -30,13 +46,21 @@ Updated: 2026-09-07T00:33:50Z
 
 Scope docmem context per agent instead of expanding every non-chat docmem into every turn. DocmemChat.buildMessageList should accept an explicit read-set (list of root or node ids) and expand only those; the root chat keeps the current expand-all behavior by default. This is the prerequisite for fiction work where a full manuscript plus character and timeline docmems would otherwise ride along on every worker turn. Update SPEC_CHAT.md.
 ----
-Priority:   60
+Priority:   65
 Status: ToDo
-ID: task-queue-9uvz
-Created: 2026-09-07T00:33:54Z
-Updated: 2026-09-07T00:33:54Z
+ID: stop-run-7nif
+Created: 2026-09-12T05:37:36Z
+Updated: 2026-09-12T05:37:36Z
 
-Write docs/SPEC_TASKS.md and implement a task-queue runner. Tasks are nodes in a task docmem: context_type task, context_name the lens or pass name, context_value the status (queued, claimed, done, failed), text the instruction, with child nodes for the read-set, target node, optional model override, and the result summary. The runner is plain JavaScript: pick the first queued node, mark it claimed, run an AgentLoop seeded with the task, record the result under the task, mark done, repeat. Workers continue multi-round work only by enqueueing new task nodes. No master agent. Keep delegate() for synchronous sub-questions. Mark SPEC_AGENTS.md superseded by SPEC_DELEGATE.md and SPEC_TASKS.md.
+Add Stop and Run controls for the task harness. Stop pauses the executing agent: the running AgentLoop is cancelled via an AbortController at the next safe point (between API call and command execution, or between turns), the in-flight task node keeps its state block so it can be resumed, and the harness stops dequeuing. Run resumes: the harness re-reads the task docmem and picks the next task in depth-first order. Stop must also cover any in-flight OpenRouter request via the fetch abort signal.
+----
+Priority:   65
+Status: ToDo
+ID: summ-nonleaf-7ky9
+Created: 2026-09-12T05:46:01Z
+Updated: 2026-09-12T05:46:01Z
+
+Allow docmem_add_summary (Docmem.addSummary) to summarize a contiguous range of sibling nodes that have children, not only leaf nodes. The summary node becomes the parent of the range and each node keeps its own subtree beneath it. Needed so the task harness can fold a task that has child tasks into a summary node. Update SPEC_DOCMEM (Summary Operations) and the docmem_add_summary docstring in docmem_prompt.js, and check that expansion and serialization skip the whole subtree under a summary node.
 ----
 Priority:   60
 Status: ToDo
@@ -173,6 +197,14 @@ Created: 2026-07-03T02:06:03Z
 Updated: 2026-07-03T02:06:03Z
 
 For docmems whose context serialization is truncated ([partial: ...]), consider auto-including the omitted structure as a second framework-generated fake system call, e.g. $ System.docmem_structure_to_context("<id>") followed by the skeleton of the subtrees that were left out. Saves the agent a turn of calling docmem_structure itself. Follow the established fake-call conventions: System. prefix, name distinct from the real docmem_structure command if output differs, byte-stable output for prompt caching.
+----
+Priority:   35
+Status: ToDo
+ID: chat-retain-fjbv
+Created: 2026-09-12T05:51:10Z
+Updated: 2026-09-12T05:51:10Z
+
+Define and implement a retention policy for chat docmems. Every agent run creates a chat_ docmem, and under the task harness each task node owns one (recorded in its state block), so they accumulate for the life of the page. Everything is in-memory today, so this is not urgent, but decide: keep a task's chat until the task is folded and then delete it, keep the N most recent, keep until the user clears them from the Tasks panel, or fold old chats into a summary node. Whatever the policy, the Tasks panel should let the user open the chat for any task node while it still exists, and TOML save/load should treat retained chats consistently.
 ----
 Priority:   30
 Status: ToDo

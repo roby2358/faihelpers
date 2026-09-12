@@ -32,6 +32,14 @@ Refresh the OpenRouter model dropdown in index.html against the published list a
 ----
 Priority:   60
 Status: Done
+ID: task-queue-9uvz
+Created: 2026-09-07T00:33:54Z
+Updated: 2026-09-12T05:37:19Z
+
+Write docs/SPEC_TASKS.md and implement a task-queue runner. Tasks are nodes in a task docmem: context_type task, context_name the lens or pass name, context_value the status (queued, claimed, done, failed), text the instruction, with child nodes for the read-set, target node, optional model override, and the result summary. The runner is plain JavaScript: pick the first queued node, mark it claimed, run an AgentLoop seeded with the task, record the result under the task, mark done, repeat. Workers continue multi-round work only by enqueueing new task nodes. No master agent. Keep delegate() for synchronous sub-questions. Mark SPEC_AGENTS.md superseded by SPEC_DELEGATE.md and SPEC_TASKS.md.
+----
+Priority:   60
+Status: Done
 ID: chat-ui-q4w8
 Created: 2026-07-03T01:55:40Z
 Updated: 2026-07-03T01:55:40Z
