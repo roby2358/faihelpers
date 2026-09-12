@@ -33,7 +33,7 @@ root            context_type=task_list  context_name=<name>  context_value=<ISO8
 
 - Root: `context_type = task_list`, `context_name` a human label, `context_value` the ISO8601 creation timestamp.
 - Task: `context_type = task`, `context_name` the lens name (MAY be empty), `context_value` unused (reserved).
-- Summary: `context_type = summary`, `context_name = task`, `context_value = done` or `failed`. The summary node is the authoritative record that a task finished and how; the `status` left on the task node beneath it is informational.
+- Summary: `context_type = summary`, `context_name = task`, `context_value = done` or `failed`. The summary node is the authoritative record that a task finished and how; the `status` left on the task node beneath it is archival. Nothing beneath a summary is ever executed: the harness does not descend into summaries, and anything that does is outside this spec.
 - Task nodes MUST be written with `readonly = 0`. The harness and workers both update them.
 
 ### State block
@@ -50,9 +50,8 @@ Conventional keys:
 |---------------|-----------------|------------------------------------------------------------------|
 | `status`      | harness, worker | `queued`, `running`, `waiting`, `done`, `failed`                  |
 | `attempts`    | harness         | number of runs started; informational, no rule reads it           |
-| `failures`    | harness         | number of runs that ended in an error or depth limit              |
-| `yields`      | harness         | consecutive runs that ended as a plain yield (no work done)       |
-| `retry_limit` | worker, user    | per-task limit on `failures` and on `yields` (default 3)          |
+| `failures`    | harness         | consecutive runs that ended without progress (error, depth limit, or plain yield) |
+| `retry_limit` | worker, user    | per-task limit on `failures` (default 3)                          |
 | `model`       | worker, user    | OpenRouter model id override for this task                        |
 | `chat`        | harness         | chat docmem root id for this task; reused on every run            |
 | `read`        | worker, user    | read-set: space-separated node ids to expand                      |
@@ -60,7 +59,7 @@ Conventional keys:
 
 Workers MAY add keys of their own (for example a `notes` counter or a `phase` token); the harness carries them along.
 
-`attempts` counts every run, including the planned revisit of a `waiting` parent, so it is not a retry counter; `failures` and `yields` are.
+`attempts` counts every run, including the planned revisit of a `waiting` parent, so it is not a retry counter; `failures` is.
 
 ### Who writes when
 
@@ -129,16 +128,16 @@ Every run ends in exactly one of these ways. The harness writes the state block 
 
 | how the run ended                          | counters                        | resulting status                     | fold            |
 |--------------------------------------------|---------------------------------|--------------------------------------|-----------------|
-| `finish(summary)`                          | `yields=0`                      | `done`                               | `done`, summary |
-| `suspend()` after other commands           | `yields=0`                      | `waiting` if child tasks, else `queued` | none         |
-| bare `suspend()` (only command in the run) | `yields+1`                      | as above                             | none            |
-| three consecutive tool-less responses      | `yields+1`                      | as above                             | none            |
+| `finish(summary)`                          | `failures=0`                    | `done`                               | `done`, summary |
+| `suspend()` after other commands           | `failures=0`                    | `waiting` if child tasks, else `queued` | none         |
+| bare `suspend()` (only command in the run) | `failures+1`                    | as above                             | none            |
+| three consecutive tool-less responses      | `failures+1`                    | as above                             | none            |
 | Stop (AbortController)                     | none                            | `queued`                             | none            |
 | API error, execution error, depth limit    | `failures+1`                    | `queued`                             | none            |
-| `failures` reaches the retry limit         |                                 | `failed`                             | `failed`, error text |
-| `yields` reaches the retry limit           |                                 | `failed`                             | `failed`, "no progress" |
+| `failures` reaches the retry limit         |                                 | `failed`                             | `failed`, reason |
 
-- The retry limit defaults to 3 and MAY be overridden per task with the `retry_limit` key.
+- The retry limit defaults to 3 and MAY be overridden per task with the `retry_limit` key. `failures` counts consecutive unproductive runs; a run that does work resets it, so a task that alternates progress and errors is not folded as failed.
+- The `failed` summary's reason is the error text when the last run ended in an error or depth limit, and "no progress" when it ended as a plain yield.
 - Folding inserts a summary node above the task node with `context_type=summary`, `context_name=task`, and `context_value` as shown. Failed tasks are folded so the tree still compresses and later tasks see what went wrong.
 - A task returned to `queued` runs before its own children (preorder), even if the interrupted or failed run created some. Its `chat` key is kept, so the worker continues the same conversation and sees what it already did.
 - A `failed` task is never selected again unless the user or an agent resets its status.
