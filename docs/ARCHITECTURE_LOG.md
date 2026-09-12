@@ -162,3 +162,9 @@ Entry format: date, title, decision, rationale, supersedes (if any).
 **Decision.** `TaskHarness` termination is a lookup table keyed by how the run ended (`TERMINATION`) applied by a pure `applyTermination(state, hasChildTasks, outcome)`; `finish` and `aborted` are the two early-exit rows. The harness takes a `credentials` accessor instead of an API factory plus default model, and every constructor option is required. Counters (`attempts`, `failures`) are written explicitly on a task's first run instead of being defaulted at each read; `retry_limit` remains the one optional key, read in a single `retryLimit()` function. A malformed state block logs a warning. The `chat` key is reused only when it names a chat root. Tree walks use a shared `Docmem.preorder(rootId, descend)` generator.
 
 **Rationale.** Branching on the outcome kind in several places smeared each row of the spec's termination table across the function; a table keeps each row in one place and lets the table be tested without DuckDB. Default parameters multiply the conditions a test has to cover, so callers now pass every value.
+
+## 2026-09-12 — Unterminated pytool blocks run; created docmems join the read-set
+
+**Decision.** A ```` ```pytool ```` block with no closing fence runs to the end of the response (`extractPytoolCalls`, exported and tested). When a worker's `docmem_create` succeeds, the harness adds the new root to the live read-set and to the task's `read` key.
+
+**Rationale.** A dump of a five-task run showed two workers whose closing fence was missing after a long `docmem_update_content`; both the edit and the `finish()` were dropped and the model was nudged for "no commands". Another worker created the story docmem and could never see it, because the read-set is built from `read` keys the user never set; it spent 78 turns reconstructing chapters from search snippets. Both are wasted spend that the framework can prevent.

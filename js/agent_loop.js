@@ -6,7 +6,24 @@
  */
 import { parse as parsePytool } from './pytool/pytool_parser.js';
 
-const PYTOOL_BLOCK = /```pytool\s*\n([\s\S]*?)```/gi;
+// A block runs to its closing fence or, when the model omits the fence, to
+// the end of the response. Silently dropping an unterminated block cost a
+// finish() call and a full chapter rewrite in one observed run.
+const PYTOOL_BLOCK = /```pytool\s*\n([\s\S]*?)(?:```|$)/gi;
+
+export function extractPytoolCalls(text) {
+    const allCalls = [];
+    let match;
+    while ((match = PYTOOL_BLOCK.exec(text)) !== null) {
+        try {
+            allCalls.push(...parsePytool(match[1]));
+        } catch (error) {
+            allCalls.push({ name: '__parse_error__', args: [error.message], _error: true });
+        }
+    }
+    PYTOOL_BLOCK.lastIndex = 0;
+    return allCalls;
+}
 
 const TEMPERATURE = 0.7;
 // Ceiling on completion length, not a spend target. Covers a full scene
@@ -135,17 +152,7 @@ export class AgentLoop {
     // Pytool Extraction
 
     extractPytoolCalls(text) {
-        const allCalls = [];
-        let match;
-        while ((match = PYTOOL_BLOCK.exec(text)) !== null) {
-            try {
-                allCalls.push(...parsePytool(match[1]));
-            } catch (error) {
-                allCalls.push({ name: '__parse_error__', args: [error.message], _error: true });
-            }
-        }
-        PYTOOL_BLOCK.lastIndex = 0;
-        return allCalls;
+        return extractPytoolCalls(text);
     }
 
     // Call Execution

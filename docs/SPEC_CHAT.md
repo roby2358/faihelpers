@@ -46,6 +46,8 @@ The node block format above is the same identity line the agent sees from `docme
 
 ## Command Results
 
+A pytool block opens with a ```` ```pytool ```` fence and runs to its closing fence or, when the closing fence is missing, to the end of the response.
+
 Command output is fed back to the model as a user-role message, one per executed pytool block.
 
 - Each command contributes one paragraph, in call order, separated by blank lines.

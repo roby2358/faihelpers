@@ -94,6 +94,7 @@ The worker's message list follows SPEC_CHAT with these differences:
 - The docmem context messages MUST include the whole task docmem, expanded from its root, with summary nodes shown but their children omitted (the normal summary rule). The worker therefore sees where the work stands: what is folded, what is queued, and its own position in the tree.
 - The docmem context messages MUST include every node named in the task's `read` key and in the `read` keys of its ancestors up to and including the task docmem root, expanded from the named node. This is the read-set. A named node inside a summary MUST be expanded even though the summary rule would otherwise omit it, so a task can peek inside folded work when it needs the detail.
 - The lens named in `context_name`, if any, is included as a system prompt docmem after the root prompt.
+- When a worker's `docmem_create` succeeds, the new root joins the read-set immediately (it is expanded from the next model call on) and is appended to the task's `read` key, so later runs of the task and its child tasks see it too. This is the one write the harness makes to the task docmem during a run; it happens inside the command, between the worker's commands, so the two never write concurrently.
 - Other docmems are NOT included: a worker sees only the root prompt, its lens, the task docmem, and its read-set. The roster message still lists every non-chat root so a worker can address any docmem by id.
 
 ### Task message

@@ -209,3 +209,13 @@ Created: 2026-07-03T02:06:08Z
 Updated: 2026-07-03T02:06:08Z
 
 Docmem focus state (Docmem.focusByRoot) is global per docmem root, so a parent agent and its delegated child share focus — if the child focuses a subtree, the parent's next turn also sees only that subtree. Currently accepted as intentional (docmems are shared by design), but revisit whether focus should be scoped per chat/agent (e.g., key the registry by chatId+rootId) once delegation gets real use. Design decision, not a bug.
+----
+Priority:   10
+Status: ToDo
+ID: ctxvisible-4xwb
+Created: 2026-09-12T19:07:54Z
+Updated: 2026-09-12T19:30:06Z
+
+ON HOLD (2026-09-12): models get tool-happy, and a command that lets them read more would let them blow up their own context. The docmem_create hook that adds a created docmem to the live read-set and the task's `read` key is expected to cover the observed problem. Revisit only if a run shows a worker starved of context it cannot get by creating a docmem or by a user-set `read=` key.
+
+Original proposal: give agents explicit control over which docmem nodes are expanded into their context: commands to add a node (or docmem root) to the context and to remove one, usable by both the chat agent and task workers. Today only task workers have a read-set, built from the task's `read` state key and extended automatically when the worker creates a docmem; the chat agent sees every non-chat docmem and docmem_focus narrows one docmem to a subtree. Design so the new commands and the read-set are one mechanism, not two: e.g. the add/remove commands edit the task's `read` key when run by a worker, and edit an equivalent per-chat list when run by the chat agent, with docmem_focus either folded in or clearly subordinate. The commands must take effect on the live read-set for the next model call, not only at the next run: the read-set is currently computed once at run start, so a worker that writes `read=` into its own state block sees nothing until it suspends and reruns. The worker task message must name the commands (or the `read` key); today nothing the worker sees mentions the read-set, which is why a worker that had every chapter id from search and docmem_structure spent 78 turns reconstructing the story from snippets. Update TASK_DELEGATION_SPEC (Worker context, Task message), SPEC_CHAT (docmem context messages), and the docmem_focus result text, which currently promises a full-tree serialization that a scoped read-set does not honor.

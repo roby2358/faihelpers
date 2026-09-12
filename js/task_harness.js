@@ -21,6 +21,10 @@ const NUDGE_MESSAGE = '$ System.turn()\n\nYour last response ran no commands. Ac
 
 const STATE_BLOCK = /^\s*\{([^}]*)\}/;
 
+export function readList(state) {
+    return (state.get('read') || '').split(/\s+/).filter(Boolean);
+}
+
 export function parseStateBlock(text) {
     const match = STATE_BLOCK.exec(text || '');
     if (!match) {
@@ -310,14 +314,35 @@ export class TaskHarness {
         const ids = [this.taskRootId];
         let current = node;
         while (current) {
-            const read = this.readState(current).get('read');
-            if (read) {
-                ids.push(...read.split(/\s+/).filter(Boolean));
-            }
+            ids.push(...readList(this.readState(current)));
             if (current.id === this.taskRootId) break;
             current = await this.docmem.find(current.parentId);
         }
         return [...new Set(ids)];
+    }
+
+    // A docmem the worker creates joins its read-set at once, and is recorded
+    // in the task's `read` key so later runs and child tasks see it too
+    routerFor(taskId, chat) {
+        const router = createTaskCommandRouter();
+        return async (args, docmem) => {
+            const result = await router(args, docmem);
+            if (args[0] === 'docmem_create' && result.success) {
+                await this.addToReadSet(taskId, chat, args[1]);
+            }
+            return result;
+        };
+    }
+
+    async addToReadSet(taskId, chat, rootId) {
+        if (chat.readSet.includes(rootId)) return;
+        chat.readSet.push(rootId);
+        const node = await this.docmem.find(taskId);
+        const state = this.readState(node);
+        const read = readList(state);
+        read.push(rootId);
+        state.set('read', read.join(' '));
+        await this.writeState(taskId, state);
     }
 
     taskMessage(taskId, chatId) {
@@ -352,7 +377,7 @@ export class TaskHarness {
         const readSet = await this.readSetFor(task);
         const chat = this.createChat(chatId, readSet, task.contextName || null);
         await chat.ready();
-        const loop = new AgentLoop(chat, api, createTaskCommandRouter(), KNOWN_COMMANDS, {
+        const loop = new AgentLoop(chat, api, this.routerFor(task.id, chat), KNOWN_COMMANDS, {
             summaryLine: `task ${task.id}`,
             maxDepth: MAX_DEPTH,
             signal: this.abortController.signal,

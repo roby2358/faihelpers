@@ -64,8 +64,9 @@
     <script type="module">
         import {
             parseStateBlock, formatStateBlock, writeStateBlock, instructionText,
-            retryLimit, applyTermination
+            retryLimit, applyTermination, readList
         } from './task_harness.js';
+        import { extractPytoolCalls } from './agent_loop.js';
 
         // Each test returns a value; `expected` is compared by JSON. Tests with
         // `throws` pass when the call throws an error whose message contains it.
@@ -78,7 +79,47 @@
         const fresh = [['status', 'running'], ['attempts', '1'], ['failures', '0']];
         const atTwo = [['status', 'running'], ['attempts', '3'], ['failures', '2']];
 
+        const calls = (text) => extractPytoolCalls(text).map(c => c._error ? 'parse_error' : c.name);
+
         const tests = [
+            // extractPytoolCalls
+            {
+                name: 'extractPytoolCalls: closed block',
+                run: () => calls('Hi\n```pytool\nfinish("done")\n```\nbye'),
+                expected: ['finish']
+            },
+            {
+                name: 'extractPytoolCalls: unterminated block runs to end of text',
+                run: () => calls('Hi\n```pytool\ndocmem_update_content("n1", "x")\nfinish("done")\n'),
+                expected: ['docmem_update_content', 'finish']
+            },
+            {
+                name: 'extractPytoolCalls: two blocks, second unterminated',
+                run: () => calls('```pytool\nsuspend()\n```\ntext\n```pytool\nfinish("d")'),
+                expected: ['suspend', 'finish']
+            },
+            {
+                name: 'extractPytoolCalls: other fences ignored',
+                run: () => calls('```python\nfinish("d")\n```'),
+                expected: []
+            },
+            {
+                name: 'extractPytoolCalls: parse error reported',
+                run: () => calls('```pytool\nfinish("d\n```'),
+                expected: ['parse_error']
+            },
+
+            // readList
+            {
+                name: 'readList: missing key is empty',
+                run: () => readList(new Map()),
+                expected: []
+            },
+            {
+                name: 'readList: splits on whitespace',
+                run: () => readList(new Map([['read', ' a  b ']])),
+                expected: ['a', 'b']
+            },
             // parseStateBlock
             {
                 name: 'parseStateBlock: missing block reads as queued',
