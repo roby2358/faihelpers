@@ -105,7 +105,7 @@ The seeded user message MUST be a pretend invocation in the established style:
 $ System.task("<task_node_id>", chat="<chat_root_id>")
 ```
 
-followed by a short fixed instruction block explaining around advice, the state block, and the `suspend` and `finish` commands. The task node itself, with its state block and instruction, is not repeated because it is already visible in the task docmem context; the message carries the two ids so the worker can address its own node and its own chat with the docmem tools.
+followed by a short fixed instruction block explaining around advice, the state block, and the `suspend` and `finish` commands, and warning the worker not to recreate already-queued sibling tasks as children (an observed failure: a worker copied its three sibling reviews under itself, so each ran twice). The task node itself, with its state block and instruction, is not repeated because it is already visible in the task docmem context; the message carries the two ids so the worker can address its own node and its own chat with the docmem tools.
 
 ## Suspend and Finish Commands
 

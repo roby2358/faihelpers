@@ -168,3 +168,9 @@ Entry format: date, title, decision, rationale, supersedes (if any).
 **Decision.** A ```` ```pytool ```` block with no closing fence runs to the end of the response (`extractPytoolCalls`, exported and tested). When a worker's `docmem_create` succeeds, the harness adds the new root to the live read-set and to the task's `read` key.
 
 **Rationale.** A dump of a five-task run showed two workers whose closing fence was missing after a long `docmem_update_content`; both the edit and the `finish()` were dropped and the model was nudged for "no commands". Another worker created the story docmem and could never see it, because the read-set is built from `read` keys the user never set; it spent 78 turns reconstructing chapters from search snippets. Both are wasted spend that the framework can prevent.
+
+## 2026-09-12 — docmem_create refuses an existing root; chat reuse check fixed
+
+**Decision.** `docmem_create` fails when the id already names a docmem, with a message that points to `docmem_create_node` for adding to it and to the roster for picking a fresh id. The harness's chat-reuse test is `isChatRoot`, keyed on `chat_session`, the context type chat roots actually carry.
+
+**Rationale.** A worker called `docmem_create("story")`, the id of its own task docmem, was told it succeeded, and wrote eleven paragraphs into the task tree. Opening an existing root silently is right for the framework's own constructor but wrong for a model command. The reuse check compared against `chat`, so no rerun ever continued its conversation and each attempt left an orphan chat.

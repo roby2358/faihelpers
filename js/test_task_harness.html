@@ -64,9 +64,10 @@
     <script type="module">
         import {
             parseStateBlock, formatStateBlock, writeStateBlock, instructionText,
-            retryLimit, applyTermination, readList
+            retryLimit, applyTermination, readList, isChatRoot
         } from './task_harness.js';
         import { extractPytoolCalls } from './agent_loop.js';
+        import { createExistsMessage } from './docmem_tools/docmem_commands.js';
 
         // Each test returns a value; `expected` is compared by JSON. Tests with
         // `throws` pass when the call throws an error whose message contains it.
@@ -107,6 +108,29 @@
                 name: 'extractPytoolCalls: parse error reported',
                 run: () => calls('```pytool\nfinish("d\n```'),
                 expected: ['parse_error']
+            },
+
+            // isChatRoot
+            {
+                name: 'isChatRoot: chat_session root',
+                run: () => isChatRoot({ parentId: null, contextType: 'chat_session' }),
+                expected: true
+            },
+            {
+                name: 'isChatRoot: null, non-root, and other root types rejected',
+                run: () => [
+                    isChatRoot(null),
+                    isChatRoot({ parentId: 'x', contextType: 'chat_session' }),
+                    isChatRoot({ parentId: null, contextType: 'task_list' })
+                ],
+                expected: [false, false, false]
+            },
+
+            // createExistsMessage
+            {
+                name: 'createExistsMessage: names the id and both alternatives',
+                run: () => { const m = createExistsMessage('story'); return [m.includes('docmem story already exists'), m.includes('"append-child", "story"'), m.includes('docmem_roots')]; },
+                expected: [true, true, true]
             },
 
             // readList

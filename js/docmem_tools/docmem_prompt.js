@@ -66,6 +66,7 @@ def docmem_create(root_id: str):
 
     root_id: string 0-24 chars. This is the ONLY node_id you specify yourself.
     Returns: docmem_create: created docmem <root_id>
+    Fails if root_id is already a docmem; add to it with docmem_create_node instead.
     Note: does NOT require an active docmem instance.
     """
 \`\`\`

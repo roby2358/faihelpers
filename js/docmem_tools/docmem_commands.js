@@ -3,6 +3,14 @@
  */
 import { Docmem } from './docmem.js';
 
+// A model that "creates" an existing docmem is usually about to write into
+// the wrong tree. Refuse, and say what it can do instead.
+export function createExistsMessage(rootId) {
+    return `docmem ${rootId} already exists, nothing was created. ` +
+        `To add to that docmem, call docmem_create_node("append-child", "${rootId}", ...). ` +
+        `To start a new docmem, call docmem_create with an id not in the $ System.docmem_roots() list.`;
+}
+
 export const KNOWN_DOCMEM_COMMANDS = new Set([
     'docmem_create',
     'docmem_create_node',
@@ -73,6 +81,10 @@ export class DocmemCommands {
 
     async create(rootId) {
         const validatedRootId = this.validateFieldLength(rootId, 'root-id', 'docmem_create', true);
+        const roots = await Docmem.getAllRoots();
+        if (roots.some(r => r.id === validatedRootId)) {
+            return { success: false, result: createExistsMessage(validatedRootId) };
+        }
         // Docmem is created automatically when instantiated
         const newDocmem = new Docmem(validatedRootId);
         await newDocmem.ready();
