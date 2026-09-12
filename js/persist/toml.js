@@ -344,17 +344,56 @@ export class TomlSerializer {
         return value.replace(/\\"""/g, '"""').trim();
     }
 
-    async saveToFile(docmem, rootId, filename) {
-        const tomlContent = await this.serializeToToml(docmem, rootId);
+    // One file holding every docmem: each root's sections in turn, led by a
+    // comment naming the root. Node IDs are globally unique, so sections do
+    // not collide. Meant for offline analysis; load rejects multiple roots.
+    async serializeAllToToml(roots) {
+        const chunks = [];
+        for (const root of roots) {
+            const docmem = new Docmem(root.id);
+            await docmem.ready();
+            const toml = await this.serializeToToml(docmem, root.id);
+            chunks.push(`# docmem ${root.id}\n${toml}`);
+        }
+        return chunks.join('\n\n');
+    }
+
+    // Save picker (Chromium) lets the user land the file in the repo's toml/
+    // directory and remembers it; other browsers get a plain download.
+    async saveToml(tomlContent, filename) {
+        if (!window.showSaveFilePicker) {
+            this.downloadToml(tomlContent, filename);
+            return;
+        }
+        const handle = await window.showSaveFilePicker({
+            suggestedName: filename,
+            types: [{ description: 'TOML', accept: { 'text/plain': ['.toml'] } }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(tomlContent);
+        await writable.close();
+    }
+
+    downloadToml(tomlContent, filename) {
         const blob = new Blob([tomlContent], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = filename || `${rootId}.toml`;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+    }
+
+    async saveToFile(docmem, rootId, filename) {
+        const tomlContent = await this.serializeToToml(docmem, rootId);
+        this.downloadToml(tomlContent, filename);
+    }
+
+    async dumpAllToFile(roots, filename) {
+        const tomlContent = await this.serializeAllToToml(roots);
+        await this.saveToml(tomlContent, filename);
     }
 
     async loadFromFile(file) {

@@ -844,6 +844,7 @@ function initPersist() {
     const uploadParagraphBtn = document.getElementById('persist-upload-paragraph-btn');
     const paragraphFileInput = document.getElementById('persist-paragraph-file-input');
     const removeBtn = document.getElementById('persist-remove-btn');
+    const dumpAllBtn = document.getElementById('persist-dump-all-btn');
 
     if (saveBtn) {
         saveBtn.addEventListener('click', () => handlePersistSave());
@@ -887,6 +888,27 @@ function initPersist() {
 
     if (removeBtn) {
         removeBtn.addEventListener('click', () => handlePersistRemove());
+    }
+
+    if (dumpAllBtn) {
+        dumpAllBtn.addEventListener('click', () => handlePersistDumpAll());
+    }
+}
+
+async function handlePersistDumpAll() {
+    try {
+        const roots = await Docmem.getAllRoots();
+        if (roots.length === 0) {
+            showMessage('No docmem roots found to dump', 'error');
+            return;
+        }
+        const tomlSerializer = new TomlSerializer();
+        await tomlSerializer.dumpAllToFile(roots, 'dump.toml');
+        showMessage(`Dumped ${roots.length} docmems to dump.toml`, 'success');
+    } catch (error) {
+        if (error.name === 'AbortError') return;
+        console.error('Error dumping TOML:', error);
+        showMessage('Error dumping TOML: ' + error.message, 'error');
     }
 }
 
