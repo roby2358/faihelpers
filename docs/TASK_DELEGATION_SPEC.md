@@ -18,7 +18,7 @@ A node with `context_type = task`. Its text begins with a state block, then the 
 
 ### Summary node
 
-A node with `context_type = summary` inserted above a finished task, using the docmem summarize operation (SPEC_DOCMEM, Summary Operations; the operation is extended to accept non-leaf nodes, see pjpd summ-nonleaf-7ky9). Its text is the result summary; the original task subtree is preserved beneath it. The harness never descends into a summary node, and context serialization omits its children, so the tree compresses as work completes.
+A node with `context_type = summary` inserted above a finished task, using the docmem summarize operation (SPEC_DOCMEM, Summary Operations; the operation accepts non-leaf nodes). Its text is the result summary; the original task subtree is preserved beneath it. The harness never descends into a summary node, and context serialization omits its children, so the tree compresses as work completes.
 
 ### State block
 
@@ -45,8 +45,8 @@ A task inherits the read-sets of its ancestors.
 
 ```
 root            context_type=task_list  context_name=<name>  context_value=<ISO8601 created>
-├── task        {status=done ...}         (folded: this is now under a summary)
-│   └── summary node ... original task beneath
+├── summary     context_name=task  context_value=done   (folded: children hidden in context)
+│   └── task    {status=done ...}   original task and any subtasks beneath
 ├── task        {status=queued, attempts=0, failures=0}
 │   ├── task    {status=queued ...}
 │   └── task    {status=queued ...}
@@ -77,8 +77,16 @@ Conventional keys:
 | `model`    | agent, user     | OpenRouter model id override for this task                        |
 | `chat`     | harness         | chat docmem root id used for this task; reused on revisit         |
 | `read`     | agent, user     | read-set: space-separated docmem root or node ids to expand       |
+| `yields`   | harness         | consecutive runs that ended as a plain yield (no work done)       |
+| `updated`  | harness         | ISO8601 time of the harness's last write to this block            |
 
 Agents MAY add keys of their own (for example a `notes` counter or a `phase` token); the harness carries them along.
+
+`attempts` counts every harness start of the task, including the planned revisit of a `waiting` parent, so it is not a retry counter; `failures` and `yields` are.
+
+### Who writes when
+
+The harness and the agent never write the task docmem at the same time. The harness is single-threaded: it writes the state block before the run, hands the docmem to the agent, and does not touch it again until the run ends. During the run the agent is the only writer, through the docmem tools. When the run ends the harness re-reads the task node (the agent may have moved it, added keys, or created children) and rewrites only its own keys. The `status` the harness writes at termination takes precedence over any `status` the agent wrote.
 
 ## Task Selection
 
@@ -96,8 +104,8 @@ Preorder means a parent is reached before its children. This is what makes aroun
 
 For the selected task the harness MUST:
 
-1. Set `status=running`, increment `attempts`, and write the state block.
-2. Resolve the chat docmem: reuse the root id in `chat` if present and it still exists; otherwise create a fresh chat docmem (id prefixed `chat_`) and record it in `chat`. A revisited task continues its own conversation and remembers what it planned. Chat docmems are retained after the task folds; a retention policy is a separate item (pjpd chat-retain).
+1. Set `status=running`, increment `attempts`, set `updated`, and write the state block.
+2. Resolve the chat docmem: reuse the root id in `chat` if present and it still exists; otherwise create a fresh chat docmem (id prefixed `chat_`) and record it in `chat`. A revisited task continues its own conversation and remembers what it planned. Chat docmems are retained after the task folds; a retention policy is out of scope for this spec.
 3. Resolve the API client: use `model` from the state block when present, otherwise the harness's default model.
 4. Build the worker's context (see Worker Context) and run an AgentLoop seeded with the task message.
 5. Interpret the termination (see Termination) and write the resulting state block.
@@ -109,8 +117,8 @@ The worker's message list follows SPEC_CHAT with these differences:
 
 - The docmem context messages MUST include the whole task docmem, expanded from its root, with summary nodes shown but their children omitted (the normal summary rule). The agent therefore sees where the work stands: what is folded, what is queued, and its own position in the tree.
 - The docmem context messages MUST include every docmem or node named in the task's `read` key, and the `read` keys of its ancestors, expanded from the named node. A named node inside a summary MUST be expanded even though the summary rule would otherwise omit it (peeking). If no `read` key is present anywhere on the path, the worker sees only the root prompt and the task docmem.
-- The lens named in `context_name`, if any, is included as a system prompt docmem after the root prompt (lens docmems are a separate item, see pjpd lenses-xk5d).
-- Other docmems are NOT included. This is the read-set scoping from pjpd read-set-32jb.
+- The lens named in `context_name`, if any, is included as a system prompt docmem after the root prompt (lens docmems are specified elsewhere).
+- Other docmems are NOT included. This is the read-set scoping described under Concepts.
 
 ### Task message
 
@@ -119,25 +127,25 @@ The seeded user message MUST be a pretend invocation in the established style:
 ```
 $ System.task("<task_node_id>")
 
-<task_node_id> task:<lens>: <updated_at>
-{status=running, attempts=1, ...}
+<task_node_id> task:<lens>:
+{status=running, attempts=1, chat=chat_..., ...}
 <instruction text>
 ```
 
-followed by a short fixed instruction block explaining around-advice, the state block, and the `suspend` and `finish` commands. Ancestor tasks are not repeated in the message because they are already visible in the task docmem context.
+followed by a short fixed instruction block explaining around-advice, the state block, and the `suspend` and `finish` commands. The task node id and the chat docmem root id appear in the message so the agent can address its own node and its own chat with the docmem tools. Ancestor tasks are not repeated in the message because they are already visible in the task docmem context.
 
 ## Suspend and Finish Commands
 
 `suspend()` and `finish(summary)` replace both `delegate` and `complete`.
 
 - `suspend()` MUST end the current run without folding. The harness then sets `status` according to the tree: `waiting` if the task now has child tasks, otherwise `queued`. Use it after planning children, after moving the task to run later, or to yield when the agent has done a bounded chunk of work and wants the tree re-evaluated.
-- `finish(summary)` MUST end the run and fold the task: the harness inserts a summary node above the task node with the summary text, `context_type=summary`, `context_name=task`, `context_value=done`, and sets the task's `status=done`. The task subtree is preserved beneath the summary. `summary` is required.
+- `finish(summary)` MUST end the run and fold the task: the harness inserts a summary node above the task node with the summary text, `context_type=summary`, `context_name=task`, `context_value=done`, and sets the task's `status=done`. The task subtree is preserved beneath the summary. `summary` is required. Its content is at the agent's discretion; it SHOULD say what was done in enough detail that later tasks and the parent need not peek beneath the summary.
 - Both MUST take effect after the remaining commands in the same pytool block have executed, mirroring today's `complete`.
 - A run that ends without either command is a plain yield, equivalent to `suspend()` (see Yield Without Suspend).
 
 ### Deferring
 
-An agent defers a task by calling `docmem_move_node` on its own task node (for example `after` a later sibling, or `append-child` under a later task) and then `suspend()`. The task stays `queued` and is picked up when the traversal reaches its new position.
+An agent defers a task by calling `docmem_move_node` on its own task node (for example `after` a later sibling, or `append-child` under a later task) and then `suspend()`. The task stays `queued` and is picked up when the traversal reaches its new position. Selection always restarts from the root, so a task deferred to an earlier position simply runs again next; defer by moving later. Moving a task under a summary node hides it from the harness permanently. Moving a child out from under a `waiting` parent makes the parent eligible if no other child tasks remain.
 
 ### Decomposing
 
@@ -147,7 +155,7 @@ An agent decomposes by creating child task nodes under its own task node (each w
 
 - `finish(summary)` → `done` (folded).
 - `suspend()` or a yield without suspend → `queued` or `waiting` as above.
-- API error, execution error, or AgentLoop depth limit → increment `failures`. If `failures` is below the retry limit set `status=queued`, so the task is retried on a later pass; otherwise set `status=failed` and fold the task under a summary node whose `context_value=failed` and whose text is the error.
+- API error, execution error, or AgentLoop depth limit → increment `failures`. If `failures` is below the retry limit set `status=queued`, so the task is retried on a later pass. A task reset to `queued` runs before its own children (preorder), even if the failed run created some; the reused chat lets the agent see what it already did; otherwise set `status=failed` and fold the task under a summary node whose `context_value=failed` and whose text is the error.
 - Default retry limit is 3. It MAY be overridden per task with a `retries` key.
 - A `failed` task is never selected again unless the user or an agent resets its status.
 
@@ -155,19 +163,28 @@ Failed tasks are folded so that the tree still compresses and later tasks still 
 
 ### Yield without suspend
 
-A response with no pytool block does not end the run by itself. The harness MUST reply with a fixed nudge (a `$ System.turn()`-style user message reminding the agent to act or call `suspend`/`finish`) and let the model continue. After a configurable number of consecutive tool-less responses (default 3) the run ends as a plain yield: the task is set to `queued` or `waiting` exactly as for `suspend()`, and it is not counted as a failure. The parent task, or the user, can then assess where the agent landed by reading its chat.
+A response with no pytool block does not end the run by itself. The harness MUST reply with a fixed nudge (a `$ System.turn()`-style user message reminding the agent to act or call `suspend`/`finish`) and let the model continue. After a configurable number of consecutive tool-less responses (default 3) the run ends as a plain yield: the task is set to `queued` or `waiting` exactly as for `suspend()`, `yields` is incremented, and it is not counted as a failure. The nudge messages and the model's tool-less replies are recorded in the task's chat docmem like any other turn.
+
+A task whose `yields` reaches the retry limit is folded under a summary with `context_value=failed` and text noting no progress, exactly as a failed task. This is the guard against a task that reruns forever without acting.
+
+`suspend()` does not count as work. A run in which the only command executed was `suspend()` is a plain yield and increments `yields`. A run that executed any other command before suspending resets `yields` to 0, as does `finish()`. So `docmem_create_node(...)` then `suspend()` is progress; `suspend()` alone three runs in a row folds the task as failed.
 
 ## Stop and Run
 
 - The harness has two states: running and stopped. Run starts the selection loop; Stop halts it.
-- Stop MUST abort the in-flight AgentLoop at the next safe point via an AbortController, which also cancels any in-flight OpenRouter request. The interrupted task's `status` MUST be reset from `running` to `queued`; its `chat` key is kept so the next Run picks it up first and continues the same conversation where it left off.
+- Stop MUST abort the in-flight AgentLoop at the next safe point via an AbortController, which also cancels any in-flight OpenRouter request. The interrupted task's `status` MUST be reset from `running` to `queued`; its `chat` key is kept so the next Run picks it up first and continues the same conversation where it left off. Children created before the interruption stay in place and run after the parent, as in the failure case.
 - Run MUST re-read the task docmem before selecting, so edits made while stopped (by the user or by the chat agent) take effect.
+- Run MUST reset every task with `status=running` to `queued` before selecting. A `running` status can only be stale: left by a TOML snapshot taken mid-run, a reload, or a crash. Without this reset such a task would never be eligible again.
 - When no task is eligible the harness goes idle but remains in the running state; Run after adding tasks resumes selection.
-- Stop and Run live on the Tasks panel (pjpd task-panel-p4cf, stop-run-7nif).
+- Stop and Run live on the Tasks panel.
 
 ## Relationship to the Chat Agent
 
-The user-facing chat agent is not run by the harness. It MAY enqueue work by creating task nodes in the task docmem with `docmem_create_node`. The user then runs the harness. The chat agent sees the task docmem in its context like any other docmem and can read the summaries as they appear.
+The user-facing chat agent is not run by the harness. It MAY enqueue work by creating task nodes in the task docmem with `docmem_create_node`; it finds the task docmem's root id in its own context, where the task docmem appears like any other docmem. The user then runs the harness. The chat agent can read the summaries as they appear.
+
+## Worker Permissions
+
+Every worker has every command. There is no per-task capability restriction: child tasks are expected to edit the same docmems their parents edit, and a worker MAY write to any docmem by id, including ones outside its read-set. A worker MAY also create sibling tasks after itself to enqueue follow-up work, in addition to creating children.
 
 ## Supersedes
 

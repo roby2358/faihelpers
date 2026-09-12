@@ -124,6 +124,14 @@ Updated: 2026-09-07T00:34:01Z
 
 Allow a per-task model override so cheap models draft and stronger models run editorial passes. The task node carries an optional model child; the runner constructs an OpenRouterAPI for that model when present, falling back to the chat's selected model.
 ----
+Priority:   45
+Status: ToDo
+ID: node-updated-fv7r
+Created: 2026-09-12T07:01:11Z
+Updated: 2026-09-12T07:01:11Z
+
+Add an updated_at timestamp column to the docmem node definition (DuckDB schema, Node class in js/docmem_tools/docmem_types.js, TOML round-trip in js/persist/toml.js). Set it on every create and update. Keep it out of the hash formula. Once present, the task harness should use it instead of the `updated` key it currently writes in task state blocks, and TASK_DELEGATION_SPEC.md should drop that key.
+----
 Priority:   40
 Status: ToDo
 ID: view-meta-4a6m
