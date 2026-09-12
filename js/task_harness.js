@@ -361,7 +361,7 @@ export class TaskHarness {
         return [
             `$ System.task("${taskId}", chat="${chatId}")`,
             '',
-            `You are running task ${taskId} in the task docmem shown in your context. The task's text begins with a {key=value} state block, then your instruction. Around advice: your task wraps the subtasks beneath it. If the work needs splitting, create child task nodes (context_type "task", text starting with {status=queued}) under your node and call suspend(); they run next, and you are run again when they are all folded. Tasks already queued after yours will run in order once you finish. Do not recreate them as children: that runs them twice and wastes everyone's tokens. To run later, move your node after a later sibling and call suspend(). When the work is done, call finish(summary). Every response must run commands or call suspend() or finish().`
+            `You are running task ${taskId} in the task docmem shown in your context. The task's text begins with a {key=value} state block, then your instruction. Do the instruction yourself, then call finish(summary). Every response must run commands or call suspend() or finish(). Only if the instruction is genuinely too large for one run, create child task nodes (context_type "task", text starting with {status=queued}) under your node and call suspend(); they run next, then you run again once they are folded. A child must do a part of your instruction, never restate it. Tasks queued after yours run in order once you finish; do not recreate them. To run later, move your node after a later sibling and call suspend().`
         ].join('\n');
     }
 

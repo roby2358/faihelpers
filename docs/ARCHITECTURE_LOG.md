@@ -186,3 +186,9 @@ Entry format: date, title, decision, rationale, supersedes (if any).
 **Delta.** `AgentLoop`'s `nudge.message` is a function of the tool-less response. The task harness returns a markup-specific nudge when the response contains a native tool-call syntax (`<｜DSML｜>`, `<tool_call>`, `<function_calls>`, `<invoke>`), telling the model that only fenced pytool blocks run.
 
 **Rationale.** A Flash 4.1 worker wrote every call in DeepSeek's DSML markup, including six story rewrites and repeated `finish()` calls, and never left that format across three attempts and ten generic nudges. Naming the mistake costs nothing and gives a stuck small model a way out.
+
+## 2026-09-12: System.task advice leads with doing the work
+
+**Delta.** The fixed instruction block after `System.task` now opens with "do the instruction yourself, then call finish(summary)". Splitting into child tasks is presented as the exception for work too large for one run, and a child must do a part of the parent's instruction, never restate it. The "around advice" framing is dropped from the worker-facing text; the mechanics (children run next, parent reruns when they fold) stay. Same length as before.
+
+**Rationale.** A Dolphin Mistral 24B run finished every task with two story edits: each worker created a child restating its own instruction, suspended, then finished on "created a subtask". The old text led with splitting, so a small model read it as the instruction rather than an option.
