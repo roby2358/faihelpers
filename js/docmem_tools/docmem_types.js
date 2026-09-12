@@ -53,7 +53,7 @@ export class OptimisticLockError extends Error {
 
 export class Node {
     constructor(nodeId, parentId, text, order, tokenCount = null, createdAt = null, updatedAt = null, contextType, contextName, contextValue, readonly = 0) {
-        if (!contextType || !contextName || !contextValue) {
+        if ([contextType, contextName, contextValue].some(v => v === null || v === undefined)) {
             throw new Error('contextType, contextName, and contextValue are required');
         }
         this.id = nodeId;

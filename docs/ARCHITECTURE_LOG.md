@@ -128,3 +128,21 @@ Entry format: date, title, decision, rationale, supersedes (if any).
 **Decision.** The message list is: tool prompts, root prompt, roster, docmem context messages, chat history. Previously the docmem messages sat between the chat history and a trailing `$ System.turn()` user message; that message is dropped, superseding the entry above that introduced it, because the chat history now ends the list and always closes on a user-role message.
 
 **Rationale.** Placing the docmems after the conversation put the material under discussion below the question about it, which read backwards to the model and the user. With docmems first the conversation is grounded in state that is already in view. The cost is that a docmem edit now invalidates the cached prefix ahead of the chat history rather than only the tail; the docmem messages are still ordered least-recently-updated first, so a single edit invalidates as little as the order allows.
+
+---
+
+## 2026-09-12 — Task harness replaces delegate/complete
+
+**Decision.** `delegate()` and `complete()` are removed. Work is a tree of task nodes in a task docmem, run by `TaskHarness` per TASK_DELEGATION_SPEC: preorder selection, a `{key=value}` state block at the start of each task's text, `suspend()`/`finish(summary)` as the only run-ending commands, a fixed nudge for tool-less responses, Stop via AbortController, and folding of finished or failed tasks under a summary node. Workers see only the root prompt, their lens, the task docmem, and their read-set; the chat agent still sees every non-chat docmem. The command router moved out of `chat.js` into `command_router.js` so the harness and the chat share it.
+
+**Rationale.** Synchronous delegation put the plan in a call stack that vanished on reload and could not be inspected or edited. A tree in a docmem is visible in the Tasks and View tabs while it runs, round-trips through TOML, and lets a worker reshape the plan with the same move and create commands it already has. See the 2026-09-07 entries on tasks, lenses, and workers for the earlier steps toward this.
+
+**Supersedes.** SPEC_DELEGATE's delegate and complete sections (the file now specifies only the agent loop); SPEC_AGENTS entirely; the 2026-09-07 "Task queue instead of a master agent" entry's status-in-`context_value` scheme, replaced by the state block.
+
+---
+
+## 2026-09-12 — Summaries fold subtrees; expansion stops at a summary
+
+**Decision.** `docmem_add_summary` accepts nodes with children, and a range may be a single node. `expandToLength` no longer descends into a summary node (other than the start node), so a summary's subtree is omitted from context and from `totalCount`. Context fields may be empty strings; `Node` and `DocmemCommands` only reject null.
+
+**Rationale.** The harness folds a task by summarizing it in place, and a task may have child tasks, so the leaf restriction had to go. Once a summary can hide an arbitrary subtree, expansion has to honor it or the tree never compresses; the open question in SPEC_DOCMEM about summary expansion is thereby settled in favor of keeping the summary as a header and dropping its children. Empty context fields let a task node carry no lens without a placeholder token.

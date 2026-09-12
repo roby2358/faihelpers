@@ -12,6 +12,7 @@
         <button class="tab-button active" data-tab="chat">Chat</button>
         <button class="tab-button" data-tab="docmem">Docmem</button>
         <button class="tab-button" data-tab="view">View</button>
+        <button class="tab-button" data-tab="tasks">Tasks</button>
         <button class="tab-button" data-tab="persist">Persist</button>
     </div>
     
@@ -86,6 +87,27 @@
             </div>
         </div>
         
+        <div id="tasks-tab" class="tab-content">
+            <div class="tasks-container">
+                <div class="toolbar tasks-controls">
+                    <select id="tasks-root-select" class="input"></select>
+                    <input type="text" id="tasks-new-root" class="input" placeholder="New task docmem id" />
+                    <button id="tasks-create-root-btn" class="btn">Create</button>
+                    <button id="tasks-start-btn" class="btn btn-primary">Start</button>
+                    <button id="tasks-stop-btn" class="btn">Stop</button>
+                    <button id="tasks-refresh-btn" class="btn">Refresh</button>
+                    <span id="tasks-status" class="tasks-status">stopped</span>
+                </div>
+                <div class="toolbar tasks-add">
+                    <textarea id="tasks-new-text" class="input tasks-new-text" rows="2" placeholder="New task instruction"></textarea>
+                    <input type="text" id="tasks-new-lens" class="input tasks-lens" placeholder="lens (optional)" />
+                    <button id="tasks-add-btn" class="btn">Add task</button>
+                </div>
+                <div id="tasks-tree" class="tasks-tree"></div>
+                <pre id="tasks-log" class="tasks-log"></pre>
+            </div>
+        </div>
+
         <div id="persist-tab" class="tab-content">
             <div class="persist-container">
                 <div id="persist-roots-bar" class="persist-roots-bar"></div>
@@ -123,6 +145,7 @@
     <script type="module" src="./js/persist/paragraph.js"></script>
     <script type="module" src="./js/agent_loop.js"></script>
     <script type="module" src="./js/chat.js"></script>
+    <script type="module" src="./js/tasks_panel.js"></script>
     <script type="module" src="./js/index.js"></script>
 </body>
 </html>

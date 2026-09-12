@@ -16,6 +16,22 @@ Integrate LLM API calls for generating summaries and processing content. Impleme
 ----
 Priority:   70
 Status: Done
+ID: task-panel-p4cf
+Created: 2026-09-12T05:37:29Z
+Updated: 2026-09-12T07:42:11Z
+
+Add a Tasks tab to the harness UI that renders the bound task docmem as a task tree: one row per task node showing its instruction, the parsed {key=value} state block (status, attempts, failures, model), and which node is currently executing; summary nodes rendered collapsed with the folded originals expandable underneath. Include Stop and Run buttons, live refresh as the harness updates nodes, and the ability to add, reorder (move), edit, and delete task nodes by hand between jobs. The View tab can already render the docmem, but this panel is purpose-built for tasks.
+----
+Priority:   70
+Status: Done
+ID: task-harness-ci7c
+Created: 2026-09-12T05:37:21Z
+Updated: 2026-09-12T07:42:11Z
+
+Implement the delegated task harness per docs/TASK_DELEGATION_SPEC.md. The harness is bound to a single task docmem for its lifetime and always looks there for work. Tasks are nodes in a tree; the harness picks the next task in depth-first preorder that is not a summary node and not done, seeds an AgentLoop with the task path (ancestor and earlier-sibling context) plus the task's read-set, and runs it. Agents treat the task node as around-advice: they may create child task nodes then call suspend() so the child is picked up next, or defer a task by moving its node and suspending. A finished task is folded into an inserted summary node. Task state (status, attempts, failures, model override) lives in a {key=value, ...} block in the task node text, interpreted by agents, so the format is loose with common key names and integer values. Replaces delegate() and complete() with suspend().
+----
+Priority:   70
+Status: Done
 ID: search-f9p7
 Created: 2026-09-07T00:33:47Z
 Updated: 2026-09-07T00:36:12Z
@@ -29,6 +45,30 @@ Created: 2026-09-07T00:33:44Z
 Updated: 2026-09-07T00:36:12Z
 
 Refresh the OpenRouter model dropdown in index.html against the published list at https://openrouter.ai/api/v1/models. Drop models that no longer exist, add current flash/small-tier models from each vendor, and make the newest DeepSeek Flash the default selection. Repeat periodically; the list drifts every few months.
+----
+Priority:   65
+Status: Done
+ID: read-set-32jb
+Created: 2026-09-07T00:33:50Z
+Updated: 2026-09-12T07:42:11Z
+
+Scope docmem context per agent instead of expanding every non-chat docmem into every turn. DocmemChat.buildMessageList should accept an explicit read-set (list of root or node ids) and expand only those; the root chat keeps the current expand-all behavior by default. This is the prerequisite for fiction work where a full manuscript plus character and timeline docmems would otherwise ride along on every worker turn. Update SPEC_CHAT.md.
+----
+Priority:   65
+Status: Done
+ID: summ-nonleaf-7ky9
+Created: 2026-09-12T05:46:01Z
+Updated: 2026-09-12T07:42:11Z
+
+Allow docmem_add_summary (Docmem.addSummary) to summarize a contiguous range of sibling nodes that have children, not only leaf nodes. The summary node becomes the parent of the range and each node keeps its own subtree beneath it. Needed so the task harness can fold a task that has child tasks into a summary node. Update SPEC_DOCMEM (Summary Operations) and the docmem_add_summary docstring in docmem_prompt.js, and check that expansion and serialization skip the whole subtree under a summary node.
+----
+Priority:   65
+Status: Done
+ID: stop-run-7nif
+Created: 2026-09-12T05:37:36Z
+Updated: 2026-09-12T07:42:11Z
+
+Add Stop and Run controls for the task harness. Stop pauses the executing agent: the running AgentLoop is cancelled via an AbortController at the next safe point (between API call and command execution, or between turns), the in-flight task node keeps its state block so it can be resumed, and the harness stops dequeuing. Run resumes: the harness re-reads the task docmem and picks the next task in depth-first order. Stop must also cover any in-flight OpenRouter request via the fetch abort signal.
 ----
 Priority:   60
 Status: Done
@@ -77,6 +117,14 @@ Created: 2026-07-02T06:33:01Z
 Updated: 2026-07-02T06:44:21Z
 
 Add a "sensory" docmem to the chat context: ambient situational information such as current time, location, temperature/weather, and other random sensory details. It goes at the very end of the message list — after the recency-sorted docmem expansions — which fits the most-volatile-last ordering, since it changes every turn anyway (per SPEC_CHAT's cache-stability ordering; keeping it last means its churn invalidates nothing else).
+----
+Priority:   45
+Status: Done
+ID: task-model-nd63
+Created: 2026-09-07T00:34:01Z
+Updated: 2026-09-12T07:42:11Z
+
+Allow a per-task model override so cheap models draft and stronger models run editorial passes. The task node carries an optional model child; the runner constructs an OpenRouterAPI for that model when present, falling back to the chat's selected model.
 ----
 Priority:   40
 Status: Done

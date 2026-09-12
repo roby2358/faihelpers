@@ -195,7 +195,7 @@ def docmem_add_summary(context_type: str, context_name: str, context_value: str,
     content: summary text content (may be empty, but typically contains summary text)
     start_node_id: first node in the range to summarize (must exist)
     end_node_id: last node in the range to summarize (must exist)
-    Note: start and end nodes MUST be siblings. All nodes in range MUST be leaf nodes.
+    Note: start and end nodes MUST be siblings (they may be the same node). Nodes in the range keep their own subtrees beneath them. A summary's subtree is omitted from context serialization; only the summary itself appears.
     Returns: docmem_add_summary: added summary <new_summary_node_id>
     """
 \`\`\`

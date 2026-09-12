@@ -10,35 +10,27 @@ def hello_world():
 \`\`\`
 
 \`\`\`
-def delegate(task_prompt: str):
-    """Spawns a child agent to perform a scoped task.
+def suspend():
+    """Ends your current run on a task without finishing it. The task stays in the task docmem and the harness re-evaluates the tree.
 
-    The child runs its own loop autonomously and returns a summary when done.
-    Delegation is synchronous — your loop suspends until the child finishes.
+    Call it after planning child tasks, after moving your task to run later, or after a bounded chunk of work.
+    Takes effect after the other commands in the same pytool block. Only meaningful while running a task; a no-op in the user-facing chat.
+    Returns: suspend: run suspended
+    """
+\`\`\`
 
-    task_prompt: a description of the task for the child agent
-    Returns: delegate: <child_id> completed, followed by the child's summary on the next line
+\`\`\`
+def finish(summary: str):
+    """Ends your current run and folds your task under a summary node. The task is done.
+
+    summary: what was done, in enough detail that later tasks need not look beneath the summary
+    Takes effect after the other commands in the same pytool block. Only meaningful while running a task; a no-op in the user-facing chat.
+    Returns: finish: task finished
     """
 \`\`\`
 
 Example:
 \`\`\`pytool
-delegate("Search all docmems for nodes related to authentication and summarize your findings.")
-\`\`\`
-
-\`\`\`
-def complete(summary: str):
-    """Signals that you have finished your delegated task and returns a summary to the parent agent.
-
-    Only valid for delegated agents — issuing this as the root agent is a no-op.
-
-    summary: a summary of the work you performed
-    Returns: terminates the current agent loop
-    """
-\`\`\`
-
-Example:
-\`\`\`pytool
-complete("I found 3 authentication-related nodes and created a summary docmem at auth-summary.")
+finish("Rewrote the opening scene in node k3m2p9qa for pacing; the exposition now arrives through dialogue.")
 \`\`\`
 `;

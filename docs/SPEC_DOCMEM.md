@@ -171,6 +171,7 @@ The tree structure MUST be shallow with clear semantics at each level. For examp
 - The tree MUST be traversed level-by-level starting from the root node.
 - Within each level, nodes MUST be added to the priority list in reverse order (last/most recent children have higher priority).
 - This ensures parents always appear before their children in the priority list.
+- The traversal MUST NOT descend into a summary node other than the start node: a summary stands in for its subtree, so its children are neither listed nor counted in `totalCount`. Expanding from a summary node itself shows its children.
 
 **Phase 2: Consume budget**
 - The system MUST iterate through the priority list, accumulating token counts.
@@ -197,7 +198,7 @@ The tree structure MUST be shallow with clear semantics at each level. For examp
 - Summary text content MUST be provided as a parameter (current implementation requires manual content).
 - Summary text SHOULD be LLM-generated when automatic summarization is implemented.
 - A summary node MUST be created as the new parent of the specified nodes, with the provided content and context metadata.
-- All nodes to be summarized MUST share the same parent and MUST be leaf nodes (have no children).
+- All nodes to be summarized MUST share the same parent. They MAY have children; each keeps its own subtree beneath it. The range MAY be a single node.
 - The summary node's order MUST be placed at the midpoint between the first and last nodes' orders.
 - Memory nodes MUST be reparented to the summary node (they become children of the summary).
 - Reparenting MUST use optimistic locking on each node. If any reparent fails, that node's parent reference MUST be rolled back to its original value.
@@ -333,15 +334,6 @@ Cross-entity relationships MUST be carried in content via @ tags rather than str
 - Ingest classification for incoming threads and documents SHOULD be implemented.
 
 ## Open Questions
-
-### Summary Behavior on Expansion
-When a summary is expanded, what SHOULD happen to the summary node itself? Options include:
-- Replacing it entirely with children (clean but loses framing)
-- Keeping it as a header (natural but redundant)
-- Making it a parameter of the expand operation
-- Having serialization modes that skip or include interior nodes
-
-Current implementation includes summary nodes in serialization.
 
 ### Sticky Nodes
 Some memories are tightly coupled and resist being separated. SHOULD there be a mechanism to mark this, or does summarization naturally preserve these relationships?

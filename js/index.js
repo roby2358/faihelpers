@@ -149,6 +149,9 @@ function initTabs() {
             if (targetTab === 'persist') {
                 await renderPersist();
             }
+            if (targetTab === 'tasks') {
+                document.dispatchEvent(new CustomEvent('tasks-tab-shown'));
+            }
         });
     });
 }

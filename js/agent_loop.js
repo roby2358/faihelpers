@@ -15,41 +15,43 @@ const MAX_TOKENS = 32000;
 // Sent as OpenRouter's reasoning.enabled and shown in the status line
 const REASONING = false;
 
-export function formatDelegationMessage(taskPrompt, parentDocmemId) {
-    return [
-        '# Delegated Task',
-        '',
-        'You are a delegated agent. A parent agent has assigned you the following task.',
-        '',
-        '## Task',
-        '',
-        taskPrompt,
-        '',
-        '## Parent Agent',
-        '',
-        `Parent agent identity: ${parentDocmemId}`,
-        '',
-        '## Instructions',
-        '',
-        'When you have completed the task, you MUST issue a `complete` command with a summary of the work you performed. Example:',
-        '',
-        '```pytool',
-        'complete("I finished the task. Here is what I did...")',
-        '```'
-    ].join('\n');
+export class AbortedError extends Error {
+    constructor() {
+        super('Run aborted');
+        this.name = 'AbortedError';
+    }
 }
 
+/**
+ * Options:
+ *   summaryLine      short label written to the chat root text
+ *   maxDepth         turn limit (default 100)
+ *   signal           AbortSignal; checked before each model call and each command
+ *   nudge            { message, limit }: reply to a tool-less response with
+ *                    `message` up to `limit` times before ending the run as
+ *                    no_commands. Absent: a tool-less response ends the run.
+ *   onUserMessage, onAssistantMessage, onModelRequest  display callbacks
+ *
+ * run() resolves to { reason, summary, finalResponse, chatDocmemRootId, workDone }
+ * where reason is finish | suspend | no_commands | depth_limit. Abort rejects
+ * with AbortedError; API and execution errors reject with the underlying error.
+ * workDone is true when at least one command other than suspend/finish
+ * executed successfully during the run.
+ */
 export class AgentLoop {
-    constructor(chatSession, api, commandRouter, knownCommands, summaryLine, maxDepth, onUserMessage, onAssistantMessage, onModelRequest) {
+    constructor(chatSession, api, commandRouter, knownCommands, options = {}) {
         this.chatSession = chatSession;
         this.api = api;
         this.commandRouter = commandRouter;
         this.knownCommands = knownCommands;
-        this.summaryLine = summaryLine;
-        this.maxDepth = maxDepth;
-        this.onUserMessage = onUserMessage;
-        this.onAssistantMessage = onAssistantMessage;
-        this.onModelRequest = onModelRequest || (() => {});
+        this.summaryLine = options.summaryLine || '';
+        this.maxDepth = options.maxDepth || 100;
+        this.signal = options.signal || null;
+        this.nudge = options.nudge || null;
+        this.onUserMessage = options.onUserMessage || (() => {});
+        this.onAssistantMessage = options.onAssistantMessage || (() => {});
+        this.onModelRequest = options.onModelRequest || (() => {});
+        this.workDone = false;
     }
 
     // Run
@@ -63,18 +65,26 @@ export class AgentLoop {
         await this.recordUserMessage(initialMessage);
 
         let finalResponse = '';
+        let toolless = 0;
 
         for (let depth = 0; depth < this.maxDepth; depth++) {
+            this.checkAborted();
             finalResponse = await this.invokeModelAndRecord();
 
             const calls = this.extractPytoolCalls(finalResponse);
             if (calls.length === 0) {
-                return this.finalize(docmemId, 'no_commands', null, finalResponse);
+                toolless += 1;
+                if (!this.nudge || toolless >= this.nudge.limit) {
+                    return this.finalize(docmemId, 'no_commands', null, finalResponse);
+                }
+                await this.recordUserMessage(this.nudge.message);
+                continue;
             }
+            toolless = 0;
 
-            const completion = await this.executeCallList(calls);
-            if (completion.complete) {
-                return this.finalize(docmemId, 'complete', completion.summary, finalResponse);
+            const termination = await this.executeCallList(calls);
+            if (termination.terminate) {
+                return this.finalize(docmemId, termination.terminate, termination.summary, finalResponse);
             }
         }
 
@@ -82,7 +92,13 @@ export class AgentLoop {
     }
 
     finalize(docmemId, reason, summary, finalResponse) {
-        return { reason, summary, finalResponse, chatDocmemRootId: docmemId };
+        return { reason, summary, finalResponse, chatDocmemRootId: docmemId, workDone: this.workDone };
+    }
+
+    checkAborted() {
+        if (this.signal && this.signal.aborted) {
+            throw new AbortedError();
+        }
     }
 
     // Message Recording
@@ -101,7 +117,7 @@ export class AgentLoop {
         const messages = await this.chatSession.buildMessageList();
         const contextLength = messages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
         this.onModelRequest({ reasoning: REASONING, contextLength, maxTokens: MAX_TOKENS });
-        const response = await this.api.chat(messages, TEMPERATURE, MAX_TOKENS, REASONING);
+        const response = await this.api.chat(messages, TEMPERATURE, MAX_TOKENS, REASONING, this.signal);
         await this.recordAssistantMessage(response);
         return response;
     }
@@ -144,7 +160,7 @@ export class AgentLoop {
                 this.formatError('pytool', `parse error: ${err.args[0]}`)
             );
             await this.recordUserMessage(outputs.join('\n\n'));
-            return { complete: false };
+            return { terminate: null };
         }
 
         const unknowns = this.findUnknownCommands(calls);
@@ -155,24 +171,32 @@ export class AgentLoop {
                 `unknown function(s): ${unknowns.join(', ')}. Available: ${available}`
             );
             await this.recordUserMessage(output);
-            return { complete: false };
+            return { terminate: null };
         }
 
         return await this.executeCalls(calls);
     }
 
+    // suspend/finish take effect after the remaining commands in the block
     async executeCalls(calls) {
         const docmem = this.chatSession.docmem;
         const outputs = [];
+        let terminate = null;
+        let summary = null;
 
         for (const call of calls) {
+            this.checkAborted();
             try {
                 const result = await this.commandRouter([call.name, ...call.args], docmem);
                 outputs.push(result.success ? result.result : this.formatError(call.name, result.result));
 
-                if (result.complete) {
-                    await this.recordUserMessage(outputs.join('\n\n'));
-                    return { complete: true, summary: result.summary || null };
+                if (result.terminate) {
+                    terminate = result.terminate;
+                    summary = result.summary || null;
+                    continue;
+                }
+                if (result.success) {
+                    this.workDone = true;
                 }
                 if (!result.success) break;
             } catch (error) {
@@ -184,6 +208,6 @@ export class AgentLoop {
         if (outputs.length > 0) {
             await this.recordUserMessage(outputs.join('\n\n'));
         }
-        return { complete: false };
+        return { terminate, summary };
     }
 }

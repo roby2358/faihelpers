@@ -20,12 +20,17 @@ When the response comes back from the LLM, we append it as a leaf node in the ab
 
 ## System Prompt Context from Docmems
 
-For each turn in the chat, the framework MUST include additional context from non-chat docmems as system messages:
+For each turn in the chat, the framework MUST include additional context from non-chat docmems as system messages. Which docmems depends on the DocmemChat's read-set:
+
+- No read-set (the user-facing chat agent): every non-chat docmem, as enumerated below.
+- A read-set (task workers, TASK_DELEGATION_SPEC): only the nodes named in the read-set, each expanded from the named node with no focus applied. A named node is expanded even when it lies beneath a summary node.
+
+A DocmemChat MAY also name a lens docmem. The lens is serialized as a system message with the same shape as the root prompt message and placed immediately after it.
 
 1. The framework MUST enumerate all existing docmem instances using `Docmem.getAllRoots()`
 2. For each docmem where the docmem ID does NOT start with "chat_" (i.e., excludes chat-related docmems) and is NOT the root prompt docmem (which is already included, serialized, as the main system prompt):
    - The framework MUST determine the expansion start node: the docmem's focus node if one is set (see Docmem Focus below), otherwise the docmem root
-   - The framework MUST run `expandToLength(startNodeId, 20000)` to expand the docmem to a maximum of 20000 tokens
+   - The framework MUST run `expandToLength(startNodeId, 20000)` to expand the docmem to a maximum of 20000 tokens. Expansion shows summary nodes but not their children (SPEC_DOCMEM, Expansion).
    - The system message carries no header line: the first node block's metadata line names the start node, so the message is self-identifying. The root prompt system message is likewise the bare serialized root prompt.
    - If the docmem is focused, the message MUST carry a focus marker as its first line, naming the focus node and the docmem root and pointing to `docmem_focus("<docmemId>", "<docmemId>")` to restore the full tree (e.g., `[focus: showing only the subtree of <focusNodeId> within docmem <docmemId>; call docmem_focus("<docmemId>", "<docmemId>") to restore the full tree]`). An unfocused docmem MUST NOT carry a focus marker.
    - If the expansion was truncated by the token budget (fewer nodes returned than the subtree contains), the system message MUST carry a truncation marker as its first line (after the focus marker, if any), followed by a blank line before the node blocks, stating how many of the total nodes are shown and pointing to `docmem_structure` for the omitted subtrees (e.g., `[partial: 42 of 97 nodes shown (token budget); call docmem_structure("<startNodeId>") to see the omitted subtrees]`). The marker MUST lead the message rather than trail it, because breadth-first expansion omits scattered deeper/older subtrees, not a contiguous tail. A complete expansion MUST NOT carry a marker.
@@ -33,7 +38,7 @@ For each turn in the chat, the framework MUST include additional context from no
    - Each block MUST be the node's metadata line (`<id> <context_type>:<context_name>:<context_value> <updated_at>`, the same line `docmem_structure` prints, indented two spaces per level of depth below the start node) followed on the next line by the node's text. No other fields (parent_id, order, token_count, created_at) are included. The metadata line changes only when the node itself changes, so unchanged docmems remain byte-stable for prompt caching.
    - The framework MUST add this concatenated string as an additional system message with `role: 'system'` in the messages array sent to the LLM
 3. Before the first docmem context system message, the framework MUST include a roster system message consisting of a pretend invocation line `$ System.docmem_roots()` followed by a blank line and the docmem root IDs in plain text, one ID per line, with no decoration. The name deliberately differs from the real `docmem_get_all_roots` command because their outputs differ: chat roots (IDs starting with `chat_`, including the current chat's) MUST be omitted from the roster — the agent has nothing to do with them; the root-prompt root IS included. The IDs MUST be sorted so the message is byte-stable for prompt caching.
-4. These docmem context system messages (including the roster message, which leads them) MUST come after the prompt and root prompt system messages and BEFORE the chat session messages, so the conversation reads as taking place against the current docmem state.
+4. These docmem context system messages (including the roster message, which leads them) MUST come after the prompt, root prompt, and lens system messages and BEFORE the chat session messages, so the conversation reads as taking place against the current docmem state.
 5. Among themselves, the docmem context messages (excluding the roster message, which always leads) MUST be ordered by last-updated ascending (most recently updated last), with ties broken deterministically by docmem root ID. A docmem's last-updated value is the maximum `updated_at` across the nodes included in its expansion — not the whole subtree — so the sort key changes only when the serialized message content changes. Frequently edited docmems thus settle last among the docmem messages, so their churn invalidates the least cacheable prefix.
 6. The chat session messages MUST come last. The loop records the incoming user message (or command results, also user-role) before every model call, so the list always ends on a user turn; several chat templates end the assistant turn immediately when the final message is system-role.
 

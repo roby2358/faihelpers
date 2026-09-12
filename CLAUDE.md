@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Fai Helpers is a browser-based agent framework centered around **Docmem**, a hierarchical document memory system. LLM agents maintain structured memory, delegate work to sub-agents, and operate with explicit context management.
+Fai Helpers is a browser-based agent framework centered around **Docmem**, a hierarchical document memory system. LLM agents maintain structured memory, work through a task queue held in a docmem, and operate with explicit context management.
 
 ## Running and Testing
 
@@ -28,11 +28,11 @@ Hierarchical tree stored in DuckDB WASM (in-memory, single shared connection). E
 
 ### Agent System & Chat Flow
 
-Agents delegate to sub-agents with separate context boundaries. Each agent identified by its chat docmem root ID. See `docs/SPEC_AGENTS.md` and `docs/SPEC_DELEGATE.md`.
+Each agent is identified by its chat docmem root ID. The agent loop is specified in `docs/SPEC_DELEGATE.md`; task orchestration in `docs/TASK_DELEGATION_SPEC.md`.
 
-**Execution flow:** User input → `chat.js:sendMessage()` → `AgentLoop.run()` → `DocmemChat.buildMessageList()` (constructs messages from docmem tree) → `OpenRouterAPI.chat()` (OpenRouter.ai, OpenAI-compatible protocol) → extract `` ```pytool `` blocks → `parsePytool()` → `commandRouter()` dispatches to `DocmemCommands` or `SystemCommands`. Loop iterates until no more tool calls or `complete()` is called.
+**Execution flow:** User input → `chat.js:sendMessage()` → `AgentLoop.run()` → `DocmemChat.buildMessageList()` (constructs messages from docmem tree) → `OpenRouterAPI.chat()` (OpenRouter.ai, OpenAI-compatible protocol) → extract `` ```pytool `` blocks → `parsePytool()` → `command_router.js` dispatches to `DocmemCommands` or `SystemCommands`. Loop iterates until no more tool calls, or `suspend()`/`finish()` is called.
 
-**Special commands:** `delegate()` spawns a child agent with its own DocmemChat + AgentLoop. `complete()` signals task completion (delegated agents only).
+**Task harness:** `js/task_harness.js` (`TaskHarness`) is bound to one task docmem, selects the next task node in preorder, runs an AgentLoop on it with a scoped read-set (`DocmemChat` `readSet`/`lensId` options), and writes the `{key=value}` state block at the start of the task text. `suspend()` and `finish(summary)` end a run; `finish` folds the task under a summary node. Driven by the Tasks tab (`js/tasks_panel.js`).
 
 ### Command Parsers
 
@@ -52,7 +52,7 @@ Database is in-memory only — data lost on reload unless saved to TOML.
 
 ### UI
 
-Four tabs in `js/index.js`: Chat (OpenRouter API + command parsing), Docmem (tree CRUD), View (read-only exploration), Persist (save/load/import).
+Five tabs: Chat (OpenRouter API + command parsing), Docmem (tree CRUD), View (read-only exploration), Tasks (task harness, `js/tasks_panel.js`), Persist (save/load/import). Tab plumbing lives in `js/index.js`.
 
 ## Specifications
 

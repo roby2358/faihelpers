@@ -3,7 +3,7 @@
  */
 export const KNOWN_SYSTEM_COMMANDS = new Set([
     'hello_world',
-    'delegate', 'complete',
+    'suspend', 'finish',
 ]);
 
 export class SystemCommands {

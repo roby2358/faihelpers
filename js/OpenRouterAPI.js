@@ -177,7 +177,9 @@ export class OpenRouterAPI {
             return new Error(`API Error: Request timed out after ${Math.round(this.timeoutMs / 1000)}s`);
         }
         if (error.name === 'AbortError') {
-            return new Error('API Error: Request aborted');
+            const aborted = new Error('API Error: Request aborted');
+            aborted.name = 'AbortError';
+            return aborted;
         }
         return error;
     }
@@ -185,25 +187,26 @@ export class OpenRouterAPI {
     /**
      * Perform the HTTP request to the API
      */
-    async performRequest(headers, requestBody) {
+    async performRequest(headers, requestBody, signal) {
+        const timeout = AbortSignal.timeout(this.timeoutMs);
         return await fetch(`${this.baseURL}/chat/completions`, {
             method: 'POST',
             headers,
             body: JSON.stringify(requestBody),
-            signal: AbortSignal.timeout(this.timeoutMs)
+            signal: signal ? AbortSignal.any([timeout, signal]) : timeout
         });
     }
 
     /**
      * One request/response round trip; returns the parsed JSON body
      */
-    async requestOnce(headers, messages, temperature, maxTokens, reasoning, ignoreProviders) {
+    async requestOnce(headers, messages, temperature, maxTokens, reasoning, ignoreProviders, signal) {
         const requestBody = this.buildRequestBody(messages, temperature, maxTokens, reasoning, ignoreProviders);
         this.logRequest(requestBody, headers, messages);
 
         let data;
         try {
-            const response = await this.performRequest(headers, requestBody);
+            const response = await this.performRequest(headers, requestBody, signal);
 
             if (!response.ok) {
                 await this.handleErrorResponse(response);
@@ -222,17 +225,17 @@ export class OpenRouterAPI {
     /**
      * Call the chat completion API
      */
-    async chat(messages, temperature, maxTokens, reasoning = false) {
+    async chat(messages, temperature, maxTokens, reasoning = false, signal = null) {
         if (!this.apiKey || this.apiKey.trim() === '') {
             throw new Error('API key is missing or empty');
         }
 
         const headers = this.buildHeaders();
-        let data = await this.requestOnce(headers, messages, temperature, maxTokens, reasoning, []);
+        let data = await this.requestOnce(headers, messages, temperature, maxTokens, reasoning, [], signal);
 
         if (this.isEmptyStop(data) && data.provider) {
             console.warn(`Empty response from provider ${data.provider}; retrying once on another provider`);
-            data = await this.requestOnce(headers, messages, temperature, maxTokens, reasoning, [data.provider]);
+            data = await this.requestOnce(headers, messages, temperature, maxTokens, reasoning, [data.provider], signal);
         }
 
         this.validateResponse(data);

@@ -247,19 +247,6 @@ export class Docmem {
         return sortedSiblings.slice(startIndex, endIndex + 1);
     }
 
-    async validateLeafNodes(nodes) {
-        const nodesWithChildren = [];
-        for (const node of nodes) {
-            const children = await this.getChildren(node.id);
-            if (children.length > 0) {
-                nodesWithChildren.push(node);
-            }
-        }
-        if (nodesWithChildren.length > 0) {
-            throw new Error(`All nodes to summarize must be leaf nodes (have no children). Nodes with children: ${nodesWithChildren.map(n => n.id).join(', ')}`);
-        }
-    }
-
     calculateSummaryOrder(nodes) {
         const minOrder = nodes[0].order;
         const maxOrder = nodes[nodes.length - 1].order;
@@ -685,9 +672,14 @@ export class Docmem {
                 priorityList.push(currentLevel[i]);
             }
 
-            // Collect children for next level
+            // Collect children for next level. A summary stands in for its
+            // subtree, so its children are never expanded (the start node is
+            // expanded even when it is itself a summary).
             const nextLevel = [];
             for (const node of currentLevel) {
+                if (node.contextType === 'summary' && node.id !== startNode.id) {
+                    continue;
+                }
                 const children = await this.getSortedChildren(node.id);
                 nextLevel.push(...children);
             }
@@ -719,6 +711,9 @@ export class Docmem {
                 return;
             }
             result.push(node);
+            if (node.contextType === 'summary' && node.id !== startNode.id) {
+                return;
+            }
             const children = await this.getSortedChildren(node.id);
             for (const child of children) {
                 await renderDfs(child);
@@ -741,7 +736,6 @@ export class Docmem {
         await this.requireNode(parentId);
 
         const memoryNodesSorted = await this.findSiblingRange(parentId, startNodeId, endNodeId);
-        await this.validateLeafNodes(memoryNodesSorted);
 
         const summaryOrder = this.calculateSummaryOrder(memoryNodesSorted);
         const summaryNode = await this.createAndInsertNode(parentId, content, summaryOrder, contextType, contextName, contextValue);

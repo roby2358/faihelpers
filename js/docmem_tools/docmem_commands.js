@@ -39,8 +39,8 @@ export class DocmemCommands {
 
     validateContext(contextType, contextName, contextValue, commandName) {
         const validatedContextType = this.validateFieldLength(contextType, 'context_type', commandName);
-        const validatedContextName = this.validateFieldLength(contextName, 'context_name', commandName);
-        const validatedContextValue = this.validateFieldLength(contextValue, 'context_value', commandName);
+        const validatedContextName = this.validateFieldLength(contextName, 'context_name', commandName, true);
+        const validatedContextValue = this.validateFieldLength(contextValue, 'context_value', commandName, true);
         return {
             contextType: validatedContextType,
             contextName: validatedContextName,

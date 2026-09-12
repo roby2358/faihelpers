@@ -25,15 +25,16 @@ With [`just`](https://github.com/casey/just) installed, `just up` and `just down
 - **Chat** — Converse with an LLM agent that reads and writes docmems via tool calls
 - **Docmem** — Directly create, inspect, and edit docmem trees
 - **View** — Read-only exploration with token-budget expansion and serialization
+- **Tasks** — Create a task docmem, add tasks, start and stop the harness, watch the tree fold
 - **Persist** — Save/load docmems as TOML files; import text files as readonly nodes
 
 ## Key Concepts
 
 **Docmem** is a hierarchical tree of nodes stored in DuckDB WASM (in-memory). Each node carries text plus context metadata (`contextType`, `contextName`, `contextValue`). Every docmem is serialized into the agent's context each turn, so there is no read command; agents write with commands like `docmem_create_node` and `docmem_update_content`, narrow their view with `docmem_focus`, and locate content with `docmem_search` (literal, wildcard, or regex).
 
-**Agents** run an agentic loop: the LLM emits `` ```pytool `` blocks containing function calls, which are parsed and executed as commands. The loop continues until the response contains no commands, the agent calls `complete()`, or the turn limit is reached.
+**Agents** run an agentic loop: the LLM emits `` ```pytool `` blocks containing function calls, which are parsed and executed as commands. The loop continues until the response contains no commands, the agent calls `suspend()` or `finish()`, or the turn limit is reached.
 
-**Delegation** lets an agent spawn a child agent with its own chat docmem and context boundary. The parent suspends until the child completes and returns a summary.
+**Tasks** live as nodes in a task docmem. The Tasks tab runs a harness that picks the next task in depth-first order, runs a worker agent on it with only the task tree and its read-set in context, and folds finished tasks under summary nodes. Workers decompose work by adding child tasks and suspending.
 
 **Persistence** is manual. The in-memory database is lost on page reload, so use the Persist tab to save and load TOML snapshots.
 

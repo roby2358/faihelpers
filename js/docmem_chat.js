@@ -10,10 +10,19 @@ import { DOCMEM_PROMPT } from './docmem_tools/docmem_prompt.js';
 const DEFAULT_EXPAND_MAX_TOKENS = 20000;
 const VALID_CHAT_ROLES = ['user', 'assistant'];
 
+/**
+ * Options:
+ *   readSet   array of node ids to expand as docmem context instead of every
+ *             non-chat docmem (null: expand all, the chat agent's default)
+ *   lensId    root id of a docmem serialized as a system prompt after the
+ *             root prompt (null: none)
+ */
 export class DocmemChat {
-    constructor(docmemId) {
+    constructor(docmemId, options = {}) {
         this.docmem = new Docmem(docmemId);
         this.docmemId = docmemId;
+        this.readSet = options.readSet || null;
+        this.lensId = options.lensId || null;
     }
 
     async ready() {
@@ -150,6 +159,24 @@ export class DocmemChat {
         return message;
     }
 
+    async buildLensSystemMessage() {
+        if (!this.lensId) {
+            return null;
+        }
+        const root = await this.docmem.find(this.lensId);
+        if (!root) {
+            console.warn(`Lens docmem ${this.lensId} not found`);
+            return null;
+        }
+        const serialized = await this.docmem.serialize(this.lensId);
+        if (!serialized) {
+            return null;
+        }
+        const message = this.systemMsg(serialized);
+        message.cache_control = { type: 'ephemeral' };
+        return message;
+    }
+
     buildPromptsSystemMessage() {
         const message = this.systemMsg(PYTOOL_PROMPT + SYSTEM_PROMPT + DOCMEM_PROMPT);
         message.cache_control = { type: 'ephemeral' };
@@ -215,17 +242,46 @@ export class DocmemChat {
         return this.systemMsg(`$ System.docmem_roots()\n\n${ids}`);
     }
 
+    // A read-set entry names a node; expansion starts there (no focus), so a
+    // node inside a summary is expanded even though the summary rule would
+    // omit it from its docmem's own expansion.
+    async tryBuildReadSetMessage(nodeId) {
+        const node = await this.docmem.find(nodeId);
+        if (!node) {
+            console.warn(`Read-set node ${nodeId} not found, skipping`);
+            return null;
+        }
+        const { nodes, totalCount } = await this.expandDocmemNodes(nodeId, DEFAULT_EXPAND_MAX_TOKENS);
+        if (nodes.length === 0) {
+            return null;
+        }
+        return {
+            message: this.buildExpandedSystemMessage(nodeId, null, nodes, totalCount),
+            lastUpdated: this.maxUpdatedAt(nodes),
+            docmemId: nodeId
+        };
+    }
+
     async buildNonChatDocmemSystemMessages() {
         const allRoots = await Docmem.getAllRoots();
-        const includable = allRoots.filter(r => this.isIncludableDocmem(r));
-
-        console.log(`=== INCLUDING ${includable.length} NON-CHAT DOCMEMS ===`);
-
         const entries = [];
-        for (const r of includable) {
-            const entry = await this.tryBuildExpandedDocmemMessage(r.id);
-            if (entry !== null) {
-                entries.push(entry);
+
+        if (this.readSet) {
+            console.log(`=== INCLUDING READ-SET OF ${this.readSet.length} NODES ===`);
+            for (const id of this.readSet) {
+                const entry = await this.tryBuildReadSetMessage(id);
+                if (entry !== null) {
+                    entries.push(entry);
+                }
+            }
+        } else {
+            const includable = allRoots.filter(r => this.isIncludableDocmem(r));
+            console.log(`=== INCLUDING ${includable.length} NON-CHAT DOCMEMS ===`);
+            for (const r of includable) {
+                const entry = await this.tryBuildExpandedDocmemMessage(r.id);
+                if (entry !== null) {
+                    entries.push(entry);
+                }
             }
         }
         // Most recently updated last, so frequently edited docmems settle at
@@ -385,6 +441,7 @@ export class DocmemChat {
     async buildSystemMessages() {
         return [
             await this.buildRootPromptSystemMessage(),
+            await this.buildLensSystemMessage(),
             this.buildPromptsSystemMessage()
         ].filter(msg => msg !== null);
     }

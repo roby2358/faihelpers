@@ -11,7 +11,7 @@ Replace synchronous delegation (a parent agent blocking on a child agent) with a
 - **Summary node**: a node with `context_type = summary` inserted above a finished task by folding. The original task subtree is preserved beneath it. The harness never descends into a summary node, and context serialization omits its children, so the tree compresses as work completes.
 - **Fold**: the docmem summarize operation (SPEC_DOCMEM, Summary Operations; it accepts non-leaf nodes) applied to a task node. Folding is what removes a task from the harness's traversal.
 - **State block**: a `{key=value, ...}` block at the start of a task node's text, read and written by both the harness and workers. Specified under Task Docmem Structure.
-- **Harness**: plain JavaScript that selects the next task, constructs an AgentLoop for it, and updates the state block around the run. It is the only component that dequeues.
+- **Harness**: plain JavaScript (`TaskHarness` in `js/task_harness.js`) that selects the next task, constructs an AgentLoop for it, and updates the state block around the run. It is the only component that dequeues.
 - **Worker**: the agent the harness runs on a task, as distinct from the user-facing chat agent. A worker is an AgentLoop over the task's chat docmem.
 - **Run**: one execution of a worker on one task, from the harness writing `status=running` to the harness writing the terminal state. `attempts` counts runs. Every run ends in exactly one of the ways listed under Termination.
 - **Chat docmem**: the conversation docmem for one task, created on the task's first run and reused on every later run, so a revisited task remembers what it planned.
@@ -94,7 +94,7 @@ The worker's message list follows SPEC_CHAT with these differences:
 - The docmem context messages MUST include the whole task docmem, expanded from its root, with summary nodes shown but their children omitted (the normal summary rule). The worker therefore sees where the work stands: what is folded, what is queued, and its own position in the tree.
 - The docmem context messages MUST include every node named in the task's `read` key and in the `read` keys of its ancestors, expanded from the named node. This is the read-set. A named node inside a summary MUST be expanded even though the summary rule would otherwise omit it, so a task can peek inside folded work when it needs the detail.
 - The lens named in `context_name`, if any, is included as a system prompt docmem after the root prompt.
-- Other docmems are NOT included. Today every non-chat docmem is expanded into every turn (SPEC_CHAT); under this spec a worker sees only the root prompt, its lens, the task docmem, and its read-set.
+- Other docmems are NOT included: a worker sees only the root prompt, its lens, the task docmem, and its read-set. The roster message still lists every non-chat root so a worker can address any docmem by id.
 
 ### Task message
 
