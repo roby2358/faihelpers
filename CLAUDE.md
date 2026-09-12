@@ -52,7 +52,7 @@ Database is in-memory only — data lost on reload unless saved to TOML.
 
 ### UI
 
-Five tabs: Chat (OpenRouter API + command parsing), Docmem (tree CRUD), View (read-only exploration), Tasks (task harness, `js/tasks_panel.js`), Persist (save/load/import). Tab plumbing lives in `js/index.js`.
+Five tabs: Chat (OpenRouter API + command parsing), Tasks (task harness, `js/tasks_panel.js`), View (read-only exploration), Docmem (tree CRUD), Persist (save/load/import). Tab plumbing lives in `js/index.js`.
 
 ## Specifications
 

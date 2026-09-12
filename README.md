@@ -23,9 +23,9 @@ With [`just`](https://github.com/casey/just) installed, `just up` and `just down
 ### Tabs
 
 - **Chat** — Converse with an LLM agent that reads and writes docmems via tool calls
-- **Docmem** — Directly create, inspect, and edit docmem trees
-- **View** — Read-only exploration with token-budget expansion and serialization
 - **Tasks** — Create a task docmem, add tasks, start and stop the harness, watch the tree fold
+- **View** — Read-only exploration with token-budget expansion and serialization
+- **Docmem** — Directly create, inspect, and edit docmem trees
 - **Persist** — Save/load docmems as TOML files; import text files as readonly nodes
 
 ## Key Concepts
