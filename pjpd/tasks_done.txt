@@ -14,6 +14,14 @@ Updated: 2026-09-07T02:44:17Z
 
 Summarize tool results before feeding them back to the model. After a turn's pytool calls execute, the results are recorded verbatim as a single user-role message; models can misread this as evidence they issued the calls twice, or lose the one result they needed in the noise. Collapse each turn's results into a short structured summary (one line per call: command, key argument, outcome or returned node id, error if any) that clearly labels itself as the results of the calls in the previous assistant message, and keep long payloads such as docmem_structure or docmem_search output trimmed or referenced rather than repeated. Consider recording the raw results in the chat docmem for the UI while sending the summary to the model. Update SPEC_DELEGATE (turn cycle step 7) and SPEC_CHAT.
 ----
+Priority:   87
+Status: Done
+ID: add-live-nvyt
+Created: 2026-09-14T00:51:31Z
+Updated: 2026-09-14T04:55:48Z
+
+Allow adding tasks to the task docmem while the task harness is running. Add a text box and "Add task" button to the Tasks tab (js/tasks_panel.js) that appends a new task node (context_type "task", text starting with {status=queued}) as the last child of the task root, without stopping the run. Do not disable the control while running. This is safe: the harness (js/task_harness.js) only writes the running task's own node, and a node's hash does not cover siblings, so appending cannot raise OptimisticLockError on the running task; the harness selects the next task at the start of each run so the new task is picked up naturally. The running agent will see the new node in its context on its next turn; the System.task prompt already tells it queued tasks run in order after it and not to recreate them, so no prompt change is needed. If a lock error does occur on the add itself, show it in the panel and let the user retry. Update docs/TASK_DELEGATION_SPEC.md to state that tasks may be appended during a run.
+----
 Priority:   80
 Status: Done
 ID: llm-api-za72

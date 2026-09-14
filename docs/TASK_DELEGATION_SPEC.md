@@ -63,7 +63,7 @@ Workers MAY add keys of their own (for example a `notes` counter or a `phase` to
 
 ### Who writes when
 
-The harness and the worker never write the task docmem at the same time. The harness is single-threaded: it writes the state block before the run, hands the docmem to the worker, and does not touch it again until the run ends. During the run the worker is the only writer, through the docmem tools. When the run ends the harness re-reads the task node (the worker may have moved it, added keys, or created children) and rewrites only its own keys. The `status` the harness writes at termination takes precedence over any `status` the worker wrote.
+Writes to the task docmem during a run are partitioned by node, not by time. The harness owns the running task's state block: it writes it before the run and rewrites only its own keys when the run ends, and the `status` it writes at termination takes precedence over any `status` the worker wrote. The worker owns every other write it makes through the docmem tools, including moving its own node, adding keys, and creating children. The user owns new task nodes appended as children of the task root; this is the only user write permitted while started. A node's hash does not cover its siblings or children, so these three writers never conflict. The worker sees a user-appended node in its context on its next model call, and the next selection picks it up in preorder. When the run ends the harness re-reads the task node, since the worker may have moved it, before rewriting its keys.
 
 ## Task Selection
 
@@ -74,7 +74,7 @@ The harness and the worker never write the task docmem at the same time. The har
   - `status` is `waiting` and every child task has been folded (no child with `context_type = task` remains).
 - Tasks with `status` `running`, `done`, or `failed` are not eligible. A `waiting` task with unfinished children is skipped, but its children are traversed.
 - `waiting` is the only status whose eligibility depends on the tree shape. It exists to distinguish a parent that suspended cleanly after planning children (run after them) from a task whose interrupted run left children behind (run before them, see Termination).
-- If no task is eligible the harness MUST go idle and report it.
+- If no task is eligible the harness MUST stop and report it.
 
 ## Running a Task
 
@@ -150,11 +150,12 @@ A response with no pytool block does not end the run by itself. The harness MUST
 
 ## Start and Stop
 
-- The harness has three states: started (a run is in progress), idle (started but no task is eligible), and stopped. Start begins the selection loop; Stop halts it. Both live on the Tasks panel.
+- The harness has two states: started (the selection loop is live) and stopped. Start begins the selection loop; Stop halts it. Both live on the Tasks panel.
 - Stop MUST abort the in-flight AgentLoop at the next safe point via an AbortController, which also cancels any in-flight OpenRouter request. The aborted run terminates per the table.
 - Start MUST re-read the task docmem before selecting, so edits made while stopped (by the user or by the chat agent) take effect.
 - Start MUST reset every task with `status=running` to `queued` before selecting. A `running` status at that point can only be stale: left by a TOML snapshot taken mid-run, a reload, or a crash. Without this reset such a task would never be eligible again.
-- When no task is eligible the harness goes idle; Start after adding tasks resumes selection.
+- When no task is eligible the harness stops; Start after adding tasks resumes selection.
+- The Add task control on the Tasks panel MUST stay enabled while the harness is started. Add task always appends as the last child of the task root, regardless of the panel selection, in every harness state. Every other hand edit (edit text, set status, move, delete) MUST be refused while started.
 
 ## Relationship to the Chat Agent
 

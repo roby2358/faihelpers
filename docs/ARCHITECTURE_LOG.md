@@ -198,3 +198,11 @@ Entry format: date, title, decision, rationale, supersedes (if any).
 **Delta.** `docmem_create_node`, `docmem_copy_node`, `docmem_move_node`, and `docmem_add_summary` results lead with the created or moved node id and then state its position relative to the anchor: `created nunppnsu before 9cqd3zc9`, `moved 3mk3e6v8 after zfnsh8a9`, `created summary ab12cd34 over x through y`. The old forms (`inserted before <new id>`, `moved node X after node Y`) are gone. The prompt and SPEC_CHAT state the rule; SPEC_DOCMEM gains a Command Results section.
 
 **Rationale.** `inserted before nunppnsu` reads as if `nunppnsu` were the anchor. A DeepSeek v4 Pro worker concluded "the results didn't return their IDs" and spent two turns on `docmem_structure` dumps to find nodes it had just made. Putting the new id first and naming the anchor removes the ambiguity.
+
+## 2026-09-14: Tasks may be added during a run
+
+**Delta.** The Tasks panel's Add task control no longer requires the harness to be stopped. Add task now appends as the last child of the task root in every state; it previously went under the selected task while stopped. Other hand edits remain refused during a run. TASK_DELEGATION_SPEC records the user append as the one permitted user write during a run.
+
+The harness's idle state (started but nothing eligible) is gone: an empty queue now stops the harness, so it has two states, started and stopped.
+
+**Rationale.** The goal is a loop that grinds unattended while the user steers by queuing work. Stopping the harness to add a task defeats that. The append is safe: the harness writes only the running task's node and hashes do not cover siblings, so no OptimisticLockError can reach the worker. The System.task prompt already tells the worker that later-queued tasks run in order and not to recreate them, so no prompt change was needed. Idle only existed to auto-resume on the next append; while the user is the only feeder a Start click is cheaper than a third state, and standing passes will keep the queue from emptying. Idle also collided with the panel's "idle" guard, which meant stopped. Revisit as "waiting" if another queue ever feeds this one (pjpd wait-state-ciqg). Root-only adding gives the button one meaning; adding under the selection returns as a separate control (pjpd add-selected-2fxp).

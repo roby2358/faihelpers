@@ -48,7 +48,7 @@ async function renderRootSelect() {
 
 async function bindHarness() {
     if (harness && harness.taskRootId === selectedRootId) return;
-    if (harness && harness.state === 'started') {
+    if (harnessRunning()) {
         showMessage('Stop the harness before switching task docmems', 'error');
         el('tasks-root-select').value = harness.taskRootId;
         selectedRootId = harness.taskRootId;
@@ -157,8 +157,12 @@ function renderRow(node, depth) {
 
 // Manual edits
 
-function guardIdle() {
-    if (harness && harness.state === 'started') {
+function harnessRunning() {
+    return harness !== null && harness.state === 'started';
+}
+
+function guardStopped() {
+    if (harnessRunning()) {
         showMessage('Stop the harness before editing tasks by hand', 'error');
         return false;
     }
@@ -174,29 +178,27 @@ async function refreshAfter(fn) {
     await renderTree();
 }
 
+// The one hand edit allowed during a run. See TASK_DELEGATION_SPEC, Who writes when.
 async function addTask() {
-    if (!harness || !guardIdle()) return;
+    if (!harness) return;
     const text = el('tasks-new-text').value.trim();
     if (!text) return;
     const lens = el('tasks-new-lens').value.trim();
     await refreshAfter(async () => {
-        const parentId = selectedNodeId || harness.taskRootId;
-        const parent = await harness.docmem.find(parentId);
-        const target = parent && isTaskNode(parent) ? parent.id : harness.taskRootId;
-        await harness.docmem.appendChild(target, 'task', lens, '', `{status=queued}\n${text}`);
+        await harness.docmem.appendChild(harness.taskRootId, 'task', lens, '', `{status=queued}\n${text}`);
         el('tasks-new-text').value = '';
     });
 }
 
 async function editTask(node) {
-    if (!guardIdle()) return;
+    if (!guardStopped()) return;
     const edited = window.prompt('Task text (state block first):', node.text);
     if (edited === null) return;
     await refreshAfter(() => harness.setTaskText(node.id, edited));
 }
 
 async function setStatus(node, status) {
-    if (!guardIdle()) return;
+    if (!guardStopped()) return;
     await refreshAfter(async () => {
         const state = harness.readState(node);
         state.set('status', status);
@@ -205,7 +207,7 @@ async function setStatus(node, status) {
 }
 
 async function moveTask(node, direction) {
-    if (!guardIdle()) return;
+    if (!guardStopped()) return;
     await refreshAfter(async () => {
         const siblings = await harness.docmem.getSortedChildren(node.parentId);
         const idx = siblings.findIndex(s => s.id === node.id);
@@ -220,7 +222,7 @@ async function moveTask(node, direction) {
 }
 
 async function deleteTask(node) {
-    if (!guardIdle()) return;
+    if (!guardStopped()) return;
     if (!window.confirm(`Delete task ${node.id} and everything beneath it?`)) return;
     await refreshAfter(async () => {
         await harness.docmem.delete(node.id);

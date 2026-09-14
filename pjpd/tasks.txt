@@ -6,14 +6,6 @@ Updated: 2026-09-14T00:48:31Z
 
 Add a reserved node reference "last" to the docmem commands. Wherever a command takes a node id (docmem_create_node anchor, docmem_update_content, docmem_move_node node and target, docmem_delete, docmem_structure, etc.), the literal "last" resolves to the id of the most recent node created or moved by this agent's commands in the current response. It updates after every create or move within the response, so a model can insert in order without waiting for ids: docmem_create_node("after", "12345", ...) then docmem_create_node("after", "last", ...) then again with "last" gives 12345 A B C. Node ids stay anonymous and random; "last" is a reference, never stored. Scope is the current response only: it resets at the start of each response so a stale reference from an earlier turn cannot misplace a node; the model has the real ids in its results by then. Details: track it in the command router or DocmemCommands state (js/command_router.js, js/docmem_tools/docmem_commands.js) and clear it when a new response begins processing; "last" before any create or move in the response is an error "no last node in this response"; docmem_create must refuse "last" as a root name; the resolved id must appear in the result text (e.g. "created ab12cd34 after 9yu7wxh6"), never the word last. Document in js/docmem_tools/docmem_prompt.js with the three-inserts example, in docs/SPEC_DOCMEM.md, and append an entry to docs/ARCHITECTURE_LOG.md. Motivation: in a DeepSeek v4 Pro run two "after X" inserts on the same anchor landed reversed and the model spent turns on structure dumps trying to repair it.
 ----
-Priority:   87
-Status: ToDo
-ID: add-live-nvyt
-Created: 2026-09-14T00:51:31Z
-Updated: 2026-09-14T00:51:31Z
-
-Allow adding tasks to the task docmem while the task harness is running. Add a text box and "Add task" button to the Tasks tab (js/tasks_panel.js) that appends a new task node (context_type "task", text starting with {status=queued}) as the last child of the task root, without stopping the run. Do not disable the control while running. This is safe: the harness (js/task_harness.js) only writes the running task's own node, and a node's hash does not cover siblings, so appending cannot raise OptimisticLockError on the running task; the harness selects the next task at the start of each run so the new task is picked up naturally. The running agent will see the new node in its context on its next turn; the System.task prompt already tells it queued tasks run in order after it and not to recreate them, so no prompt change is needed. If a lock error does occur on the add itself, show it in the panel and let the user retry. Update docs/TASK_DELEGATION_SPEC.md to state that tasks may be appended during a run.
-----
 Priority:   85
 Status: ToDo
 ID: import-tmpl-9enm
@@ -171,6 +163,14 @@ Created: 2026-07-03T02:08:57Z
 Updated: 2026-09-07T01:51:30Z
 
 Extend the framework-generated $ System.turn() user message (the final message of every turn, see SPEC_CHAT) with a small status readout: turn count, agent depth (root vs delegated), token budget usage, and pending delegation state. Follows the fake-call conventions: System. prefix, plain undecorated output. It sits at the very end of the list so its per-turn churn invalidates no cacheable prefix.
+----
+Priority:   40
+Status: ToDo
+ID: add-selected-2fxp
+Created: 2026-09-14T05:12:10Z
+Updated: 2026-09-14T05:12:10Z
+
+Add an "Add to selected" button to the Tasks tab (js/tasks_panel.js) next to "Add task". "Add task" always appends the new task node as the last child of the task root. "Add to selected" appends it as the last child of the selected task node instead, so the user can queue a subtask by hand. Disable or refuse it when no task node is selected, when the selected node is a summary, or when the selected node is the task currently running (the worker may be creating children under it). Appending under a queued or waiting task is safe in any harness state, since a node's hash does not cover its children. Update docs/TASK_DELEGATION_SPEC.md, Start and Stop section, to describe both controls.
 ----
 Priority:   35
 Status: ToDo

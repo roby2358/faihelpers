@@ -196,7 +196,7 @@ export class TaskHarness {
             this.log(`harness error: ${error.message}`);
             console.error(error);
         }).finally(() => {
-            if (this.state !== 'idle') this.state = 'stopped';
+            this.state = 'stopped';
             this.current = null;
             this.onChange();
         });
@@ -220,13 +220,9 @@ export class TaskHarness {
         while (!this.aborted()) {
             const task = await this.selectNext();
             if (!task) {
-                if (this.aborted()) return;
-                this.state = 'idle';
-                this.log('no eligible task; idle');
-                this.onChange();
+                if (!this.aborted()) this.log('no eligible task; stopped');
                 return;
             }
-            this.state = 'started';
             await this.runTask(task);
         }
     }

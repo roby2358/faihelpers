@@ -1,0 +1,6 @@
+Score:   40
+ID: wait-state-ciqg
+Created: 2026-09-14T05:06:19Z
+Updated: 2026-09-14T05:06:19Z
+
+Harness "waiting" state. Today the harness has two states, started and stopped, and goes to stopped when selection finds no eligible task; a task added afterwards needs Start. If other task queues or agents ever feed this harness's task docmem, a third state "waiting" (started, nothing eligible, loop blocked on a promise that the next append resolves) would let it pick up fed tasks without a Start click. Deliberately deferred on 2026-09-14: the click is cheap while the user is the only feeder, and standing passes would keep the queue from emptying anyway. Revisit when a feeder exists.
