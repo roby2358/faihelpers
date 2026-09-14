@@ -1,7 +1,7 @@
 /**
  * DocmemCommands - Command wrapper class for docmem operations
  */
-import { Docmem } from './docmem.js';
+import { Docmem, DocmemStore } from './docmem.js';
 
 // A model that "creates" an existing docmem is usually about to write into
 // the wrong tree. Refuse, and say what it can do instead.
@@ -26,9 +26,15 @@ export const KNOWN_DOCMEM_COMMANDS = new Set([
     'docmem_get_all_roots',
 ]);
 
+// Every command names its nodes by id, and ids are global, so the commands
+// carry no docmem binding. Root-scoped checks (focus, move) are explicit.
 export class DocmemCommands {
-    constructor(docmem) {
-        this.docmem = docmem;
+    constructor() {
+        this.store = new DocmemStore();
+    }
+
+    async ready() {
+        await this.store.ready();
     }
 
     validateFieldLength(value, fieldName, commandName, allowEmpty) {
@@ -57,8 +63,8 @@ export class DocmemCommands {
     }
 
     async validateSameRoot(nodeId, targetId, commandName) {
-        const nodeRoot = await this.docmem.getRootOfNode(nodeId);
-        const targetRoot = await this.docmem.getRootOfNode(targetId);
+        const nodeRoot = await this.store.getRootOfNode(nodeId);
+        const targetRoot = await this.store.getRootOfNode(targetId);
         if (nodeRoot.id !== targetRoot.id) {
             throw new Error(`${commandName} requires node-id and target-id to have the same root node. You can only move nodes within a docmem. Node root: ${nodeRoot.id}, Target root: ${targetRoot.id}`);
         }
@@ -91,30 +97,12 @@ export class DocmemCommands {
         return { success: true, result: `docmem_create: created docmem ${validatedRootId}` };
     }
 
-    async appendChild(nodeId, contextType, contextName, contextValue, content) {
-        const validated = this.validateContext(contextType, contextName, contextValue, 'docmem_append_child');
-        const node = await this.docmem.appendChild(nodeId, validated.contextType, validated.contextName, validated.contextValue, content);
-        return { success: true, result: `docmem_append_child: created ${node.id} as last child of ${nodeId}` };
-    }
-
-    async insertBefore(nodeId, contextType, contextName, contextValue, content) {
-        const validated = this.validateContext(contextType, contextName, contextValue, 'docmem_insert_before');
-        const node = await this.docmem.insertBefore(nodeId, validated.contextType, validated.contextName, validated.contextValue, content);
-        return { success: true, result: `docmem_insert_before: created ${node.id} before ${nodeId}` };
-    }
-
-    async insertAfter(nodeId, contextType, contextName, contextValue, content) {
-        const validated = this.validateContext(contextType, contextName, contextValue, 'docmem_insert_after');
-        const node = await this.docmem.insertAfter(nodeId, validated.contextType, validated.contextName, validated.contextValue, content);
-        return { success: true, result: `docmem_insert_after: created ${node.id} after ${nodeId}` };
-    }
-
     async createNode(mode, nodeId, contextType, contextName, contextValue, content) {
         const validated = this.validateContext(contextType, contextName, contextValue, 'docmem_create_node');
         const result = await this.executeWithMode(mode, nodeId, null, {
-            appendChild: async (nId) => await this.docmem.appendChild(nId, validated.contextType, validated.contextName, validated.contextValue, content),
-            before: async (nId) => await this.docmem.insertBefore(nId, validated.contextType, validated.contextName, validated.contextValue, content),
-            after: async (nId) => await this.docmem.insertAfter(nId, validated.contextType, validated.contextName, validated.contextValue, content),
+            appendChild: async (nId) => await this.store.appendChild(nId, validated.contextType, validated.contextName, validated.contextValue, content),
+            before: async (nId) => await this.store.insertBefore(nId, validated.contextType, validated.contextName, validated.contextValue, content),
+            after: async (nId) => await this.store.insertAfter(nId, validated.contextType, validated.contextName, validated.contextValue, content),
             appendChildAction: (newId, nId) => `created ${newId} as last child of ${nId}`,
             beforeAction: (newId, nId) => `created ${newId} before ${nId}`,
             afterAction: (newId, nId) => `created ${newId} after ${nId}`
@@ -123,37 +111,37 @@ export class DocmemCommands {
     }
 
     async updateContent(nodeId, content) {
-        const node = await this.docmem.updateContent(nodeId, content);
+        const node = await this.store.updateContent(nodeId, content);
         return { success: true, result: `docmem_update_content: updated ${node.id}`, lastId: node.id };
     }
 
     async updateContext(nodeId, contextType, contextName, contextValue) {
         const validated = this.validateContext(contextType, contextName, contextValue, 'docmem_update_context');
-        const node = await this.docmem.updateContext(nodeId, validated.contextType, validated.contextName, validated.contextValue);
+        const node = await this.store.updateContext(nodeId, validated.contextType, validated.contextName, validated.contextValue);
         return { success: true, result: `docmem_update_context: updated ${node.id}` };
     }
 
     async delete(nodeId) {
-        await this.docmem.delete(nodeId);
+        await this.store.delete(nodeId);
         return { success: true, result: `docmem_delete: deleted ${nodeId}` };
     }
 
     async structure(nodeId) {
-        const structure = await this.docmem.structure(nodeId);
+        const structure = await this.store.structure(nodeId);
         return { success: true, result: `docmem_structure:\n${structure}` };
     }
 
     async search(nodeId, pattern, mode = 'literal') {
-        const results = await this.docmem.search(nodeId, mode, pattern);
-        return { success: true, result: `docmem_search:\n${this.docmem.formatSearchResults(results)}` };
+        const results = await this.store.search(nodeId, mode, pattern);
+        return { success: true, result: `docmem_search:\n${this.store.formatSearchResults(results)}` };
     }
 
     async focus(rootNodeId, nodeId) {
-        const node = await this.docmem.find(nodeId);
+        const node = await this.store.find(nodeId);
         if (!node) {
             return { success: false, result: `node not found: ${nodeId}` };
         }
-        const root = await this.docmem.getRootOfNode(nodeId);
+        const root = await this.store.getRootOfNode(nodeId);
         if (root.id !== rootNodeId) {
             return { success: false, result: `node ${nodeId} does not belong to docmem ${rootNodeId} (its root is ${root.id})` };
         }
@@ -170,31 +158,16 @@ export class DocmemCommands {
             throw new Error('docmem_add_summary requires both start-node-id and end-node-id');
         }
         const validated = this.validateContext(contextType, contextName, contextValue, 'docmem_add_summary');
-        const node = await this.docmem.addSummary(startNodeId, endNodeId, content, validated.contextType, validated.contextName, validated.contextValue);
+        const node = await this.store.addSummary(startNodeId, endNodeId, content, validated.contextType, validated.contextName, validated.contextValue);
         return { success: true, result: `docmem_add_summary: created summary ${node.id} over ${startNodeId} through ${endNodeId}`, lastId: node.id };
-    }
-
-    async moveAppendChild(nodeId, targetParentId) {
-        const node = await this.docmem.moveAppendChild(nodeId, targetParentId);
-        return { success: true, result: `docmem_move_append_child: moved ${nodeId} to last child of ${targetParentId}` };
-    }
-
-    async moveBefore(nodeId, targetNodeId) {
-        const node = await this.docmem.moveBefore(nodeId, targetNodeId);
-        return { success: true, result: `docmem_move_before: moved ${nodeId} before ${targetNodeId}` };
-    }
-
-    async moveAfter(nodeId, targetNodeId) {
-        const node = await this.docmem.moveAfter(nodeId, targetNodeId);
-        return { success: true, result: `docmem_move_after: moved ${nodeId} after ${targetNodeId}` };
     }
 
     async moveNode(mode, nodeId, targetId) {
         await this.validateSameRoot(nodeId, targetId, 'docmem_move_node');
         const result = await this.executeWithMode(mode, nodeId, targetId, {
-            appendChild: async (nId, tId) => await this.docmem.moveAppendChild(nId, tId),
-            before: async (nId, tId) => await this.docmem.moveBefore(nId, tId),
-            after: async (nId, tId) => await this.docmem.moveAfter(nId, tId),
+            appendChild: async (nId, tId) => await this.store.moveAppendChild(nId, tId),
+            before: async (nId, tId) => await this.store.moveBefore(nId, tId),
+            after: async (nId, tId) => await this.store.moveAfter(nId, tId),
             appendChildAction: (movedId, nId, tId) => `moved ${movedId} to last child of ${tId}`,
             beforeAction: (movedId, nId, tId) => `moved ${movedId} before ${tId}`,
             afterAction: (movedId, nId, tId) => `moved ${movedId} after ${tId}`
@@ -204,9 +177,9 @@ export class DocmemCommands {
 
     async copyNode(mode, nodeId, targetId) {
         const result = await this.executeWithMode(mode, nodeId, targetId, {
-            appendChild: async (nId, tId) => await this.docmem.copyAppendChild(nId, tId),
-            before: async (nId, tId) => await this.docmem.copyBefore(nId, tId),
-            after: async (nId, tId) => await this.docmem.copyAfter(nId, tId),
+            appendChild: async (nId, tId) => await this.store.copyAppendChild(nId, tId),
+            before: async (nId, tId) => await this.store.copyBefore(nId, tId),
+            after: async (nId, tId) => await this.store.copyAfter(nId, tId),
             appendChildAction: (copyId, nId, tId) => `created ${copyId} as last child of ${tId}, a copy of ${nId}`,
             beforeAction: (copyId, nId, tId) => `created ${copyId} before ${tId}, a copy of ${nId}`,
             afterAction: (copyId, nId, tId) => `created ${copyId} after ${tId}, a copy of ${nId}`

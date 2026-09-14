@@ -1,24 +1,14 @@
 import { randomString } from '../tools.js';
 import { DocmemSQLite } from './docmem_sqlite.js';
-import { Node, NodeHasher, OptimisticLockError, LAST_NODE, assertNodeIdAllowed } from './docmem_types.js';
+import { Node, NodeHasher, assertNodeIdAllowed } from './docmem_types.js';
 
-// Re-export types for backwards compatibility
-export { Node, NodeHasher, OptimisticLockError, LAST_NODE };
-
-export class Docmem {
-    constructor(docmemId) {
-        this.docmemId = docmemId;
+// Node ids are global: one table holds every docmem, and an id names one
+// node regardless of which root it sits under. DocmemStore is the root-free
+// view of that table, and is all a command needs. Docmem adds a root handle.
+export class DocmemStore {
+    constructor() {
         this.sqlite = new DocmemSQLite();
-        this.initPromise = this.init();
-    }
-
-    async init() {
-        await this.sqlite.ready();
-        // Check if root already exists, if not create it
-        const existingRoot = await this.getRootById(this.docmemId);
-        if (!existingRoot) {
-            await this.createRoot();
-        }
+        this.initPromise = this.sqlite.ready();
     }
 
     async ready() {
@@ -27,30 +17,6 @@ export class Docmem {
 
     async getRootById(rootId) {
         return await this.sqlite.getRootById(rootId);
-    }
-
-    async createRoot(contextType = 'root', contextName = 'purpose', contextValue = 'document') {
-        // Check if root already exists
-        const existingRoot = await this.getRootById(this.docmemId);
-        if (existingRoot) {
-            return existingRoot;
-        }
-
-        const root = new Node(
-            this.docmemId,
-            null,
-            '',
-            0.0,
-            null,
-            null,
-            null,
-            contextType,
-            contextName,
-            contextValue
-        );
-        await NodeHasher.hash(root);
-        await this.insertNode(root);
-        return root;
     }
 
     updateTimestamp(node) {
@@ -85,14 +51,6 @@ export class Docmem {
     async insertNode(node) {
         assertNodeIdAllowed(node.id);
         await this.sqlite.insertNode(node);
-    }
-
-    async getRoot() {
-        const root = await this.getRootById(this.docmemId);
-        if (!root) {
-            throw new Error(`Root node not found for docmem: ${this.docmemId}`);
-        }
-        return root;
     }
 
     async getAllRoots() {
@@ -785,5 +743,52 @@ export class Docmem {
 
     async close() {
         await this.sqlite.close();
+    }
+}
+
+export class Docmem extends DocmemStore {
+    constructor(docmemId) {
+        super();
+        this.docmemId = docmemId;
+        this.initPromise = this.init();
+    }
+
+    async init() {
+        await this.sqlite.ready();
+        const existingRoot = await this.getRootById(this.docmemId);
+        if (!existingRoot) {
+            await this.createRoot();
+        }
+    }
+
+    async createRoot(contextType = 'root', contextName = 'purpose', contextValue = 'document') {
+        const existingRoot = await this.getRootById(this.docmemId);
+        if (existingRoot) {
+            return existingRoot;
+        }
+
+        const root = new Node(
+            this.docmemId,
+            null,
+            '',
+            0.0,
+            null,
+            null,
+            null,
+            contextType,
+            contextName,
+            contextValue
+        );
+        await NodeHasher.hash(root);
+        await this.insertNode(root);
+        return root;
+    }
+
+    async getRoot() {
+        const root = await this.getRootById(this.docmemId);
+        if (!root) {
+            throw new Error(`Root node not found for docmem: ${this.docmemId}`);
+        }
+        return root;
     }
 }

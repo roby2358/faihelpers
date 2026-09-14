@@ -18,14 +18,13 @@
 </head>
 <body>
     <h1>Command Router Tests</h1>
-    <p>Covers the reserved <code>last</code> node reference. Needs DuckDB WASM, so serve over HTTP.</p>
+    <p>Covers the reserved <code>last</code> node reference and global node ids. Needs DuckDB WASM, so serve over HTTP.</p>
     <div id="results"></div>
     <div class="summary" id="summary"></div>
 
     <script type="module">
         import { Docmem } from './docmem_tools/docmem.js';
         import { createChatCommandRouter } from './command_router.js';
-        import { Docmem as DocmemClass } from './docmem_tools/docmem.js';
 
         // Each test is an async function returning a value; `expected` is
         // compared by JSON. Tests with `fails` pass when the router returns
@@ -37,7 +36,7 @@
         const childTexts = async (parentId) =>
             (await docmem.getSortedChildren(parentId)).map(n => n.text);
         const create = (router, mode, anchor, text) =>
-            router.run(['docmem_create_node', mode, anchor, 'para', '', '', text], docmem);
+            router.run(['docmem_create_node', mode, anchor, 'para', '', '', text]);
 
         const tests = [
             {
@@ -45,7 +44,7 @@
                 fn: async () => {
                     const router = createChatCommandRouter();
                     router.beginResponse();
-                    return await router.run(['docmem_update_content', 'last', 'x'], docmem);
+                    return await router.run(['docmem_update_content', 'last', 'x']);
                 },
                 fails: 'no last node in this response'
             },
@@ -84,8 +83,8 @@
                     router.beginResponse();
                     const a = await create(router, 'append-child', rootId, 'moved');
                     const b = await create(router, 'append-child', rootId, 'target');
-                    await router.run(['docmem_move_node', 'before', a.lastId, b.lastId], docmem);
-                    const updated = await router.run(['docmem_update_content', 'last', 'moved+updated'], docmem);
+                    await router.run(['docmem_move_node', 'before', a.lastId, b.lastId]);
+                    const updated = await router.run(['docmem_update_content', 'last', 'moved+updated']);
                     return updated.result.endsWith(a.lastId);
                 },
                 expected: true
@@ -97,7 +96,7 @@
                     router.beginResponse();
                     await create(router, 'append-child', rootId, 'stale');
                     router.beginResponse();
-                    return await router.run(['docmem_delete', 'last'], docmem);
+                    return await router.run(['docmem_delete', 'last']);
                 },
                 fails: 'no last node in this response'
             },
@@ -107,8 +106,8 @@
                     const router = createChatCommandRouter();
                     router.beginResponse();
                     const a = await create(router, 'append-child', rootId, 'kept');
-                    await router.run(['docmem_copy_node', 'after', 'nope-not-a-node', a.lastId], docmem);
-                    const updated = await router.run(['docmem_update_content', 'last', 'kept'], docmem);
+                    await router.run(['docmem_copy_node', 'after', 'nope-not-a-node', a.lastId]);
+                    const updated = await router.run(['docmem_update_content', 'last', 'kept']);
                     return updated.result.endsWith(a.lastId);
                 },
                 expected: true
@@ -120,7 +119,7 @@
                     router.beginResponse();
                     const other = await create(router, 'append-child', rootId, 'other');
                     const placed = await create(router, 'append-child', rootId, 'placed');
-                    await router.run(['docmem_delete', other.lastId], docmem);
+                    await router.run(['docmem_delete', other.lastId]);
                     const after = await create(router, 'after', 'last', 'after-placed');
                     return after.result.endsWith(`after ${placed.lastId}`);
                 },
@@ -133,7 +132,7 @@
                     router.beginResponse();
                     const first = await create(router, 'append-child', rootId, 'first');
                     await create(router, 'append-child', rootId, 'second');
-                    await router.run(['docmem_update_content', first.lastId, 'first edited'], docmem);
+                    await router.run(['docmem_update_content', first.lastId, 'first edited']);
                     const after = await create(router, 'after', 'last', 'after-first');
                     return after.result.endsWith(`after ${first.lastId}`);
                 },
@@ -144,7 +143,7 @@
                 fn: async () => {
                     const router = createChatCommandRouter();
                     router.beginResponse();
-                    return await router.run(['docmem_create', 'last'], docmem);
+                    return await router.run(['docmem_create', 'last']);
                 },
                 fails: 'reserved node reference'
             },
@@ -152,13 +151,32 @@
                 name: 'Docmem refuses last as a root id on every path',
                 fn: async () => {
                     try {
-                        await new DocmemClass('last').ready();
+                        await new Docmem('last').ready();
                         return 'created';
                     } catch (error) {
                         return error.message;
                     }
                 },
                 expected: 'last is a reserved node reference and cannot be a node id'
+            },
+            {
+                name: 'one router reaches nodes in any docmem by id',
+                fn: async () => {
+                    const other = new Docmem('router_test_other');
+                    await other.ready();
+                    const router = createChatCommandRouter();
+                    router.beginResponse();
+                    const here = await create(router, 'append-child', rootId, 'here');
+                    const there = await router.run(['docmem_create_node', 'append-child', 'router_test_other', 'para', '', '', 'there']);
+                    const edited = await router.run(['docmem_update_content', there.lastId, 'there edited']);
+                    const moved = await router.run(['docmem_move_node', 'append-child', here.lastId, 'router_test_other']);
+                    return {
+                        edited: edited.success,
+                        text: (await other.find(there.lastId)).text,
+                        crossMove: moved.result
+                    };
+                },
+                expected: { edited: true, text: 'there edited', crossMove: 'docmem_move_node requires node-id and target-id to have the same root node. You can only move nodes within a docmem. Node root: router_test, Target root: router_test_other' }
             },
         ];
 

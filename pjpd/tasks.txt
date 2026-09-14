@@ -50,14 +50,6 @@ Updated: 2026-07-03T01:55:48Z
 
 Add a "sensory" docmem to the chat context: ambient situational information such as current time, location, temperature/weather, and other random sensory details. It goes at the very end of the message list — after the recency-sorted docmem expansions — which fits the most-volatile-last ordering, since it changes every turn anyway (per SPEC_CHAT's cache-stability ordering; keeping it last means its churn invalidates nothing else).
 ----
-Priority:   65
-Status: ToDo
-ID: global-ids-9xnx
-Created: 2026-07-03T01:55:48Z
-Updated: 2026-07-03T01:55:48Z
-
-Remove the docmem state from DocmemCommands and instead treat node-ids as global (and globally unique)
-----
 Priority:   60
 Status: ToDo
 ID: stop-budget-uyg6
@@ -151,6 +143,16 @@ Created: 2026-09-14T08:16:38Z
 Updated: 2026-09-14T08:16:38Z
 
 Collapse the per-command facts scattered across js/command_router.js and js/docmem_tools/docmem_commands.js into one command registry. Today adding a docmem command means editing four places: the KNOWN_DOCMEM_COMMANDS set, the STATIC_DOCMEM_COMMANDS set (commands that run without an active docmem), the NODE_ID_ARGS table (which argument positions hold node ids, used to resolve the reserved "last" reference), and the switch in executeDocmemCommand that checks arity and calls the handler. The "places a node" fact is implied only by whether a handler's result carries placedId. Replace these with a single table keyed by command name whose entry holds: the usage string and minimum arity, whether it needs an active docmem, the node-id argument positions, whether it places a node (sets "last"), and the handler function. Derive KNOWN_DOCMEM_COMMANDS, the static set, and the last-resolution positions from the table, and drive dispatch from it so the switch goes away. Keep result wording and error messages unchanged so js/test_command_router.html and the prompt examples still hold; extend that test page with a check that every entry in KNOWN_DOCMEM_COMMANDS has a registry entry. Append a docs/ARCHITECTURE_LOG.md entry; no spec change since behavior is unchanged.
+----
+Priority:   45
+Status: ToDo
+ID: focus-home-g5h7
+Created: 2026-09-14T08:43:19Z
+Updated: 2026-09-14T08:43:19Z
+
+Move the focus registry out of the docmem store and beside the context serializer. Today the per-root focus map lives as statics on DocmemStore in js/docmem_tools/docmem.js (focusByRoot, setFocus, getFocus, clearFocus), reached through Docmem by static inheritance. Focus is not a property of the node table: it is in-memory session state that only context serialization reads. The sole reader is DocmemChat in js/docmem_chat.js (getFocus when building the message list, clearFocus when the focus node is gone); the sole writer is the docmem_focus command in js/docmem_tools/docmem_commands.js.
+
+Work: create a small focus registry module in the chat layer (for example js/focus_registry.js exporting a FocusRegistry with set, get, clear keyed by root id, or plain functions over one module-level Map), have DocmemChat and the focus command import it, and delete the statics from DocmemStore. Keep the behavior identical: focus is per root, in memory only, cleared when the focus node no longer exists, and docmem_focus(root, root) clears it. Update docs/SPEC_CHAT.md so the focus section names the registry as chat-layer state rather than docmem state, leave SPEC_DOCMEM without any focus mention, and append a docs/ARCHITECTURE_LOG.md entry. Add a case to js/test_command_router.html covering set, clear via docmem_focus(root, root), and fallback when the focused node is deleted.
 ----
 Priority:   40
 Status: ToDo

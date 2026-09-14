@@ -39,6 +39,10 @@ The tree structure MUST be shallow with clear semantics at each level. For examp
 
 ## Node Structure
 
+### Node Identity
+- Node IDs are global: an ID names one node across every docmem in the database.
+- Docmem commands MUST resolve a node ID without reference to any bound docmem. Any confinement to one docmem MUST come from an explicit root argument or a same-root check on the command itself.
+
 ### Node ID Generation
 - Node IDs MUST be randomly generated 8-character strings.
 - The ONLY exception is the docmem root ID, which MAY be user-specified when creating a new docmem.

@@ -1,7 +1,8 @@
 /**
  * DocmemChat - Chat-specific wrapper around Docmem for managing chat sessions
  */
-import { Docmem, Node, NodeHasher } from './docmem_tools/docmem.js';
+import { Docmem } from './docmem_tools/docmem.js';
+import { Node, NodeHasher } from './docmem_tools/docmem_types.js';
 import { ROOT_PROMPT_DOCMEM_ID } from './system_prompts/root_prompt.js';
 import { PYTOOL_PROMPT } from './pytool/pytool_prompt.js';
 import { SYSTEM_PROMPT } from './system_tools/system_prompt.js';

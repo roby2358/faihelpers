@@ -3,7 +3,8 @@
  * Seeds a docmem with provided node data
  */
 
-import { Docmem, Node, NodeHasher } from '../docmem_tools/docmem.js';
+import { Docmem } from '../docmem_tools/docmem.js';
+import { Node, NodeHasher } from '../docmem_tools/docmem_types.js';
 import { ROOT_PROMPT_DOCMEM_ID, ROOT_PROMPT_DATA } from './root_prompt.js';
 // import { STOOGES_DOCMEM_ID, STOOGES_DATA } from './stooges.js';
 

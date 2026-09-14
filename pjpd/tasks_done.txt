@@ -80,6 +80,14 @@ Refresh the OpenRouter model dropdown in index.html against the published list a
 ----
 Priority:   65
 Status: Done
+ID: global-ids-9xnx
+Created: 2026-07-03T01:55:48Z
+Updated: 2026-09-14T08:38:02Z
+
+Remove the docmem state from DocmemCommands and instead treat node-ids as global (and globally unique)
+----
+Priority:   65
+Status: Done
 ID: read-set-32jb
 Created: 2026-09-07T00:33:50Z
 Updated: 2026-09-12T07:42:11Z

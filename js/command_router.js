@@ -10,7 +10,6 @@ import { LAST_NODE } from './docmem_tools/docmem_types.js';
 
 export const KNOWN_COMMANDS = new Set([...KNOWN_SYSTEM_COMMANDS, ...KNOWN_DOCMEM_COMMANDS]);
 const VALID_MODES = new Set(['append-child', 'before', 'after']);
-const STATIC_DOCMEM_COMMANDS = new Set(['docmem_get_all_roots', 'docmem_create']);
 
 // `last` is a reserved node reference: the node this router most recently
 // placed (created, copied, moved, or made a summary) or updated the content
@@ -61,16 +60,12 @@ function requireMode(mode) {
     }
 }
 
-async function executeDocmemCommand(args, docmem, lastId) {
+async function executeDocmemCommand(args, commands, lastId) {
     const [command, ...rawArgs] = args;
-
-    if (!STATIC_DOCMEM_COMMANDS.has(command) && !docmem) {
-        throw new Error(`Command ${command} requires an active docmem instance`);
-    }
 
     try {
         const restArgs = resolveLastNode(command, rawArgs, lastId);
-        const commands = new DocmemCommands(docmem);
+        await commands.ready();
 
         switch (command) {
             case 'docmem_create': {
@@ -184,14 +179,15 @@ function noOpOutsideTask(restArgs) {
 const TASK_TERMINATORS = { suspend: suspendInTask, finish: finishInTask };
 const CHAT_TERMINATORS = { suspend: noOpOutsideTask, finish: noOpOutsideTask };
 
-// A router is { run(args, docmem), beginResponse() }. It carries the `last`
+// A router is { run(args), beginResponse() }. It carries the `last`
 // reference: a command that sets it reports the node as `lastId` in its
 // result, and AgentLoop calls beginResponse() before executing each
 // response's calls so a stale id never crosses turns.
 function buildRouter(terminators) {
+    const commands = new DocmemCommands();
     let lastId = null;
 
-    async function run(args, docmem) {
+    async function run(args) {
         const [command, ...restArgs] = args;
 
         if (Object.hasOwn(terminators, command)) {
@@ -199,7 +195,7 @@ function buildRouter(terminators) {
         }
 
         if (KNOWN_DOCMEM_COMMANDS.has(command)) {
-            const result = await executeDocmemCommand(args, docmem, lastId);
+            const result = await executeDocmemCommand(args, commands, lastId);
             if (result.success && Object.hasOwn(result, 'lastId')) {
                 lastId = result.lastId;
             }
