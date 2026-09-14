@@ -30,6 +30,14 @@ Updated: 2026-09-14T04:55:48Z
 
 Allow adding tasks to the task docmem while the task harness is running. Add a text box and "Add task" button to the Tasks tab (js/tasks_panel.js) that appends a new task node (context_type "task", text starting with {status=queued}) as the last child of the task root, without stopping the run. Do not disable the control while running. This is safe: the harness (js/task_harness.js) only writes the running task's own node, and a node's hash does not cover siblings, so appending cannot raise OptimisticLockError on the running task; the harness selects the next task at the start of each run so the new task is picked up naturally. The running agent will see the new node in its context on its next turn; the System.task prompt already tells it queued tasks run in order after it and not to recreate them, so no prompt change is needed. If a lock error does occur on the add itself, show it in the panel and let the user retry. Update docs/TASK_DELEGATION_SPEC.md to state that tasks may be appended during a run.
 ----
+Priority:   85
+Status: Done
+ID: add-feedback-p7ev
+Created: 2026-09-14T05:58:45Z
+Updated: 2026-09-14T08:24:06Z
+
+In js/tasks_panel.js, addTask() returns silently when no task docmem is bound (harness is null) and when the task text is empty, so clicking Add with nothing bound looks like a dead button. startHarness() already shows an error message in the same no-harness case. Make addTask give the same feedback: showMessage('Create or select a task docmem first', 'error') when harness is null, and showMessage('Enter task text first', 'error') when the text is empty. On success, show a short success message naming the new node id, e.g. 'Added task <id>', so the user sees the add land even while the tree is re-rendering during a run. No spec change needed; this is panel feedback only.
+----
 Priority:   80
 Status: Done
 ID: llm-api-za72
