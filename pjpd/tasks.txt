@@ -6,14 +6,6 @@ Updated: 2026-09-14T00:16:22Z
 
 Add an "Import template" button to the Tasks tab (js/tasks_panel.js). Clicking it opens a file picker for a .toml file, parses it with the existing TOML import in js/persist/toml.js, and creates a new task docmem from it (the file's root node becomes the task docmem root). After import, the new task docmem should be selected in the Tasks tab so the harness can be run on it immediately. Reuse the Persist tab's load path rather than duplicating parsing. Update docs/TASK_DELEGATION_SPEC.md to describe the button.
 ----
-Priority:   85
-Status: ToDo
-ID: add-feedback-p7ev
-Created: 2026-09-14T05:58:45Z
-Updated: 2026-09-14T05:58:45Z
-
-In js/tasks_panel.js, addTask() returns silently when no task docmem is bound (harness is null) and when the task text is empty, so clicking Add with nothing bound looks like a dead button. startHarness() already shows an error message in the same no-harness case. Make addTask give the same feedback: showMessage('Create or select a task docmem first', 'error') when harness is null, and showMessage('Enter task text first', 'error') when the text is empty. On success, show a short success message naming the new node id, e.g. 'Added task <id>', so the user sees the add land even while the tree is re-rendering during a run. No spec change needed; this is panel feedback only.
-----
 Priority:   80
 Status: ToDo
 ID: fence-one-xsmw

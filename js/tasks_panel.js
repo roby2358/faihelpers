@@ -180,13 +180,20 @@ async function refreshAfter(fn) {
 
 // The one hand edit allowed during a run. See TASK_DELEGATION_SPEC, Who writes when.
 async function addTask() {
-    if (!harness) return;
+    if (!harness) {
+        showMessage('Create or select a task docmem first', 'error');
+        return;
+    }
     const text = el('tasks-new-text').value.trim();
-    if (!text) return;
+    if (!text) {
+        showMessage('Enter task text first', 'error');
+        return;
+    }
     const lens = el('tasks-new-lens').value.trim();
     await refreshAfter(async () => {
-        await harness.docmem.appendChild(harness.taskRootId, 'task', lens, '', `{status=queued}\n${text}`);
+        const node = await harness.docmem.appendChild(harness.taskRootId, 'task', lens, '', `{status=queued}\n${text}`);
         el('tasks-new-text').value = '';
+        showMessage(`Added task ${node.id}`, 'success');
     });
 }
 
