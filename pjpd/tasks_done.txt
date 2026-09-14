@@ -14,6 +14,14 @@ Updated: 2026-09-07T02:44:17Z
 
 Summarize tool results before feeding them back to the model. After a turn's pytool calls execute, the results are recorded verbatim as a single user-role message; models can misread this as evidence they issued the calls twice, or lose the one result they needed in the noise. Collapse each turn's results into a short structured summary (one line per call: command, key argument, outcome or returned node id, error if any) that clearly labels itself as the results of the calls in the previous assistant message, and keep long payloads such as docmem_structure or docmem_search output trimmed or referenced rather than repeated. Consider recording the raw results in the chat docmem for the UI while sending the summary to the model. Update SPEC_DELEGATE (turn cycle step 7) and SPEC_CHAT.
 ----
+Priority:   88
+Status: Done
+ID: last-node-cth5
+Created: 2026-09-14T00:47:19Z
+Updated: 2026-09-14T08:20:52Z
+
+Add a reserved node reference "last" to the docmem commands. Wherever a command takes a node id (docmem_create_node anchor, docmem_update_content, docmem_move_node node and target, docmem_delete, docmem_structure, etc.), the literal "last" resolves to the id of the most recent node created or moved by this agent's commands in the current response. It updates after every create or move within the response, so a model can insert in order without waiting for ids: docmem_create_node("after", "12345", ...) then docmem_create_node("after", "last", ...) then again with "last" gives 12345 A B C. Node ids stay anonymous and random; "last" is a reference, never stored. Scope is the current response only: it resets at the start of each response so a stale reference from an earlier turn cannot misplace a node; the model has the real ids in its results by then. Details: track it in the command router or DocmemCommands state (js/command_router.js, js/docmem_tools/docmem_commands.js) and clear it when a new response begins processing; "last" before any create or move in the response is an error "no last node in this response"; docmem_create must refuse "last" as a root name; the resolved id must appear in the result text (e.g. "created ab12cd34 after 9yu7wxh6"), never the word last. Document in js/docmem_tools/docmem_prompt.js with the three-inserts example, in docs/SPEC_DOCMEM.md, and append an entry to docs/ARCHITECTURE_LOG.md. Motivation: in a DeepSeek v4 Pro run two "after X" inserts on the same anchor landed reversed and the model spent turns on structure dumps trying to repair it.
+----
 Priority:   87
 Status: Done
 ID: add-live-nvyt

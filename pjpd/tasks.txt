@@ -1,11 +1,3 @@
-Priority:   88
-Status: ToDo
-ID: last-node-cth5
-Created: 2026-09-14T00:47:19Z
-Updated: 2026-09-14T00:48:31Z
-
-Add a reserved node reference "last" to the docmem commands. Wherever a command takes a node id (docmem_create_node anchor, docmem_update_content, docmem_move_node node and target, docmem_delete, docmem_structure, etc.), the literal "last" resolves to the id of the most recent node created or moved by this agent's commands in the current response. It updates after every create or move within the response, so a model can insert in order without waiting for ids: docmem_create_node("after", "12345", ...) then docmem_create_node("after", "last", ...) then again with "last" gives 12345 A B C. Node ids stay anonymous and random; "last" is a reference, never stored. Scope is the current response only: it resets at the start of each response so a stale reference from an earlier turn cannot misplace a node; the model has the real ids in its results by then. Details: track it in the command router or DocmemCommands state (js/command_router.js, js/docmem_tools/docmem_commands.js) and clear it when a new response begins processing; "last" before any create or move in the response is an error "no last node in this response"; docmem_create must refuse "last" as a root name; the resolved id must appear in the result text (e.g. "created ab12cd34 after 9yu7wxh6"), never the word last. Document in js/docmem_tools/docmem_prompt.js with the three-inserts example, in docs/SPEC_DOCMEM.md, and append an entry to docs/ARCHITECTURE_LOG.md. Motivation: in a DeepSeek v4 Pro run two "after X" inserts on the same anchor landed reversed and the model spent turns on structure dumps trying to repair it.
-----
 Priority:   85
 Status: ToDo
 ID: import-tmpl-9enm
