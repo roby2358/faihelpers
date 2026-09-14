@@ -1,3 +1,19 @@
+Priority:   90
+Status: ToDo
+ID: node-ids-gjb6
+Created: 2026-09-14T00:15:25Z
+Updated: 2026-09-14T00:15:25Z
+
+Docmem node operations (docmem_create, append_child, insert_sibling, update, delete, move, and any other mutating command in js/docmem_tools/docmem_commands.js) must return the affected node id(s) in their tool result. Observed in a Fable run in the task harness: after creating nodes, the model said "I need to see the current tree structure to identify the nodes I just created, since the results didn't return their IDs" and spent a turn on a tree dump. Return the id of every node created, modified, moved, or deleted in the result text so follow-up calls can reference them directly. Update the tool descriptions in js/docmem_tools/docmem_prompt.js to say the id is returned, and update docs/SPEC_DOCMEM.md accordingly.
+----
+Priority:   85
+Status: ToDo
+ID: import-tmpl-9enm
+Created: 2026-09-14T00:16:22Z
+Updated: 2026-09-14T00:16:22Z
+
+Add an "Import template" button to the Tasks tab (js/tasks_panel.js). Clicking it opens a file picker for a .toml file, parses it with the existing TOML import in js/persist/toml.js, and creates a new task docmem from it (the file's root node becomes the task docmem root). After import, the new task docmem should be selected in the Tasks tab so the harness can be run on it immediately. Reuse the Persist tab's load path rather than duplicating parsing. Update docs/TASK_DELEGATION_SPEC.md to describe the button.
+----
 Priority:   75
 Status: ToDo
 ID: persist-bzb3
