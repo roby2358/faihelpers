@@ -2,9 +2,25 @@ Priority:   90
 Status: ToDo
 ID: node-ids-gjb6
 Created: 2026-09-14T00:15:25Z
-Updated: 2026-09-14T00:15:25Z
+Updated: 2026-09-14T00:47:24Z
 
-Docmem node operations (docmem_create, append_child, insert_sibling, update, delete, move, and any other mutating command in js/docmem_tools/docmem_commands.js) must return the affected node id(s) in their tool result. Observed in a Fable run in the task harness: after creating nodes, the model said "I need to see the current tree structure to identify the nodes I just created, since the results didn't return their IDs" and spent a turn on a tree dump. Return the id of every node created, modified, moved, or deleted in the result text so follow-up calls can reference them directly. Update the tool descriptions in js/docmem_tools/docmem_prompt.js to say the id is returned, and update docs/SPEC_DOCMEM.md accordingly.
+docmem_create_node results are misread by models. In js/docmem_tools/docmem_commands.js the before/after modes return "inserted before <new id>" and "inserted after <new id>", which reads as if the id is the anchor node, not the created node. In a DeepSeek v4 Pro run the model said "I need to see the current tree structure to identify the nodes I just created, since the results didn't return their IDs" and spent two turns on docmem_structure dumps. Reword every mutating result to name the created/affected node unambiguously and first, e.g. "docmem_create_node: created nunppnsu before 9cqd3zc9", "appended child upn9zrs5 to beach-blowout", "moved 3mk3e6v8 before zfnsh8a9". Update the tool descriptions in docmem_prompt.js and docs/SPEC_DOCMEM.md. (In-order insertion after one anchor is handled by the separate "last" node reference task.)
+----
+Priority:   88
+Status: ToDo
+ID: last-node-cth5
+Created: 2026-09-14T00:47:19Z
+Updated: 2026-09-14T00:48:31Z
+
+Add a reserved node reference "last" to the docmem commands. Wherever a command takes a node id (docmem_create_node anchor, docmem_update_content, docmem_move_node node and target, docmem_delete, docmem_structure, etc.), the literal "last" resolves to the id of the most recent node created or moved by this agent's commands in the current response. It updates after every create or move within the response, so a model can insert in order without waiting for ids: docmem_create_node("after", "12345", ...) then docmem_create_node("after", "last", ...) then again with "last" gives 12345 A B C. Node ids stay anonymous and random; "last" is a reference, never stored. Scope is the current response only: it resets at the start of each response so a stale reference from an earlier turn cannot misplace a node; the model has the real ids in its results by then. Details: track it in the command router or DocmemCommands state (js/command_router.js, js/docmem_tools/docmem_commands.js) and clear it when a new response begins processing; "last" before any create or move in the response is an error "no last node in this response"; docmem_create must refuse "last" as a root name; the resolved id must appear in the result text (e.g. "created ab12cd34 after 9yu7wxh6"), never the word last. Document in js/docmem_tools/docmem_prompt.js with the three-inserts example, in docs/SPEC_DOCMEM.md, and append an entry to docs/ARCHITECTURE_LOG.md. Motivation: in a DeepSeek v4 Pro run two "after X" inserts on the same anchor landed reversed and the model spent turns on structure dumps trying to repair it.
+----
+Priority:   87
+Status: ToDo
+ID: add-live-nvyt
+Created: 2026-09-14T00:51:31Z
+Updated: 2026-09-14T00:51:31Z
+
+Allow adding tasks to the task docmem while the task harness is running. Add a text box and "Add task" button to the Tasks tab (js/tasks_panel.js) that appends a new task node (context_type "task", text starting with {status=queued}) as the last child of the task root, without stopping the run. Do not disable the control while running. This is safe: the harness (js/task_harness.js) only writes the running task's own node, and a node's hash does not cover siblings, so appending cannot raise OptimisticLockError on the running task; the harness selects the next task at the start of each run so the new task is picked up naturally. The running agent will see the new node in its context on its next turn; the System.task prompt already tells it queued tasks run in order after it and not to recreate them, so no prompt change is needed. If a lock error does occur on the add itself, show it in the panel and let the user retry. Update docs/TASK_DELEGATION_SPEC.md to state that tasks may be appended during a run.
 ----
 Priority:   85
 Status: ToDo
@@ -13,6 +29,20 @@ Created: 2026-09-14T00:16:22Z
 Updated: 2026-09-14T00:16:22Z
 
 Add an "Import template" button to the Tasks tab (js/tasks_panel.js). Clicking it opens a file picker for a .toml file, parses it with the existing TOML import in js/persist/toml.js, and creates a new task docmem from it (the file's root node becomes the task docmem root). After import, the new task docmem should be selected in the Tasks tab so the harness can be run on it immediately. Reuse the Persist tab's load path rather than duplicating parsing. Update docs/TASK_DELEGATION_SPEC.md to describe the button.
+----
+Priority:   80
+Status: ToDo
+ID: fence-one-xsmw
+Created: 2026-09-14T00:34:21Z
+Updated: 2026-09-14T00:34:21Z
+
+Change the pytool format so each ```pytool fence holds exactly one command, and add a heredoc tail: after the closing paren, `<<<` followed by a newline makes everything to the end of the fence the final string argument, with no quoting. Example:
+```pytool
+docmem_update_content("9yu7wxh6") <<<
+Marge slammed a stack of fins on the counter. "Rob didn't show," she said.
+```
+Rationale: long prose in Python string literals is where parse errors and dropped arguments happen (a paragraph ending in a dialogue quote before """ broke a ten-call batch in a DeepSeek v4 Pro run); the fence itself never fails, and the agent loop already runs every fence in a response, so batching is preserved with one call per fence. Benefits: a parse error discards one call instead of the whole batch, and each fence maps to exactly one result line.
+Work: edit js/pytool/pytool.pegjs (remove the statement list, add the heredoc tail rule, make a second command in a fence fail with the message "one command per fence"), regenerate js/pytool/pytool_parser.js with peggy, update js/pytool/SPEC_PYTOOL_PARSER.md, update js/pytool/test_pytool_parser.html with cases for heredoc, quote-terminated content, and the two-commands error, reword js/docmem_tools/docmem_prompt.js and js/system_tools prompts so "share a block" becomes "in the same response" and show one heredoc example near the top, and append an entry to docs/ARCHITECTURE_LOG.md.
 ----
 Priority:   75
 Status: ToDo
@@ -45,6 +75,14 @@ Created: 2026-09-07T00:33:57Z
 Updated: 2026-09-07T00:33:57Z
 
 Add a Stop button wired to an AbortController that cancels the running AgentLoop and any delegated children, retry with backoff for 5xx and network errors in OpenRouterAPI, and a per-run token budget that terminates the loop with a budget_exhausted reason. Required before an unattended task queue can run safely.
+----
+Priority:   60
+Status: ToDo
+ID: model-record-fmjt
+Created: 2026-09-14T00:27:49Z
+Updated: 2026-09-14T00:27:49Z
+
+TOML dumps do not record which model ran a chat, so dump reviews cannot attribute behavior to a model. Record the OpenRouter model id on each chat session docmem when the chat is created or when the first request is sent (e.g. in the chat root's context value alongside the date, or as a state key on the task harness chat root). Cover both chat-panel chats and task-harness chats (js/chat.js, js/task_harness.js). Update docs/SPEC_CHAT.md to describe the field.
 ----
 Priority:   55
 Status: ToDo
