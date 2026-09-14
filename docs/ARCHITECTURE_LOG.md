@@ -192,3 +192,9 @@ Entry format: date, title, decision, rationale, supersedes (if any).
 **Delta.** The fixed instruction block after `System.task` now opens with "do the instruction yourself, then call finish(summary)". Splitting into child tasks is presented as the exception for work too large for one run, and a child must do a part of the parent's instruction, never restate it. The "around advice" framing is dropped from the worker-facing text; the mechanics (children run next, parent reruns when they fold) stay. Same length as before.
 
 **Rationale.** A Dolphin Mistral 24B run finished every task with two story edits: each worker created a child restating its own instruction, suspended, then finished on "created a subtask". The old text led with splitting, so a small model read it as the instruction rather than an option.
+
+## 2026-09-14: Mutating results name the affected node first
+
+**Delta.** `docmem_create_node`, `docmem_copy_node`, `docmem_move_node`, and `docmem_add_summary` results lead with the created or moved node id and then state its position relative to the anchor: `created nunppnsu before 9cqd3zc9`, `moved 3mk3e6v8 after zfnsh8a9`, `created summary ab12cd34 over x through y`. The old forms (`inserted before <new id>`, `moved node X after node Y`) are gone. The prompt and SPEC_CHAT state the rule; SPEC_DOCMEM gains a Command Results section.
+
+**Rationale.** `inserted before nunppnsu` reads as if `nunppnsu` were the anchor. A DeepSeek v4 Pro worker concluded "the results didn't return their IDs" and spent two turns on `docmem_structure` dumps to find nodes it had just made. Putting the new id first and naming the anchor removes the ambiguity.

@@ -51,7 +51,8 @@ Every docmem is automatically serialized and included in your context as a syste
 
 ### Command Response Format
 - Each command's output comes back in the next user message, one paragraph per command, in call order
-- Successful commands return: \`<command_name>: <one-line outcome>\`, e.g. \`docmem_create_node: appended child qjjp9a36\`
+- Successful commands return: \`<command_name>: <one-line outcome>\`, e.g. \`docmem_create_node: created qjjp9a36 after 9cqd3zc9\`
+- A mutating command names the node it created or moved FIRST, then the anchor: \`created <new_id> after <node_id>\`, \`moved <node_id> before <target_id>\`. The first id is always the new or moved node; use it in later calls
 - Query commands return text data below the label: \`<command_name>:\\ntext\`
 - Failed commands return: \`error <command_name>: <message>\`
 - The output is the framework's reply to your call; it is not a second invocation
@@ -81,7 +82,7 @@ def docmem_create_node(mode: str, node_id: str, context_type: str, context_name:
     context_name: string 0-24 chars
     context_value: string 0-24 chars
     content: text content (may be empty "")
-    Returns: docmem_create_node: <action> <new_node_id>
+    Returns: docmem_create_node: created <new_node_id> as last child of <node_id> | before <node_id> | after <node_id>
     """
 \`\`\`
 
@@ -118,7 +119,7 @@ def docmem_move_node(mode: str, node_id: str, target_id: str):
     mode: "append-child" (becomes child of target), "before" (sibling before target), or "after" (sibling after target)
     node_id: node ID to move (and its subtree) - must exist
     target_id: target node ID to position relative to - must exist
-    Returns: docmem_move_node: <action>
+    Returns: docmem_move_node: moved <node_id> to last child of <target_id> | before <target_id> | after <target_id>
     Note: node_id and target_id MUST belong to the same docmem root (same tree)
     """
 \`\`\`
@@ -130,7 +131,7 @@ def docmem_copy_node(mode: str, node_id: str, target_id: str):
     mode: "append-child" (copy becomes child of target), "before" (sibling before target), or "after" (sibling after target)
     node_id: node ID to copy (and its subtree) - must exist
     target_id: target node ID to position relative to - must exist
-    Returns: docmem_copy_node: <action> <new_node_id>
+    Returns: docmem_copy_node: created <new_node_id> as last child of <target_id> | before <target_id> | after <target_id>, a copy of <node_id>
     """
 \`\`\`
 
@@ -197,7 +198,7 @@ def docmem_add_summary(context_type: str, context_name: str, context_value: str,
     start_node_id: first node in the range to summarize (must exist)
     end_node_id: last node in the range to summarize (must exist)
     Note: start and end nodes MUST be siblings (they may be the same node). Nodes in the range keep their own subtrees beneath them. A summary's subtree is omitted from context serialization; only the summary itself appears.
-    Returns: docmem_add_summary: added summary <new_summary_node_id>
+    Returns: docmem_add_summary: created summary <new_summary_node_id> over <start_node_id> through <end_node_id>
     """
 \`\`\`
 

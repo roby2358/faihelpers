@@ -1,11 +1,3 @@
-Priority:   90
-Status: ToDo
-ID: node-ids-gjb6
-Created: 2026-09-14T00:15:25Z
-Updated: 2026-09-14T00:47:24Z
-
-docmem_create_node results are misread by models. In js/docmem_tools/docmem_commands.js the before/after modes return "inserted before <new id>" and "inserted after <new id>", which reads as if the id is the anchor node, not the created node. In a DeepSeek v4 Pro run the model said "I need to see the current tree structure to identify the nodes I just created, since the results didn't return their IDs" and spent two turns on docmem_structure dumps. Reword every mutating result to name the created/affected node unambiguously and first, e.g. "docmem_create_node: created nunppnsu before 9cqd3zc9", "appended child upn9zrs5 to beach-blowout", "moved 3mk3e6v8 before zfnsh8a9". Update the tool descriptions in docmem_prompt.js and docs/SPEC_DOCMEM.md. (In-order insertion after one anchor is handled by the separate "last" node reference task.)
-----
 Priority:   88
 Status: ToDo
 ID: last-node-cth5

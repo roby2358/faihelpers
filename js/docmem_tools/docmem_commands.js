@@ -67,13 +67,13 @@ export class DocmemCommands {
     async executeWithMode(mode, nodeId, targetId, operations, commandName) {
         if (mode === 'append-child') {
             const node = await operations.appendChild(nodeId, targetId);
-            return { node, action: operations.appendChildAction(nodeId, targetId) };
+            return { node, action: operations.appendChildAction(node.id, nodeId, targetId) };
         } else if (mode === 'before') {
             const node = await operations.before(nodeId, targetId);
-            return { node, action: operations.beforeAction(nodeId, targetId) };
+            return { node, action: operations.beforeAction(node.id, nodeId, targetId) };
         } else if (mode === 'after') {
             const node = await operations.after(nodeId, targetId);
-            return { node, action: operations.afterAction(nodeId, targetId) };
+            return { node, action: operations.afterAction(node.id, nodeId, targetId) };
         } else {
             throw new Error(`${commandName} requires mode to be append-child, before, or after, got: ${mode}`);
         }
@@ -94,19 +94,19 @@ export class DocmemCommands {
     async appendChild(nodeId, contextType, contextName, contextValue, content) {
         const validated = this.validateContext(contextType, contextName, contextValue, 'docmem_append_child');
         const node = await this.docmem.appendChild(nodeId, validated.contextType, validated.contextName, validated.contextValue, content);
-        return { success: true, result: `docmem_append_child: appended child ${node.id}` };
+        return { success: true, result: `docmem_append_child: created ${node.id} as last child of ${nodeId}` };
     }
 
     async insertBefore(nodeId, contextType, contextName, contextValue, content) {
         const validated = this.validateContext(contextType, contextName, contextValue, 'docmem_insert_before');
         const node = await this.docmem.insertBefore(nodeId, validated.contextType, validated.contextName, validated.contextValue, content);
-        return { success: true, result: `docmem_insert_before: inserted ${node.id}` };
+        return { success: true, result: `docmem_insert_before: created ${node.id} before ${nodeId}` };
     }
 
     async insertAfter(nodeId, contextType, contextName, contextValue, content) {
         const validated = this.validateContext(contextType, contextName, contextValue, 'docmem_insert_after');
         const node = await this.docmem.insertAfter(nodeId, validated.contextType, validated.contextName, validated.contextValue, content);
-        return { success: true, result: `docmem_insert_after: inserted ${node.id}` };
+        return { success: true, result: `docmem_insert_after: created ${node.id} after ${nodeId}` };
     }
 
     async createNode(mode, nodeId, contextType, contextName, contextValue, content) {
@@ -115,11 +115,11 @@ export class DocmemCommands {
             appendChild: async (nId) => await this.docmem.appendChild(nId, validated.contextType, validated.contextName, validated.contextValue, content),
             before: async (nId) => await this.docmem.insertBefore(nId, validated.contextType, validated.contextName, validated.contextValue, content),
             after: async (nId) => await this.docmem.insertAfter(nId, validated.contextType, validated.contextName, validated.contextValue, content),
-            appendChildAction: () => 'appended child',
-            beforeAction: () => 'inserted before',
-            afterAction: () => 'inserted after'
+            appendChildAction: (newId, nId) => `created ${newId} as last child of ${nId}`,
+            beforeAction: (newId, nId) => `created ${newId} before ${nId}`,
+            afterAction: (newId, nId) => `created ${newId} after ${nId}`
         }, 'docmem_create_node');
-        return { success: true, result: `docmem_create_node: ${result.action} ${result.node.id}` };
+        return { success: true, result: `docmem_create_node: ${result.action}` };
     }
 
     async updateContent(nodeId, content) {
@@ -171,22 +171,22 @@ export class DocmemCommands {
         }
         const validated = this.validateContext(contextType, contextName, contextValue, 'docmem_add_summary');
         const node = await this.docmem.addSummary(startNodeId, endNodeId, content, validated.contextType, validated.contextName, validated.contextValue);
-        return { success: true, result: `docmem_add_summary: added summary ${node.id}` };
+        return { success: true, result: `docmem_add_summary: created summary ${node.id} over ${startNodeId} through ${endNodeId}` };
     }
 
     async moveAppendChild(nodeId, targetParentId) {
         const node = await this.docmem.moveAppendChild(nodeId, targetParentId);
-        return { success: true, result: `docmem_move_append_child: moved node ${nodeId} to parent ${targetParentId}` };
+        return { success: true, result: `docmem_move_append_child: moved ${nodeId} to last child of ${targetParentId}` };
     }
 
     async moveBefore(nodeId, targetNodeId) {
         const node = await this.docmem.moveBefore(nodeId, targetNodeId);
-        return { success: true, result: `docmem_move_before: moved node ${nodeId} before node ${targetNodeId}` };
+        return { success: true, result: `docmem_move_before: moved ${nodeId} before ${targetNodeId}` };
     }
 
     async moveAfter(nodeId, targetNodeId) {
         const node = await this.docmem.moveAfter(nodeId, targetNodeId);
-        return { success: true, result: `docmem_move_after: moved node ${nodeId} after node ${targetNodeId}` };
+        return { success: true, result: `docmem_move_after: moved ${nodeId} after ${targetNodeId}` };
     }
 
     async moveNode(mode, nodeId, targetId) {
@@ -195,9 +195,9 @@ export class DocmemCommands {
             appendChild: async (nId, tId) => await this.docmem.moveAppendChild(nId, tId),
             before: async (nId, tId) => await this.docmem.moveBefore(nId, tId),
             after: async (nId, tId) => await this.docmem.moveAfter(nId, tId),
-            appendChildAction: (nId, tId) => `moved node ${nId} to parent ${tId}`,
-            beforeAction: (nId, tId) => `moved node ${nId} before node ${tId}`,
-            afterAction: (nId, tId) => `moved node ${nId} after node ${tId}`
+            appendChildAction: (movedId, nId, tId) => `moved ${movedId} to last child of ${tId}`,
+            beforeAction: (movedId, nId, tId) => `moved ${movedId} before ${tId}`,
+            afterAction: (movedId, nId, tId) => `moved ${movedId} after ${tId}`
         }, 'docmem_move_node');
         return { success: true, result: `docmem_move_node: ${result.action}` };
     }
@@ -207,11 +207,11 @@ export class DocmemCommands {
             appendChild: async (nId, tId) => await this.docmem.copyAppendChild(nId, tId),
             before: async (nId, tId) => await this.docmem.copyBefore(nId, tId),
             after: async (nId, tId) => await this.docmem.copyAfter(nId, tId),
-            appendChildAction: (nId, tId) => `copied node ${nId} to parent ${tId}`,
-            beforeAction: (nId, tId) => `copied node ${nId} before node ${tId}`,
-            afterAction: (nId, tId) => `copied node ${nId} after node ${tId}`
+            appendChildAction: (copyId, nId, tId) => `created ${copyId} as last child of ${tId}, a copy of ${nId}`,
+            beforeAction: (copyId, nId, tId) => `created ${copyId} before ${tId}, a copy of ${nId}`,
+            afterAction: (copyId, nId, tId) => `created ${copyId} after ${tId}, a copy of ${nId}`
         }, 'docmem_copy_node');
-        return { success: true, result: `docmem_copy_node: ${result.action} ${result.node.id}` };
+        return { success: true, result: `docmem_copy_node: ${result.action}` };
     }
 
     async getAllRoots() {

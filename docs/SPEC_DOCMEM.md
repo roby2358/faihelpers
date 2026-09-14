@@ -293,6 +293,11 @@ The tree structure MUST be shallow with clear semantics at each level. For examp
 - The operation MUST return the root node.
 - The operation MUST fail if any node in the chain is not found.
 
+## Command Results
+
+- Every mutating docmem command (create node, copy, move, add summary) MUST return a one-line outcome that names the created or moved node first, then its position relative to the anchor: `created <new_id> after <node_id>`, `created <new_id> as last child of <node_id>`, `moved <node_id> before <target_id>`, `created summary <new_id> over <start_id> through <end_id>`.
+- The anchor or target id MUST NOT appear before the affected node's id.
+
 ## Current Limitations
 
 The following features are NOT REQUIRED in the current implementation:

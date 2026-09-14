@@ -51,7 +51,8 @@ A pytool block opens with a ```` ```pytool ```` fence and runs to its closing fe
 Command output is fed back to the model as a user-role message, one per executed pytool block.
 
 - Each command contributes one paragraph, in call order, separated by blank lines.
-- A successful command owns its entire display string. The string MUST begin with the command's function name exactly as the model calls it (underscores, never hyphens), followed by a colon and a one-line outcome; multi-line data, if any, follows on subsequent lines. Example: `docmem_create_node: appended child qjjp9a36`.
+- A successful command owns its entire display string. The string MUST begin with the command's function name exactly as the model calls it (underscores, never hyphens), followed by a colon and a one-line outcome; multi-line data, if any, follows on subsequent lines. Example: `docmem_create_node: created qjjp9a36 after 9cqd3zc9`.
+- A mutating command's outcome MUST name the created or moved node first, followed by its position relative to the anchor (`created <new_id> after <node_id>`, `moved <node_id> before <target_id>`). The anchor id never appears before the affected id.
 - A failed command returns a bare message; the loop labels it as `error <function_name>: <message>`.
 - Errors that arise before any command runs (parse errors, unknown functions) use the same shape with `pytool` as the name.
 - The call itself is never echoed back, so a result cannot be mistaken for a second invocation.
