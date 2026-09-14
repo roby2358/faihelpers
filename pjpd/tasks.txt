@@ -14,6 +14,14 @@ Updated: 2026-09-14T00:16:22Z
 
 Add an "Import template" button to the Tasks tab (js/tasks_panel.js). Clicking it opens a file picker for a .toml file, parses it with the existing TOML import in js/persist/toml.js, and creates a new task docmem from it (the file's root node becomes the task docmem root). After import, the new task docmem should be selected in the Tasks tab so the harness can be run on it immediately. Reuse the Persist tab's load path rather than duplicating parsing. Update docs/TASK_DELEGATION_SPEC.md to describe the button.
 ----
+Priority:   85
+Status: ToDo
+ID: add-feedback-p7ev
+Created: 2026-09-14T05:58:45Z
+Updated: 2026-09-14T05:58:45Z
+
+In js/tasks_panel.js, addTask() returns silently when no task docmem is bound (harness is null) and when the task text is empty, so clicking Add with nothing bound looks like a dead button. startHarness() already shows an error message in the same no-harness case. Make addTask give the same feedback: showMessage('Create or select a task docmem first', 'error') when harness is null, and showMessage('Enter task text first', 'error') when the text is empty. On success, show a short success message naming the new node id, e.g. 'Added task <id>', so the user sees the add land even while the tree is re-rendering during a run. No spec change needed; this is panel feedback only.
+----
 Priority:   80
 Status: ToDo
 ID: fence-one-xsmw
@@ -35,6 +43,20 @@ Created: 2026-07-03T01:55:47Z
 Updated: 2026-07-03T01:55:47Z
 
 Implement persistence for the SQLite database using IndexedDB so that docmem data survives page reloads and browser sessions. Serialize the database state to IndexedDB on save operations and restore it when loading a docmem instance.
+----
+Priority:   70
+Status: ToDo
+ID: status-ctx-5egg
+Created: 2026-09-14T06:07:05Z
+Updated: 2026-09-14T06:07:05Z
+
+Move a task node's status out of the {key=value} state block in its text and into the node's context_value, the way summary nodes already carry done or failed in context_value. Task nodes become context_type "task", context_name = lens, context_value = one of queued, running, waiting, done, failed. The state block keeps only the run ledger: attempts, failures, chat, read, model, retry_limit, updated.
+
+Code (js/task_harness.js): selectNext/isEligible read node.contextValue, not the parsed block; an empty or unknown context_value on a task node is an error (fail fast, no fallback to queued). Remove the queued fallback from parseStateBlock, which returns an empty state when no block is present. resetStaleRunning, runTask, applyTermination and terminate write status via docmem.updateContext(nodeId, node.contextType, node.contextName, status) and the ledger via the existing writeState; termination makes two calls, no combined Docmem update is added. The task message tells workers to create child tasks with docmem_create_node("append-child", <id>, "task", "", "queued", <instruction>) and drops the "text starting with {status=queued}" wording.
+
+Panel (js/tasks_panel.js): addTask appends with context_value "queued" and plain instruction text; setStatus uses updateContext; renderRow shows the status from context_value beside the ledger block.
+
+Spec: update docs/TASK_DELEGATION_SPEC.md (state block, task node shape, selection, termination, worker child-task instructions) to the new layout and append a docs/ARCHITECTURE_LOG.md entry. Existing dumps in toml/ keep their old blocks; they are read-only fixtures and need no migration. Verify in js/test_task_harness.html: selection ignores a stale status key in the block, an empty context_value throws, and finish/fail set both context_value and the summary.
 ----
 Priority:   65
 Status: ToDo
@@ -107,6 +129,14 @@ Created: 2026-09-12T23:36:27Z
 Updated: 2026-09-12T23:36:27Z
 
 Make reasoning a checkbox on the Chat page. Currently `REASONING` is a constant in js/agent_loop.js (true), sent as OpenRouter's `reasoning.enabled` in OpenRouterAPI.buildRequestBody and shown in the chat status line. Add an "Include reasoning" checkbox next to the model dropdown in index.html, read it in chat.js / tasks_panel.js when constructing the AgentLoop, and pass it through explicitly (no default parameter) so both the Chat tab and the task harness honor it. Fable requires reasoning on; small models run cheaper with it off.
+----
+Priority:   50
+Status: ToDo
+ID: narrow-guard-cf7v
+Created: 2026-09-14T05:57:32Z
+Updated: 2026-09-14T05:57:32Z
+
+In js/tasks_panel.js, guardStopped() refuses every hand edit (edit, requeue, move, delete) on every task node while the harness is started. The hazard it exists to prevent is narrower: hand edits to the node the harness is currently writing (harness.current), and deleting that node or one of its ancestors, which makes the harness's terminal writeState throw and stops the whole loop. Under the node-ownership write model in docs/TASK_DELEGATION_SPEC.md (Who writes when), editing a queued sibling, requeuing a failed task, or reordering what runs next are safe during a run and are the sideways steering the continuous-loop goal wants. Replace the state-keyed guard with a node-keyed one: refuse edit/requeue/move on the running node, refuse delete on the running node and its ancestors, allow everything else while started. Keep the docmem-switch refusal keyed on harness state. Update the Start and Stop section of TASK_DELEGATION_SPEC (currently "every other hand edit MUST be refused while started") to the new rule, and append an ARCHITECTURE_LOG entry. Verify with the harness running that moving a queued sibling changes which task runs next without an OptimisticLockError.
 ----
 Priority:   45
 Status: ToDo
