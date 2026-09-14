@@ -41,6 +41,16 @@ export class NodeHasher {
 /**
  * OptimisticLockError - Error thrown when optimistic locking fails due to concurrent modification
  */
+// `last` is the command layer's reference to the most recently placed node.
+// No node may carry it as an id, or the reference could never reach that node.
+export const LAST_NODE = 'last';
+
+export function assertNodeIdAllowed(id) {
+    if (id === LAST_NODE) {
+        throw new Error(`${LAST_NODE} is a reserved node reference and cannot be a node id`);
+    }
+}
+
 export class OptimisticLockError extends Error {
     constructor(nodeId, message = 'Concurrent modification detected') {
         super(message);

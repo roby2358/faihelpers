@@ -204,6 +204,7 @@ export class AgentLoop {
     }
 
     async executeCalls(calls) {
+        this.commandRouter.beginResponse();
         const docmem = this.chatSession.docmem;
         const outputs = [];
         let terminate = null;
@@ -212,7 +213,7 @@ export class AgentLoop {
         for (const call of calls) {
             this.checkAborted();
             try {
-                const result = await this.commandRouter([call.name, ...call.args], docmem);
+                const result = await this.commandRouter.run([call.name, ...call.args], docmem);
                 outputs.push(result.success ? result.result : this.formatError(call.name, result.result));
 
                 if (result.terminate) {

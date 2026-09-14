@@ -160,6 +160,14 @@ Updated: 2026-09-12T07:01:11Z
 
 Add an updated_at timestamp column to the docmem node definition (DuckDB schema, Node class in js/docmem_tools/docmem_types.js, TOML round-trip in js/persist/toml.js). Set it on every create and update. Keep it out of the hash formula. Once present, the task harness should use it instead of the `updated` key it currently writes in task state blocks, and TASK_DELEGATION_SPEC.md should drop that key.
 ----
+Priority:   45
+Status: ToDo
+ID: cmd-registry-9tp8
+Created: 2026-09-14T08:16:38Z
+Updated: 2026-09-14T08:16:38Z
+
+Collapse the per-command facts scattered across js/command_router.js and js/docmem_tools/docmem_commands.js into one command registry. Today adding a docmem command means editing four places: the KNOWN_DOCMEM_COMMANDS set, the STATIC_DOCMEM_COMMANDS set (commands that run without an active docmem), the NODE_ID_ARGS table (which argument positions hold node ids, used to resolve the reserved "last" reference), and the switch in executeDocmemCommand that checks arity and calls the handler. The "places a node" fact is implied only by whether a handler's result carries placedId. Replace these with a single table keyed by command name whose entry holds: the usage string and minimum arity, whether it needs an active docmem, the node-id argument positions, whether it places a node (sets "last"), and the handler function. Derive KNOWN_DOCMEM_COMMANDS, the static set, and the last-resolution positions from the table, and drive dispatch from it so the switch goes away. Keep result wording and error messages unchanged so js/test_command_router.html and the prompt examples still hold; extend that test page with a check that every entry in KNOWN_DOCMEM_COMMANDS has a registry entry. Append a docs/ARCHITECTURE_LOG.md entry; no spec change since behavior is unchanged.
+----
 Priority:   40
 Status: ToDo
 ID: view-meta-4a6m

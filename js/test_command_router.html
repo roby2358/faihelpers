@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Command Router Tests</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 900px; margin: 40px auto; padding: 20px; background: #f5f5f5; }
+        .test { background: white; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 4px solid #4CAF50; }
+        .test.fail { border-left-color: #f44336; }
+        .test-name { font-weight: bold; margin-bottom: 5px; }
+        .test-result { color: #666; font-size: 0.9em; }
+        .pass { color: #4CAF50; font-weight: bold; }
+        .fail { color: #f44336; font-weight: bold; }
+        .summary { background: #333; color: white; padding: 20px; border-radius: 5px; margin-top: 20px; }
+        pre { background: #f9f9f9; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Command Router Tests</h1>
+    <p>Covers the reserved <code>last</code> node reference. Needs DuckDB WASM, so serve over HTTP.</p>
+    <div id="results"></div>
+    <div class="summary" id="summary"></div>
+
+    <script type="module">
+        import { Docmem } from './docmem_tools/docmem.js';
+        import { createChatCommandRouter } from './command_router.js';
+        import { Docmem as DocmemClass } from './docmem_tools/docmem.js';
+
+        // Each test is an async function returning a value; `expected` is
+        // compared by JSON. Tests with `fails` pass when the router returns
+        // success=false and the result contains that text.
+
+        const docmem = new Docmem('router_test');
+        await docmem.ready();
+        const rootId = 'router_test';
+        const childTexts = async (parentId) =>
+            (await docmem.getSortedChildren(parentId)).map(n => n.text);
+        const create = (router, mode, anchor, text) =>
+            router.run(['docmem_create_node', mode, anchor, 'para', '', '', text], docmem);
+
+        const tests = [
+            {
+                name: 'last before any create in the response fails',
+                fn: async () => {
+                    const router = createChatCommandRouter();
+                    router.beginResponse();
+                    return await router.run(['docmem_update_content', 'last', 'x'], docmem);
+                },
+                fails: 'no last node in this response'
+            },
+            {
+                name: 'three after-inserts through last land in order',
+                fn: async () => {
+                    const router = createChatCommandRouter();
+                    router.beginResponse();
+                    const anchor = await create(router, 'append-child', rootId, 'anchor');
+                    const anchorId = anchor.lastId;
+                    await create(router, 'after', anchorId, 'A');
+                    await create(router, 'after', 'last', 'B');
+                    await create(router, 'after', 'last', 'C');
+                    return await childTexts(rootId);
+                },
+                expected: ['anchor', 'A', 'B', 'C']
+            },
+            {
+                name: 'result text shows the resolved id, never the word last',
+                fn: async () => {
+                    const router = createChatCommandRouter();
+                    router.beginResponse();
+                    const first = await create(router, 'append-child', rootId, 'first');
+                    const second = await create(router, 'after', 'last', 'second');
+                    return {
+                        mentionsLast: /\blast\b/.test(second.result.replace('as last child', '')),
+                        namesAnchor: second.result.endsWith(`after ${first.lastId}`)
+                    };
+                },
+                expected: { mentionsLast: false, namesAnchor: true }
+            },
+            {
+                name: 'last follows a move',
+                fn: async () => {
+                    const router = createChatCommandRouter();
+                    router.beginResponse();
+                    const a = await create(router, 'append-child', rootId, 'moved');
+                    const b = await create(router, 'append-child', rootId, 'target');
+                    await router.run(['docmem_move_node', 'before', a.lastId, b.lastId], docmem);
+                    const updated = await router.run(['docmem_update_content', 'last', 'moved+updated'], docmem);
+                    return updated.result.endsWith(a.lastId);
+                },
+                expected: true
+            },
+            {
+                name: 'beginResponse clears the reference',
+                fn: async () => {
+                    const router = createChatCommandRouter();
+                    router.beginResponse();
+                    await create(router, 'append-child', rootId, 'stale');
+                    router.beginResponse();
+                    return await router.run(['docmem_delete', 'last'], docmem);
+                },
+                fails: 'no last node in this response'
+            },
+            {
+                name: 'a failed command does not move last',
+                fn: async () => {
+                    const router = createChatCommandRouter();
+                    router.beginResponse();
+                    const a = await create(router, 'append-child', rootId, 'kept');
+                    await router.run(['docmem_copy_node', 'after', 'nope-not-a-node', a.lastId], docmem);
+                    const updated = await router.run(['docmem_update_content', 'last', 'kept'], docmem);
+                    return updated.result.endsWith(a.lastId);
+                },
+                expected: true
+            },
+            {
+                name: 'delete leaves last on the placed node',
+                fn: async () => {
+                    const router = createChatCommandRouter();
+                    router.beginResponse();
+                    const other = await create(router, 'append-child', rootId, 'other');
+                    const placed = await create(router, 'append-child', rootId, 'placed');
+                    await router.run(['docmem_delete', other.lastId], docmem);
+                    const after = await create(router, 'after', 'last', 'after-placed');
+                    return after.result.endsWith(`after ${placed.lastId}`);
+                },
+                expected: true
+            },
+            {
+                name: 'update content moves last to the updated node',
+                fn: async () => {
+                    const router = createChatCommandRouter();
+                    router.beginResponse();
+                    const first = await create(router, 'append-child', rootId, 'first');
+                    await create(router, 'append-child', rootId, 'second');
+                    await router.run(['docmem_update_content', first.lastId, 'first edited'], docmem);
+                    const after = await create(router, 'after', 'last', 'after-first');
+                    return after.result.endsWith(`after ${first.lastId}`);
+                },
+                expected: true
+            },
+            {
+                name: 'docmem_create refuses last as a root name',
+                fn: async () => {
+                    const router = createChatCommandRouter();
+                    router.beginResponse();
+                    return await router.run(['docmem_create', 'last'], docmem);
+                },
+                fails: 'reserved node reference'
+            },
+            {
+                name: 'Docmem refuses last as a root id on every path',
+                fn: async () => {
+                    try {
+                        await new DocmemClass('last').ready();
+                        return 'created';
+                    } catch (error) {
+                        return error.message;
+                    }
+                },
+                expected: 'last is a reserved node reference and cannot be a node id'
+            },
+        ];
+
+        const results = document.getElementById('results');
+        let passed = 0;
+        for (const t of tests) {
+            const div = document.createElement('div');
+            div.className = 'test';
+            let ok = false;
+            let detail = '';
+            try {
+                const value = await t.fn();
+                if (t.fails) {
+                    ok = value.success === false && value.result.includes(t.fails);
+                    detail = value.result;
+                } else {
+                    detail = JSON.stringify(value);
+                    ok = detail === JSON.stringify(t.expected);
+                }
+            } catch (error) {
+                detail = `threw: ${error.message}`;
+            }
+            if (ok) passed += 1; else div.classList.add('fail');
+            div.innerHTML = `<div class="test-name">${t.name} <span class="${ok ? 'pass' : 'fail'}">${ok ? 'PASS' : 'FAIL'}</span></div><pre class="test-result">${detail}</pre>`;
+            results.appendChild(div);
+        }
+        document.getElementById('summary').textContent = `${passed} / ${tests.length} passed`;
+    </script>
+</body>
+</html>

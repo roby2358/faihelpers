@@ -1,9 +1,9 @@
 import { randomString } from '../tools.js';
 import { DocmemSQLite } from './docmem_sqlite.js';
-import { Node, NodeHasher, OptimisticLockError } from './docmem_types.js';
+import { Node, NodeHasher, OptimisticLockError, LAST_NODE, assertNodeIdAllowed } from './docmem_types.js';
 
 // Re-export types for backwards compatibility
-export { Node, NodeHasher, OptimisticLockError };
+export { Node, NodeHasher, OptimisticLockError, LAST_NODE };
 
 export class Docmem {
     constructor(docmemId) {
@@ -49,7 +49,7 @@ export class Docmem {
             contextValue
         );
         await NodeHasher.hash(root);
-        await this.sqlite.insertNode(root);
+        await this.insertNode(root);
         return root;
     }
 
@@ -83,6 +83,7 @@ export class Docmem {
     }
 
     async insertNode(node) {
+        assertNodeIdAllowed(node.id);
         await this.sqlite.insertNode(node);
     }
 

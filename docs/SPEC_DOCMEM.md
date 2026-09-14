@@ -42,6 +42,14 @@ The tree structure MUST be shallow with clear semantics at each level. For examp
 ### Node ID Generation
 - Node IDs MUST be randomly generated 8-character strings.
 - The ONLY exception is the docmem root ID, which MAY be user-specified when creating a new docmem.
+- `last` is a reserved node reference. Docmem MUST refuse to insert any node, root or interior, whose id is `last`, on every creation path (commands, UI, import).
+
+### The `last` Reference
+- In any node-id argument of a docmem command, the literal `last` resolves to the id of the node most recently placed or content-updated by that agent's commands in the current response.
+- The placing commands are create node, copy, move, and add summary; each sets `last` to the node it placed. Update content sets `last` to the node it updated. Every other command (update context, delete, queries) leaves `last` unchanged, so after a create followed by a delete of some other node, `last` still names the created node.
+- The reference is held by the command router and is reset at the start of each response before any of its calls run. It is never stored on a node.
+- Using `last` before anything has been placed or updated in the current response MUST fail with `no last node in this response`.
+- Command results MUST show the resolved id, never the word `last`.
 
 ### Required Properties
 

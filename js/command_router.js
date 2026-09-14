@@ -6,10 +6,48 @@
  */
 import { DocmemCommands, KNOWN_DOCMEM_COMMANDS } from './docmem_tools/docmem_commands.js';
 import { SystemCommands, KNOWN_SYSTEM_COMMANDS } from './system_tools/system_commands.js';
+import { LAST_NODE } from './docmem_tools/docmem_types.js';
 
 export const KNOWN_COMMANDS = new Set([...KNOWN_SYSTEM_COMMANDS, ...KNOWN_DOCMEM_COMMANDS]);
 const VALID_MODES = new Set(['append-child', 'before', 'after']);
 const STATIC_DOCMEM_COMMANDS = new Set(['docmem_get_all_roots', 'docmem_create']);
+
+// `last` is a reserved node reference: the node this router most recently
+// placed (created, copied, moved, or made a summary) or updated the content
+// of, in the current response. Other commands leave it unchanged. It resolves in the node-id
+// positions listed here (indices into the args after the command name) and
+// nowhere else. It is never stored; results always show the resolved id.
+// Docmem refuses `last` as a node id, so the reference can never be shadowed.
+const NODE_ID_ARGS = {
+    docmem_create: [],
+    docmem_get_all_roots: [],
+    docmem_create_node: [1],
+    docmem_update_content: [0],
+    docmem_update_context: [0],
+    docmem_delete: [0],
+    docmem_structure: [0],
+    docmem_search: [0],
+    docmem_focus: [0, 1],
+    docmem_add_summary: [4, 5],
+    docmem_move_node: [1, 2],
+    docmem_copy_node: [1, 2],
+};
+
+function resolveLastNode(command, restArgs, lastId) {
+    if (!Object.hasOwn(NODE_ID_ARGS, command)) {
+        throw new Error(`${command} has no node-id positions registered, so ${LAST_NODE} cannot be resolved for it; use a node id from a command result instead`);
+    }
+    const positions = NODE_ID_ARGS[command];
+    const resolved = [...restArgs];
+    for (const i of positions) {
+        if (resolved[i] !== LAST_NODE) continue;
+        if (lastId === null) {
+            throw new Error(`no ${LAST_NODE} node in this response: nothing has been placed or updated yet`);
+        }
+        resolved[i] = lastId;
+    }
+    return resolved;
+}
 
 function requireArgs(args, minCount, commandName, usage) {
     if (args.length < minCount) {
@@ -23,14 +61,15 @@ function requireMode(mode) {
     }
 }
 
-async function executeDocmemCommand(args, docmem) {
-    const [command, ...restArgs] = args;
+async function executeDocmemCommand(args, docmem, lastId) {
+    const [command, ...rawArgs] = args;
 
     if (!STATIC_DOCMEM_COMMANDS.has(command) && !docmem) {
         throw new Error(`Command ${command} requires an active docmem instance`);
     }
 
     try {
+        const restArgs = resolveLastNode(command, rawArgs, lastId);
         const commands = new DocmemCommands(docmem);
 
         switch (command) {
@@ -145,8 +184,14 @@ function noOpOutsideTask(restArgs) {
 const TASK_TERMINATORS = { suspend: suspendInTask, finish: finishInTask };
 const CHAT_TERMINATORS = { suspend: noOpOutsideTask, finish: noOpOutsideTask };
 
+// A router is { run(args, docmem), beginResponse() }. It carries the `last`
+// reference: a command that sets it reports the node as `lastId` in its
+// result, and AgentLoop calls beginResponse() before executing each
+// response's calls so a stale id never crosses turns.
 function buildRouter(terminators) {
-    return function router(args, docmem) {
+    let lastId = null;
+
+    async function run(args, docmem) {
         const [command, ...restArgs] = args;
 
         if (Object.hasOwn(terminators, command)) {
@@ -154,7 +199,11 @@ function buildRouter(terminators) {
         }
 
         if (KNOWN_DOCMEM_COMMANDS.has(command)) {
-            return executeDocmemCommand(args, docmem);
+            const result = await executeDocmemCommand(args, docmem, lastId);
+            if (result.success && Object.hasOwn(result, 'lastId')) {
+                lastId = result.lastId;
+            }
+            return result;
         }
 
         if (KNOWN_SYSTEM_COMMANDS.has(command)) {
@@ -162,7 +211,13 @@ function buildRouter(terminators) {
         }
 
         return { success: false, result: `unknown command. Available: ${[...KNOWN_COMMANDS].sort().join(', ')}` };
-    };
+    }
+
+    function beginResponse() {
+        lastId = null;
+    }
+
+    return { run, beginResponse };
 }
 
 /** Router for the user-facing chat: suspend and finish are no-ops with a warning. */

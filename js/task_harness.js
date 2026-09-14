@@ -333,13 +333,14 @@ export class TaskHarness {
     // in the task root's `read` key so every later task in this docmem sees it
     routerFor(chat) {
         const router = createTaskCommandRouter();
-        return async (args, docmem) => {
-            const result = await router(args, docmem);
+        const run = async (args, docmem) => {
+            const result = await router.run(args, docmem);
             if (args[0] === 'docmem_create' && result.success) {
                 await this.addToReadSet(chat, args[1]);
             }
             return result;
         };
+        return { run, beginResponse: router.beginResponse };
     }
 
     async addToReadSet(chat, rootId) {

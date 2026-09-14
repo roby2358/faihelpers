@@ -28,8 +28,17 @@ Every docmem is automatically serialized and included in your context as a syste
 - Use node IDs from the serialized docmems in your context, or from command responses
 - You MUST NOT make up or assume node IDs
 - The ONLY node you name is the docmem root when creating it with \`docmem_create\`
-- After creating a node, you MUST wait for the response to get the actual node_id before using it in subsequent commands
+- After creating a node, you MUST wait for the response to get the actual node_id before using it in subsequent commands, except through \`last\`
 - Once you know the node_id you may include multiple calls in the same pytool block
+
+### The \`last\` Reference
+- Wherever a command takes a node id, the literal \`"last"\` means the node you most recently placed or updated in the current response
+- docmem_create_node, docmem_copy_node, docmem_move_node, and docmem_add_summary move \`last\` to the node they placed; docmem_update_content moves it to the node it updated. Every other command (update_context, delete, queries) leaves \`last\` unchanged
+- So you can insert in order without waiting for ids:
+  \`docmem_create_node("after", "12345", "para", "", "", "A")\` then \`docmem_create_node("after", "last", "para", "", "", "B")\` then \`docmem_create_node("after", "last", "para", "", "", "C")\` leaves 12345 A B C
+- It resets at the start of every response; before anything has been placed or updated in the response it fails with \`no last node in this response\`. By then you have the real ids in your results, so use those
+- \`last\` is a reference, never a stored id. Results always show the resolved id, e.g. \`created ab12cd34 after 9yu7wxh6\`
+- \`last\` can never be a node id, so \`docmem_create("last")\` is refused
 
 ### Context Fields
 - All context fields (context_type, context_name, context_value) are REQUIRED for node creation and updates
@@ -77,7 +86,7 @@ def docmem_create_node(mode: str, node_id: str, context_type: str, context_name:
     """Creates a new node at the specified position relative to an existing node.
 
     mode: "append-child" (adds as child), "before" (inserts as sibling before), or "after" (inserts as sibling after)
-    node_id: existing node ID to position relative to (must exist)
+    node_id: existing node ID to position relative to (must exist), or "last" for the node most recently placed or updated in this response
     context_type: string 0-24 chars
     context_name: string 0-24 chars
     context_value: string 0-24 chars

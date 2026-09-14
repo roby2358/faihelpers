@@ -119,12 +119,12 @@ export class DocmemCommands {
             beforeAction: (newId, nId) => `created ${newId} before ${nId}`,
             afterAction: (newId, nId) => `created ${newId} after ${nId}`
         }, 'docmem_create_node');
-        return { success: true, result: `docmem_create_node: ${result.action}` };
+        return { success: true, result: `docmem_create_node: ${result.action}`, lastId: result.node.id };
     }
 
     async updateContent(nodeId, content) {
         const node = await this.docmem.updateContent(nodeId, content);
-        return { success: true, result: `docmem_update_content: updated ${node.id}` };
+        return { success: true, result: `docmem_update_content: updated ${node.id}`, lastId: node.id };
     }
 
     async updateContext(nodeId, contextType, contextName, contextValue) {
@@ -171,7 +171,7 @@ export class DocmemCommands {
         }
         const validated = this.validateContext(contextType, contextName, contextValue, 'docmem_add_summary');
         const node = await this.docmem.addSummary(startNodeId, endNodeId, content, validated.contextType, validated.contextName, validated.contextValue);
-        return { success: true, result: `docmem_add_summary: created summary ${node.id} over ${startNodeId} through ${endNodeId}` };
+        return { success: true, result: `docmem_add_summary: created summary ${node.id} over ${startNodeId} through ${endNodeId}`, lastId: node.id };
     }
 
     async moveAppendChild(nodeId, targetParentId) {
@@ -199,7 +199,7 @@ export class DocmemCommands {
             beforeAction: (movedId, nId, tId) => `moved ${movedId} before ${tId}`,
             afterAction: (movedId, nId, tId) => `moved ${movedId} after ${tId}`
         }, 'docmem_move_node');
-        return { success: true, result: `docmem_move_node: ${result.action}` };
+        return { success: true, result: `docmem_move_node: ${result.action}`, lastId: nodeId };
     }
 
     async copyNode(mode, nodeId, targetId) {
@@ -211,7 +211,7 @@ export class DocmemCommands {
             beforeAction: (copyId, nId, tId) => `created ${copyId} before ${tId}, a copy of ${nId}`,
             afterAction: (copyId, nId, tId) => `created ${copyId} after ${tId}, a copy of ${nId}`
         }, 'docmem_copy_node');
-        return { success: true, result: `docmem_copy_node: ${result.action}` };
+        return { success: true, result: `docmem_copy_node: ${result.action}`, lastId: result.node.id };
     }
 
     async getAllRoots() {
