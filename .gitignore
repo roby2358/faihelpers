@@ -78,4 +78,5 @@ pjpd/bak
 
 # Local dev server
 .server.pid
-toml/
+toml/*
+!toml/house-style.toml

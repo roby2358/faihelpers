@@ -1,0 +1,139 @@
+[house-style]
+parent-node-id=
+context="root:purpose:document"
+content=""
+
+[begzgjr9]
+parent-node-id=house-style
+context="overview:style:intro"
+content="""
+The house style combines accessible language, vivid physical description, character-driven comedy and a conversational, flowing rhythm. The prose should sound natural when read aloud, as if a perceptive storyteller is speaking plainly to an interested listener. Vary sentence length, but make the movement of thought more important than variety for its own sake. When several thoughts form one natural progression—such as relationship, duration and consequence—let them travel together through coordination, subordination or a well-placed participial phrase instead of assigning each thought a separate sentence. A sentence should be long enough to complete its developing thought, then hand an image, action, implication or emphasis to the sentence after it. The resulting cadence should have a gentle swinging or swaying quality: advance and response, extension and return, with the reader carried forward rather than repeatedly stopped and restarted. Paragraphs should feel shaped by one developing current of attention even when that current changes speed. Prefer familiar turns of speech, literal observations and direct sentences. Let humor arise mainly from character, dialogue, timing and circumstance. Avoid routinely shaping narration into quips, aphorisms, coy implications, clever summaries or sentences that advertise their own wit. A conspicuous phrase, abrupt break or intentional verbal train wreck is welcome when the surrounding prose has earned it and the disruption lands a specific joke, realization or point. Establish a clear picture of each character, keep it alive through movement and selected reminders, and let each event visibly change that picture. The reader should understand what happens, feel its effect on the character and remain interested in what happens next.
+
+Use the prompts below in order, one pass at a time. Read the whole current draft before each pass, preserve accepted decisions, and make only changes that serve that pass. A pass may be light or require no edits. Apply improvements rather than merely listing suggestions unless the user requests review only. After each pass, briefly report meaningful changes and the current word count. Keep the agreed length in view throughout; later passes must not undo earlier gains. Specific story instructions take precedence over these defaults.
+"""
+
+[jenkzqas]
+parent-node-id=house-style
+context="pass:number:01"
+content="""
+1. ESTABLISH THE STORY'S CONTRACT
+
+Prompt: Read the story and the user's accepted instructions. Identify its premise, viewpoint, character ages and identities, clothing, setting, intended scale, ending and word target. Keep the relevant adult characters unambiguously adult. Identify which style applies: Cake uses lush, accumulative description and recurring sensory rhythms; Science uses madcap setup followed by direct physical action, with jokes returning at a deliberate boundary; flash fiction compresses the setup and progression around a few strong images and an atmospheric motif. Use these as adjustable tendencies. Preserve character distinctions: buoyant energy does not automatically imply strength, athleticism or sturdiness. Briefly state the working constraints before editing.
+"""
+
+[42z966x7]
+parent-node-id=house-style
+context="pass:number:02"
+content="""
+2. MAKE THE SEQUENCE READ CLEARLY
+
+Prompt: Review the story for cause and effect, transitions and physical blocking. Establish where characters and important objects are before they matter. Plant a prop that causes a later event with a brief, natural earlier appearance. Track journeys, entrances, changes of posture and elapsed time. Resolve accidental contradictions without explaining away an intentional mystery. Keep environmental interactions proportionate: a bump or supporting surface may help orientation, but repeated furniture movement should not overwhelm the central action. Make small connective edits before adding new scenes.
+"""
+
+[c3hhijtk]
+parent-node-id=house-style
+context="pass:number:03"
+content="""
+3. REPAIR PARAGRAPHS AND DIALOGUE
+
+Prompt: Combine choppy paragraphs into coherent beats of action, observation and speech. Before accepting a sentence break, ask whether the thoughts on either side are really stages of one thought. If one supplies the time, cause, condition, contrast, development or consequence of the other, usually join them in a sentence whose clauses reproduce that relationship. Favor flowing paragraphs with varied sentence lengths and transitions that sound natural aloud. Within each paragraph, let one idea hand the reader to the next: carry forward a concrete detail, answer an implied question, complete a motion, shift attention along a visible line or let a character's response arise from what was just said. Mix shorter and longer sentences so the cadence can gather, settle and gather again. Do not alternate lengths mechanically, join unrelated ideas merely to preserve motion or repeat the same grammatical pattern until the swing becomes a metronome. Dialogue should participate in the flow: an utterance should create the expectation, pressure or opening to which the next utterance or action responds. Do not manufacture punchlines at paragraph endings or use a clever narrative aside where a plain connection would read more naturally. Use no more than three isolated narrative impact lines in the whole story; ordinary dialogue turns and separately formatted messages are exceptions. Reserve those breaks for moments whose abruptness is intentional and meaningful. Start a new paragraph for every change of speaker. Keep a speaker's own action and dialogue together when they belong to one beat: There was a sound. "What was that?" Limit rapid exchanges to one volley, occasionally two, before action or observation develops the scene. Consolidate redundant remarks. Put each text message on its own line with a clear label, such as GLOSIA: *Message.*
+"""
+
+[ynh3fh4f]
+parent-node-id=house-style
+context="pass:number:04"
+content="""
+4. ESTABLISH A MEMORABLE CHARACTER PICTURE
+
+Prompt: Sharpen each major character's initial impression through face, hair, build, outfit, posture and characteristic energy. Integrate these into something the character is doing. Preserve differences between characters rather than giving everyone the same silhouette or temperament. Make clothing specific enough to follow later: color, cut, fit, fastenings and layers. Honor established wardrobe preferences. Keep eyewear and accessories consistent. Remove explanatory praise when a concrete image can communicate the same quality.
+"""
+
+[tn4qaitd]
+parent-node-id=house-style
+context="pass:number:05"
+content="""
+5. ADD SMALL, CHARACTERISTIC MANNERISMS
+
+Prompt: Introduce a few gentle gestures appropriate to each character: tucking back hair, adjusting a cap, smoothing a hem, settling through one hip, gathering a loose layer or rubbing a tense spot. Let fabric respond to ordinary movement and reveal posture and silhouette naturally. Use the gestures to express ease, uncertainty, impatience or self-soothing. Repeat selected mannerisms later with changed timing or difficulty so they become recognizable habits. Avoid inserting a grooming action into every paragraph or making characters pose for an implied camera.
+"""
+
+[rkbx4epw]
+parent-node-id=house-style
+context="pass:number:06"
+content="""
+6. MAINTAIN THE VISUAL BASELINE
+
+Prompt: Read for places where the reader may lose the character's original appearance. Deliberate repetition is welcome; a light checklist can help the reader retain the image. Vary wording and context rather than disguising every reminder. As the story progresses, show what remains recognizable as well as what changes. Prefer revising an existing sentence to adding another descriptive paragraph.
+"""
+
+[2qz8tb4h]
+parent-node-id=house-style
+context="pass:number:07"
+content="""
+7. MAKE EACH STAGE OF PLOT DISTINCT
+
+Prompt: Review the central plot progression from its first subtle signal through visible confirmation. Preserve the intended endpoint; a story ending during an ongoing arc need not acquire a completed transformation.
+"""
+
+[mqyuwi87]
+parent-node-id=house-style
+context="pass:number:08"
+content="""
+8. CLARIFY PHYSICAL SENSATION AND SOUND
+
+Prompt: Give the existing action concrete direction and consequence. Tie breath, involuntary sounds, trembling, bracing or slipping hands to specific effort rather than scattering them as decoration. Let quiet signals precede larger ones, and vary the responses so every sentence does not end in a gasp or groan. Keep exertion, fear and pain distinct according to the premise. Preserve the character's agency through attempts to understand, cope or prepare.
+"""
+
+[znqtcfu5]
+parent-node-id=house-style
+context="pass:number:09"
+content="""
+9. CHECK CHARACTER CONTINUITY
+
+Prompt: Track character personality and visualization to make sure the characters have continuity from start to end.
+"""
+
+[7w2ky8gk]
+parent-node-id=house-style
+context="pass:number:10"
+content="""
+10. TUNE COMEDY AND INFERENCE
+
+Prompt: Place humor where the selected mode supports it. Keep the narrator conversational and mostly unobtrusive; do not make every observation joke-shaped. Develop existing comedy through character reactions, persistence, escalation, precise blocking and earned callbacks. Use three escalating close calls when the story calls for that structure. In Science mode, quiet the narrator's cleverness during sustained physical action and let the action carry the scene until the agreed comic boundary. In any mode, a deliberately awkward, abrupt or excessive line may break the flow when the break itself makes a specific point; frame it clearly enough that it reads as intentional, and return to the natural register afterward. A specifically authorized exception, such as the three "busy volumizing" beats, remains a local exception rather than a requirement for other stories. Where the reader is meant to infer a condition or cause, retain the concrete clues and remove unnecessary labels or explanations. Do not replace explicit naming with repeated coy references to an unnamed word.
+"""
+
+[a8h9vnq3]
+parent-node-id=house-style
+context="pass:number:11"
+content="""
+11. DEEPEN CADENCE AND THE ENDING
+
+Prompt: Read the prose aloud in your head. The default voice should feel conversational and flowing rather than polished into a succession of quotable lines. Listen across sentence boundaries as well as within them. A sentence may lengthen as an action or perception develops, then settle into a shorter response; that response may turn the reader toward the next image, which can widen again. Seek this loose swing without forcing a fixed pattern. Check that pronouns, repeated details, causal links and shifts of attention give the reader something to follow from one sentence into the next. If a sentence closes an idea completely, make sure the pause is useful; otherwise, revise it so it creates a natural expectation that the next sentence fulfills. Smooth awkward joins, repeated sentence openings and phrases that interrupt visualization. Replace conspicuously clever wording with the ordinary phrasing a good storyteller would naturally choose, unless its conspicuousness has a deliberate job. In Cake mode, let selected rhythms of movement, breath, light or ambient sound return with variation; in Science mode, preserve plain, direct sentences during the central action; in flash fiction, let a few recurring motifs carry atmosphere. Near the end, provide a coherent glimpse from face to feet, or as much as the viewpoint permits, showing the current form and recognizable personality. Keep it integrated into the scene. Land the ending on an earned gesture, consequence, callback or sensation, and stop before explaining its meaning.
+"""
+
+[9x2dxpas]
+parent-node-id=house-style
+context="pass:number:12"
+content="""
+12. COMPRESS WITHOUT LOSING THE EXPERIENCE
+
+Prompt: Trim toward the agreed word target or requested reduction. Cut duplicated explanation, repeated setup, decorative adjectives and sentences that restate an image before cutting distinct action. Combine sentences that perform the same job. Preserve character identity, selected mannerisms, useful visual reminders, every necessary stage of progression, meaningful physical signals and the ending. Do not mechanically remove all repetition; some creates rhythm and orientation. Recheck that compression has not produced choppy paragraphs or erased a transition. Report before-and-after word counts and the percentage change.
+"""
+
+[jsnjvxjw]
+parent-node-id=house-style
+context="pass:number:13"
+content="""
+13. READ AS AN EAGER BUT DISTRACTIBLE READER
+
+Prompt: Read the entire revised story fresh. Note where attention wanders, a prop seems to appear from nowhere, anatomy or blocking becomes difficult to picture, a phrase sounds like an instruction to the writer, or an explanation weakens an image. Check dialogue attribution, character names, wardrobe state, time, scale and the final transition. Give priority to snags that actually interrupt the reading experience. For an editing request, make small final repairs and report any unresolved issue. For a review-only request, call out the snags with locations and leave the file unchanged. Finish by confirming the final length and the main constraints preserved.
+"""
+
+[tv4rknw9]
+parent-node-id=house-style
+context="pass:number:14"
+content="""
+14. FRAME THE STANDOUT IMAGES
+
+Prompt: Identify the few images that remain in your mind after reading: a revealing gesture, an arresting change, a comic arrangement, an unexpected detail or the final tableau. Add small beats around the strongest of them so the reader has time to anticipate, see and absorb the image. A moment of stillness before it, a shift in attention, a concrete sensory cue or a brief reaction afterward can provide the frame. Let each addition arise naturally from the viewpoint and action. Preserve the image's clear wording and avoid explaining its significance. Select only the moments that benefit from this attention; keep their framing varied and proportionate to the story's length. Work within the existing paragraph rhythm and limit of three isolated narrative lines. Read the affected transitions again, check continuity and the word target, and briefly report which images received framing and why.
+"""
